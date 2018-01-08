@@ -1,13 +1,13 @@
-package io.joshworks.fstore.store;
+package io.joshworks.logstore;
 
 
-import io.joshworks.fstore.page.Page;
+import io.joshworks.fstore.utils.IOUtils;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 
-public class RandomAccessDataStore implements DataStore {
+public class RandomAccessDataStore implements LogStorage {
 
     static int length = 104857600;
     private final RandomAccessFile raf;
@@ -21,22 +21,17 @@ public class RandomAccessDataStore implements DataStore {
         }
     }
 
-    //TODO file.read must be done in a loop, a read may return less than the total bytes of a buffer
-
     @Override
-    public void write(Page page)  {
-//        long position = raf.getFilePointer();
-//        raf.write(data.array());
-//        return position;
+    public synchronized long append(byte[] data) throws IOException {
+        long position = raf.getFilePointer();
+        raf.write(data);
+        return position;
     }
 
     @Override
-    public Page read(int pageId)  {
-//        raf.seek(position);
-//        byte[] data = new byte[size];
-//        raf.read(data);
-//        return data;
-        return null;
+    public void read(byte[] data, int offset, int length) throws IOException {
+        raf.seek(offset);
+        IOUtils.readFully(raf, data);
     }
 
     @Override

@@ -1,7 +1,7 @@
 package io.joshworks.fstore;
 
 import io.joshworks.fstore.event.Event;
-import io.joshworks.fstore.serializer.KryoEventSerializer;
+import serializer.KryoEventSerializer;
 import io.joshworks.fstore.store.RandomAccessDataStore;
 import org.junit.Test;
 import org.openjdk.jmh.annotations.Benchmark;

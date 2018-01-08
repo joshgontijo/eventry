@@ -11,6 +11,15 @@
 
     <modules>
         <module>fstore</module>
+        <module>logstore</module>
+        <module>utils</module>
+        <module>api</module>
+        <module>serializer</module>
     </modules>
+
+    <properties>
+        <maven.compiler.source>1.9</maven.compiler.source>
+        <maven.compiler.target>1.9</maven.compiler.target>
+    </properties>
 
 </project>

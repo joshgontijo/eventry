@@ -1,4 +1,4 @@
-package io.joshworks.fstore.serializer;
+package serializer;
 
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;

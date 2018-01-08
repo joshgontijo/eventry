@@ -1,6 +1,6 @@
 package io.joshworks.fstore;
 
-import io.joshworks.fstore.serializer.KryoEventSerializer;
+import serializer.KryoEventSerializer;
 import io.joshworks.fstore.store.RandomAccessDataStore;
 
 public class RandomAccessFileStoreTest extends EventStoreTestBase {

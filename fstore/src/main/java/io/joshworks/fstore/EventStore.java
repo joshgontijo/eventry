@@ -1,7 +1,7 @@
 package io.joshworks.fstore;
 
 import io.joshworks.fstore.event.Event;
-import io.joshworks.fstore.serializer.EventSerializer;
+import serializer.EventSerializer;
 import io.joshworks.fstore.store.DataStore;
 
 public class EventStore {

@@ -1,7 +1,9 @@
-package io.joshworks.fstore.serializer;
+package io.joshworks.fstore.serializer.json;
 
 import com.google.gson.Gson;
-import io.joshworks.fstore.event.Event;
+import io.joshworks.fstore.api.Event;
+import io.joshworks.fstore.api.EventSerializer;
+
 
 public class JsonSerializer implements EventSerializer {
 
