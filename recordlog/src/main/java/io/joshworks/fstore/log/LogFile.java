@@ -17,7 +17,7 @@ import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.CRC32;
 
-public class LogAppender<T> implements Writer<T>, Closeable {
+public class LogFile<T> implements Writer<T>, Closeable {
 
     private static final byte[] CRC_SEED = ByteBuffer.allocate(4).putInt(456765723).array();
     private static final int HEADING_SIZE = Integer.BYTES + Integer.BYTES; //length + checksum
@@ -31,17 +31,17 @@ public class LogAppender<T> implements Writer<T>, Closeable {
     //Not using channel's position since we want the position
     private final AtomicLong position = new AtomicLong();
 
-    private static final Logger logger = LoggerFactory.getLogger(LogAppender.class);
+    private static final Logger logger = LoggerFactory.getLogger(LogFile.class);
 
 
-    public static <T> LogAppender<T> create(File file, Serializer<T> serializer, long fileSize) {
+    public static <T> LogFile<T> create(File file, Serializer<T> serializer, long fileSize) {
         return create(file, serializer, fileSize, DEFAULT_BUFFER_SIZE);
     }
 
-    public static <T> LogAppender<T> create(File file, Serializer<T> serializer, long fileSize, int bufferSize) {
-        LogAppender<T> appender = null;
+    public static <T> LogFile<T> create(File file, Serializer<T> serializer, long fileSize, int bufferSize) {
+        LogFile<T> appender = null;
         try {
-            appender = new LogAppender<>(file, serializer, bufferSize);
+            appender = new LogFile<>(file, serializer, bufferSize);
             appender.fileSize(fileSize);
             return appender;
         } catch (Exception e) {
@@ -50,14 +50,14 @@ public class LogAppender<T> implements Writer<T>, Closeable {
         }
     }
 
-    public static <T> LogAppender<T> open(File file, Serializer<T> serializer, int bufferSize, long position) {
+    public static <T> LogFile<T> open(File file, Serializer<T> serializer, int bufferSize, long position) {
         return open(file, serializer, bufferSize, position, false);
     }
 
-    public static <T> LogAppender<T> open(File file, Serializer<T> serializer, int bufferSize, long position, boolean checkConsistency) {
-        LogAppender<T> appender = null;
+    public static <T> LogFile<T> open(File file, Serializer<T> serializer, int bufferSize, long position, boolean checkConsistency) {
+        LogFile<T> appender = null;
         try {
-            appender = new LogAppender<>(file, serializer, bufferSize);
+            appender = new LogFile<>(file, serializer, bufferSize);
             if (checkConsistency) {
                 appender.checkConsistency(position);
             }
@@ -69,7 +69,7 @@ public class LogAppender<T> implements Writer<T>, Closeable {
         }
     }
 
-    private LogAppender(File file, Serializer<T> serializer, int bufferSize) {
+    private LogFile(File file, Serializer<T> serializer, int bufferSize) {
         try {
             if (bufferSize < HEADING_SIZE)
                 throw new IllegalArgumentException(MessageFormat.format("bufferSize must be greater or equals to {0}", HEADING_SIZE));
