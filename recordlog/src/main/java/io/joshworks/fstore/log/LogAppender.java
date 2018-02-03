@@ -3,6 +3,8 @@ package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.api.Serializer;
 import io.joshworks.fstore.utils.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
@@ -19,25 +21,41 @@ public class LogAppender<T> implements Writer<T>, Closeable {
     private static final byte[] CRC_SEED = ByteBuffer.allocate(4).putInt(456765723).array();
     private static final int HEADING_SIZE = Integer.BYTES + Integer.BYTES; //length + checksum
     private static final int DEFAULT_BUFFER_SIZE = 2048;
+    private static final long DEFAULT_FILE_SIZE = 10485760; //10mb
 
     private final Serializer<T> serializer;
     private final FileChannel channel;
     private final ByteBuffer buffer;
     private final RandomAccessFile raf;
 
+    private static final Logger logger = LoggerFactory.getLogger(LogAppender.class);
 
     public LogAppender(File file, Serializer<T> serializer) {
-       this(file, serializer, DEFAULT_BUFFER_SIZE);
+        this(file, serializer, DEFAULT_FILE_SIZE, DEFAULT_BUFFER_SIZE);
     }
 
-    public LogAppender(File file, Serializer<T> serializer, int bufferSize) {
+    public LogAppender(File file, Serializer<T> serializer, long fileSize) {
+        this(file, serializer, fileSize, DEFAULT_BUFFER_SIZE);
+    }
+
+    public LogAppender(File file, Serializer<T> serializer, long fileSize, int bufferSize) {
         try {
-            if(bufferSize < HEADING_SIZE)
+            if (bufferSize < HEADING_SIZE)
                 throw new IllegalArgumentException(MessageFormat.format("bufferSize must be greater or equals to {0}", HEADING_SIZE));
+
+            boolean exists = file.exists(); //TODO improve ?
 
             this.serializer = serializer;
             this.raf = new RandomAccessFile(file, "rw");
             this.channel = raf.getChannel();
+
+            if (exists) {
+                //re-read everything and set the position
+                long lastPosition = restore();
+                channel.position(lastPosition);
+            } else {
+                raf.setLength(fileSize);
+            }
 
             this.buffer = ByteBuffer.allocate(bufferSize);
         } catch (IOException e) {
@@ -45,6 +63,28 @@ public class LogAppender<T> implements Writer<T>, Closeable {
         }
     }
 
+    private long restore() {
+        try {
+            logger.info("Restoring log state");
+            Reader<T> reader = reader();
+            long position = 0;
+            while (reader.hasNext()) {
+                position = reader.position();
+            }
+            logger.info("Log state restored, current position {}", position);
+            return position;
+        } catch (Exception e) {
+            throw new IllegalStateException("Inconsistent log state found while restoring state");
+        }
+    }
+
+    public long position() {
+        try {
+            return channel.position();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     @Override
     public long write(T data) {
@@ -72,7 +112,7 @@ public class LogAppender<T> implements Writer<T>, Closeable {
     }
 
     private static int checksum(ByteBuffer buffer) {
-        if(!buffer.hasArray()) {
+        if (!buffer.hasArray()) {
             throw new IllegalArgumentException("ByteBuffer must be an array backed buffer");
         }
         return checksum(buffer.array(), 0, buffer.limit());
@@ -107,7 +147,6 @@ public class LogAppender<T> implements Writer<T>, Closeable {
         IOUtils.closeQuietly(channel);
         IOUtils.closeQuietly(raf);
     }
-
 
     private static class LogReader<T> implements Reader<T> {
 
@@ -184,11 +223,7 @@ public class LogAppender<T> implements Writer<T>, Closeable {
 
         @Override
         public long position() {
-            try {
-                return channel.position();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            return position;
         }
 
         @Override
