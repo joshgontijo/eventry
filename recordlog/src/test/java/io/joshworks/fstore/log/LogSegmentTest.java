@@ -18,15 +18,15 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(RandomOrderEnforcer.class)
-public class LogFileTest {
+public class LogSegmentTest {
 
-    private LogFile<String> appender;
+    private LogSegment<String> appender;
     private Path testFile;
 
     @Before
     public void setUp()  {
         testFile = new File("test.db").toPath();
-        appender = LogFile.create(testFile.toFile(), new StringSerializer(), 2048, 2048);
+        appender = LogSegment.create(testFile.toFile(), new StringSerializer(), 2048, 2048);
     }
 
     @After
@@ -38,7 +38,7 @@ public class LogFileTest {
     @Test(expected = IllegalArgumentException.class)
     public void minimumBuffer() {
         int minimumSize = 8;
-        LogFile.create(testFile.toFile(), new StringSerializer(), 1024, minimumSize - 1);
+        LogSegment.create(testFile.toFile(), new StringSerializer(), 1024, minimumSize - 1);
     }
 
     @Test
@@ -56,7 +56,7 @@ public class LogFileTest {
 
         long position = appender.position();
         appender.close();
-        appender = LogFile.open(testFile.toFile(), new StringSerializer(), 2048, position);
+        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), 2048, position);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
     }
@@ -81,7 +81,7 @@ public class LogFileTest {
 
         long position = appender.position();
         appender.close();
-        appender = LogFile.open(testFile.toFile(), new StringSerializer(), 2048, position, true);
+        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), 2048, position, true);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
 
@@ -109,7 +109,7 @@ public class LogFileTest {
 
         long position = appender.position();
         appender.close();
-        appender = LogFile.open(testFile.toFile(), new StringSerializer(), 2048, position + 1, true);
+        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), 2048, position + 1, true);
     }
 
     @Test(expected = CorruptedLogException.class)
@@ -127,7 +127,7 @@ public class LogFileTest {
             raf.writeInt(1);
         }
 
-        appender = LogFile.open(testFile.toFile(), new StringSerializer(), 2048, position - 1, true);
+        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), 2048, position - 1, true);
     }
 
     @Test
@@ -141,7 +141,7 @@ public class LogFileTest {
 
         long position = appender.position();
         appender.close();
-        appender = LogFile.open(testFile.toFile(), new StringSerializer(), 2048, position);
+        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), 2048, position);
 
         reader = appender.reader();
         assertTrue(reader.hasNext());
