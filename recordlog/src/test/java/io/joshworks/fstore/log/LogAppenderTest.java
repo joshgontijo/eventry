@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -162,5 +163,21 @@ public class LogAppenderTest {
         assertTrue(reader2.hasNext());
         assertEquals(data, reader2.next());
         assertEquals(4 + 4 + data.length(), reader1.position()); // 4 + 4 (heading) + data length
+    }
+
+    @Test
+    public void big_entry() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 10000; i++) {
+            sb.append(UUID.randomUUID().toString());
+        }
+        String data = sb.toString();
+        appender.write(data);
+
+        Reader<String> reader1 = appender.reader();
+        assertTrue(reader1.hasNext());
+        assertEquals(data, reader1.next());
+        assertEquals(4 + 4 + data.length(), reader1.position()); // 4 + 4 (heading) + data length
+
     }
 }
