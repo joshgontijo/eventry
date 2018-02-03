@@ -1,4 +1,6 @@
-package io.joshworks.fstore.api;
+package io.joshworks.fstore.serializer;
+
+import io.joshworks.fstore.event.Event;
 
 public interface EventSerializer {
     byte[] toBytes(Event event);

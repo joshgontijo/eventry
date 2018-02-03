@@ -10,7 +10,7 @@ import de.javakaffee.kryoserializers.JdkProxySerializer;
 import de.javakaffee.kryoserializers.SynchronizedCollectionsSerializer;
 import de.javakaffee.kryoserializers.UnmodifiableCollectionsSerializer;
 import io.joshworks.fstore.api.Event;
-import io.joshworks.fstore.api.EventSerializer;
+import io.joshworks.fstore.api.Serializer;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import java.io.ByteArrayOutputStream;
@@ -19,7 +19,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.GregorianCalendar;
 
-public class KryoEventSerializer implements EventSerializer {
+public class KryoStoreSerializer implements Serializer {
 
     private final Kryo kryo = newKryoInstance();
 

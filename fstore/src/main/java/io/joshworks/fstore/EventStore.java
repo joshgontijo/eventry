@@ -1,9 +1,9 @@
 package io.joshworks.fstore;
 
 import io.joshworks.fstore.event.Event;
-import serializer.EventSerializer;
+import io.joshworks.fstore.serializer.EventSerializer;
 import io.joshworks.fstore.store.DataStore;
-
+//TODO extract superclass once an 'Engine is defined'
 public class EventStore {
 
     private final DataStore store;
@@ -23,7 +23,6 @@ public class EventStore {
 //            throw new RuntimeException(e);
 //        }
         return null;
-
     }
 
     public Event get(Position position) {

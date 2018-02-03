@@ -1,4 +1,4 @@
-package serializer;
+package io.joshworks.fstore.serializer;
 
 import com.google.gson.Gson;
 import io.joshworks.fstore.event.Event;

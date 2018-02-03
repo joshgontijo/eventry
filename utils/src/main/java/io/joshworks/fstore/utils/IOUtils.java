@@ -6,20 +6,64 @@
 package io.joshworks.fstore.utils;
 
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 
 
-public class IOUtils {
+public final class IOUtils {
 
     private IOUtils() {
 
     }
 
+    public static void writeFully(FileChannel channel, ByteBuffer buffer, byte[] bytes) throws IOException {
+        if (bytes.length == 0) {
+            return;
+        }
+
+        int lastWrittenIdx = 0;
+        do {
+            int length = Math.min(buffer.remaining(), bytes.length);
+            buffer.put(bytes, lastWrittenIdx, length);
+            lastWrittenIdx += length;
+
+            buffer.flip();
+            writeFully(channel, buffer);
+            buffer.clear();
+
+        } while (lastWrittenIdx < bytes.length);
+    }
+
+    public static void writeFully(FileChannel channel, ByteBuffer buffer) throws IOException {
+        do {
+            channel.write(buffer);
+        } while (buffer.hasRemaining());
+    }
+
+    public static int readFully(FileChannel from, ByteBuffer buffer) throws IOException {
+        return readFully(from, 0, buffer);
+    }
+
+    public static int readFully(FileChannel from, long offset, ByteBuffer buffer) throws IOException {
+        int bytesRead = 0;
+        while (buffer.hasRemaining()) {
+            bytesRead += from.read(buffer, offset + bytesRead);
+            if (bytesRead == -1) {
+                throw new IOException("Data stream ended prematurely");
+            }
+        }
+        return bytesRead;
+    }
+
+
+
     public static void readFully(RandomAccessFile from, byte[] to) throws IOException {
         int totalRead = 0;
         int length = to.length;
-        if(length <= 0) {
+        if (length <= 0) {
             throw new IllegalArgumentException("Destination buffer size must be greater than zero");
         }
 
@@ -35,7 +79,7 @@ public class IOUtils {
 
     public static void readFully(RandomAccessFile from, byte[] to, int offset, int length) throws IOException {
         int totalRead = 0;
-        if(length <= 0) {
+        if (length <= 0) {
             throw new IllegalArgumentException("Destination buffer size must be greater than zero");
         }
 
@@ -48,4 +92,13 @@ public class IOUtils {
         }
     }
 
+    public static void closeQuietly(Closeable closeable) {
+        try {
+            if (null != closeable) {
+                closeable.close();
+            }
+        } catch (Exception e) {
+            //TODO add logging
+        }
+    }
 }

@@ -2,10 +2,10 @@ package io.joshworks.fstore.serializer.json;
 
 import com.google.gson.Gson;
 import io.joshworks.fstore.api.Event;
-import io.joshworks.fstore.api.EventSerializer;
+import io.joshworks.fstore.api.Serializer;
 
 
-public class JsonSerializer implements EventSerializer {
+public class JsonSerializer implements Serializer<String> {
 
     private static final Gson gson = new Gson();
 
@@ -16,6 +16,14 @@ public class JsonSerializer implements EventSerializer {
 
     @Override
     public Event fromBytes(byte[] data) {
-        return gson.fromJson(new String(data), Event.class);
+        String stringData = null;
+        try {
+            stringData = new String(data);
+            return gson.fromJson(stringData, Event.class);
+
+        } catch (Exception e) {
+            System.err.println("VALUE:" + stringData);
+            throw new RuntimeException(e);
+        }
     }
 }

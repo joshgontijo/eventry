@@ -1,9 +1,9 @@
 package io.joshworks.fstore;
 
-import serializer.EventSerializer;
-import serializer.JsonSerializer;
+import io.joshworks.fstore.serializer.EventSerializer;
+import io.joshworks.fstore.serializer.JsonSerializer;
 import io.joshworks.fstore.event.Event;
-import serializer.KryoEventSerializer;
+import io.joshworks.fstore.serializer.KryoEventSerializer;
 import io.joshworks.fstore.store.RandomAccessDataStore;
 
 import java.math.BigDecimal;

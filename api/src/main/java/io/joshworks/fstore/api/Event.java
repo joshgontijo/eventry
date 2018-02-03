@@ -17,20 +17,19 @@ public class Event implements Serializable {
     private static final Map<String, Class<? extends EventType>> eventsTypes = new HashMap<>();
     private static final Map<Class<? extends EventType>, String> eventsNames = new HashMap<>();
 
-    private final String streamId;
-    private final String type;
-    private final int version;
-    private final long timestamp;
-    private final Map<String, Object> data;
-    private EventType parsedEvent;
+    //TODO for testing purposes these fields are not final
+    //must find a decent way of storing / retrieving from DB
+    private String uuid; //TODO may not be the best choice to set this value
+    private String streamId;
+    private String type;
+    private int version;
+    private long timestamp;
+    private Map<String, Object> data;
+
+    //TODO removed for testing porpuses, uncomment it when needed
+//    private EventType parsedEvent;
 
     private Event(String streamId, Map<String, Object> data, String eventType, int version, long timestamp) {
-         if (data == null) {
-            throw new InvalidEvent("Invalid event data");
-        }
-        if (streamId == null || String.valueOf(streamId).isEmpty()) {
-            throw new InvalidEvent("Invalid event streams");
-        }
         if(eventType == null || eventType.isEmpty()) {
             throw new InvalidEvent("Invalid event type");
         }
@@ -43,6 +42,10 @@ public class Event implements Serializable {
         this.data = data;
         this.version = version;
         this.timestamp = timestamp;
+    }
+
+    public static Event create(Map<String, Object> data, String eventType) {
+        return create(null, data, eventType, -1);
     }
 
     public static Event create(String streamId, Map<String, Object> data, String eventType) {
@@ -66,29 +69,15 @@ public class Event implements Serializable {
     }
 
     public static Event of(String streamId, Map<String, Object> data, String eventType, int version, long timestamp) {
-        return new Event(streamId, data,  eventType, version, timestamp);
+        return new Event(streamId, data, eventType, version, timestamp);
     }
 
-    public static void registerEventMapper(String name, Class<? extends EventType> type) {
-        eventsNames.put(type, name);
-        eventsTypes.put(name, type);
+    public String getUuid() {
+        return uuid;
     }
 
-    public <E extends EventType> E getEvent() {
-        if (parsedEvent != null) {
-            return (E) parsedEvent;
-        }
-        Class<E> aClass = (Class<E>) eventsTypes.get(type);
-        if (aClass == null) {
-            throw new IllegalStateException("No registered event types for name '" + type + "'");
-        }
-        E event = gson.fromJson(gson.toJson(data), aClass);
-        parsedEvent = event;
-        return event;
-    }
-
-    public <E extends EventType> E dataAs(Class<E> eventType) {
-        return gson.fromJson(gson.toJson(data), eventType);
+    public void setUuid(String uuid) {
+        this.uuid = uuid;
     }
 
     public String getStream() {
@@ -111,6 +100,23 @@ public class Event implements Serializable {
         return data;
     }
 
+    public void setStreamId(String streamId) {
+        this.streamId = streamId;
+    }
+
+    public void setType(String type) {
+        this.type = type;
+    }
+
+    public void setVersion(int version) {
+        this.version = version;
+    }
+
+    public void setTimestamp(long timestamp) {
+        this.timestamp = timestamp;
+    }
+
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -120,13 +126,13 @@ public class Event implements Serializable {
                 timestamp == event.timestamp &&
                 Objects.equals(streamId, event.streamId) &&
                 Objects.equals(type, event.type) &&
-                Objects.equals(data, event.data) &&
-                Objects.equals(parsedEvent, event.parsedEvent);
+                Objects.equals(data, event.data);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(streamId, type, version, timestamp, data, parsedEvent);
+
+        return Objects.hash(streamId, type, version, timestamp, data);
     }
 
     @Override

@@ -1,6 +1,6 @@
 package io.joshworks.fstore;
 
-import serializer.KryoEventSerializer;
+import io.joshworks.fstore.serializer.KryoEventSerializer;
 import io.joshworks.fstore.store.MappedDataStore;
 
 public class MappedBufferStoreTest extends EventStoreTestBase {
