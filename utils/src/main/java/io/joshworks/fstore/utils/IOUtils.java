@@ -32,7 +32,7 @@ public final class IOUtils {
 
         int lastWrittenIdx = 0;
         do {
-            int length = Math.min(buffer.remaining(), bytes.length);
+            int length = Math.min(buffer.remaining(), bytes.length - lastWrittenIdx);
             buffer.put(bytes, lastWrittenIdx, length);
             lastWrittenIdx += length;
 
