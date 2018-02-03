@@ -6,6 +6,9 @@
 package io.joshworks.fstore.utils;
 
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -14,6 +17,9 @@ import java.nio.channels.FileChannel;
 
 
 public final class IOUtils {
+
+
+    private static final Logger logger = LoggerFactory.getLogger(IOUtils.class);
 
     private IOUtils() {
 
@@ -94,11 +100,11 @@ public final class IOUtils {
 
     public static void closeQuietly(Closeable closeable) {
         try {
-            if (null != closeable) {
+            if (closeable != null) {
                 closeable.close();
             }
         } catch (Exception e) {
-            //TODO add logging
+            logger.warn("Error while closing resource" , e);
         }
     }
 }

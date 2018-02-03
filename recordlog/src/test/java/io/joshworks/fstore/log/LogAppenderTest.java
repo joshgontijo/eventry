@@ -5,25 +5,27 @@ import io.joshworks.fstore.utils.IOUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
+@RunWith(RandomOrderEnforcer.class)
 public class LogAppenderTest {
 
     private LogAppender<String> appender;
     private Path testFile;
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp()  {
         testFile = new File("test.db").toPath();
-        Files.deleteIfExists(testFile);
-        appender = new LogAppender<>(testFile.toFile(), new StringSerializer(), 2048);
+        appender = LogAppender.create(testFile.toFile(), new StringSerializer(), 2048, 2048);
     }
 
     @After
@@ -35,7 +37,7 @@ public class LogAppenderTest {
     @Test(expected = IllegalArgumentException.class)
     public void minimumBuffer() {
         int minimumSize = 8;
-        new LogAppender<>(testFile.toFile(), new StringSerializer(), 1024, minimumSize - 1);
+        LogAppender.create(testFile.toFile(), new StringSerializer(), 1024, minimumSize - 1);
     }
 
     @Test
@@ -51,8 +53,9 @@ public class LogAppenderTest {
         String data = "hello";
         appender.write(data);
 
+        long position = appender.position();
         appender.close();
-        appender = new LogAppender<>(testFile.toFile(), new StringSerializer(), 2048);
+        appender = LogAppender.open(testFile.toFile(), new StringSerializer(), 2048, position);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
     }
@@ -69,13 +72,15 @@ public class LogAppenderTest {
     }
 
     @Test
-    public void restore() {
+    public void checkConsistency() {
         String data = "hello";
         appender.write(data);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
+
+        long position = appender.position();
         appender.close();
-        appender = new LogAppender<>(testFile.toFile(), new StringSerializer(), 2048);
+        appender = LogAppender.open(testFile.toFile(), new StringSerializer(), 2048, position, true);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
 
@@ -94,6 +99,36 @@ public class LogAppenderTest {
         assertEquals(firstEntrySize + secondEntrySize, reader.position()); // 4 + 4 (heading) + data length
     }
 
+    @Test(expected = CorruptedLogException.class)
+    public void checkConsistency_position_ne_previous() {
+        String data = "hello";
+        appender.write(data);
+
+        assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
+
+        long position = appender.position();
+        appender.close();
+        appender = LogAppender.open(testFile.toFile(), new StringSerializer(), 2048, position + 1, true);
+    }
+
+    @Test(expected = CorruptedLogException.class)
+    public void checkConsistency_position_alteredData() throws IOException {
+        String data = "hello";
+        appender.write(data);
+
+        assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
+
+        long position = appender.position();
+        appender.close();
+
+        //add some random data
+        try(RandomAccessFile raf = new RandomAccessFile(testFile.toFile(), "rw")) {
+            raf.writeInt(1);
+        }
+
+        appender = LogAppender.open(testFile.toFile(), new StringSerializer(), 2048, position - 1, true);
+    }
+
     @Test
     public void reader_reopen() {
         String data = "hello";
@@ -103,8 +138,9 @@ public class LogAppenderTest {
         assertTrue(reader.hasNext());
         assertEquals(data, reader.next());
 
+        long position = appender.position();
         appender.close();
-        appender = new LogAppender<>(testFile.toFile(), new StringSerializer(), 2048);
+        appender = LogAppender.open(testFile.toFile(), new StringSerializer(), 2048, position);
 
         reader = appender.reader();
         assertTrue(reader.hasNext());

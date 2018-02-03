@@ -14,6 +14,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.text.MessageFormat;
 import java.util.Iterator;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.CRC32;
 
 public class LogAppender<T> implements Writer<T>, Closeable {
@@ -21,41 +22,61 @@ public class LogAppender<T> implements Writer<T>, Closeable {
     private static final byte[] CRC_SEED = ByteBuffer.allocate(4).putInt(456765723).array();
     private static final int HEADING_SIZE = Integer.BYTES + Integer.BYTES; //length + checksum
     private static final int DEFAULT_BUFFER_SIZE = 2048;
-    private static final long DEFAULT_FILE_SIZE = 10485760; //10mb
 
     private final Serializer<T> serializer;
     private final FileChannel channel;
     private final ByteBuffer buffer;
     private final RandomAccessFile raf;
 
+    //Not using channel's position since we want the position
+    private final AtomicLong position = new AtomicLong();
+
     private static final Logger logger = LoggerFactory.getLogger(LogAppender.class);
 
-    public LogAppender(File file, Serializer<T> serializer) {
-        this(file, serializer, DEFAULT_FILE_SIZE, DEFAULT_BUFFER_SIZE);
+
+    public static <T> LogAppender<T> create(File file, Serializer<T> serializer, long fileSize) {
+        return create(file, serializer, fileSize, DEFAULT_BUFFER_SIZE);
     }
 
-    public LogAppender(File file, Serializer<T> serializer, long fileSize) {
-        this(file, serializer, fileSize, DEFAULT_BUFFER_SIZE);
+    public static <T> LogAppender<T> create(File file, Serializer<T> serializer, long fileSize, int bufferSize) {
+        LogAppender<T> appender = null;
+        try {
+            appender = new LogAppender<>(file, serializer, bufferSize);
+            appender.fileSize(fileSize);
+            return appender;
+        } catch (Exception e) {
+            IOUtils.closeQuietly(appender);
+            throw e;
+        }
     }
 
-    public LogAppender(File file, Serializer<T> serializer, long fileSize, int bufferSize) {
+    public static <T> LogAppender<T> open(File file, Serializer<T> serializer, int bufferSize, long position) {
+        return open(file, serializer, bufferSize, position, false);
+    }
+
+    public static <T> LogAppender<T> open(File file, Serializer<T> serializer, int bufferSize, long position, boolean checkConsistency) {
+        LogAppender<T> appender = null;
+        try {
+            appender = new LogAppender<>(file, serializer, bufferSize);
+            if (checkConsistency) {
+                appender.checkConsistency(position);
+            }
+            appender.position(position);
+            return appender;
+        } catch (Exception e) {
+            IOUtils.closeQuietly(appender);
+            throw e;
+        }
+    }
+
+    private LogAppender(File file, Serializer<T> serializer, int bufferSize) {
         try {
             if (bufferSize < HEADING_SIZE)
                 throw new IllegalArgumentException(MessageFormat.format("bufferSize must be greater or equals to {0}", HEADING_SIZE));
 
-            boolean exists = file.exists(); //TODO improve ?
-
             this.serializer = serializer;
             this.raf = new RandomAccessFile(file, "rw");
             this.channel = raf.getChannel();
-
-            if (exists) {
-                //re-read everything and set the position
-                long lastPosition = restore();
-                channel.position(lastPosition);
-            } else {
-                raf.setLength(fileSize);
-            }
 
             this.buffer = ByteBuffer.allocate(bufferSize);
         } catch (IOException e) {
@@ -63,27 +84,46 @@ public class LogAppender<T> implements Writer<T>, Closeable {
         }
     }
 
-    private long restore() {
+    private void position(long position) {
         try {
-            logger.info("Restoring log state");
+            this.position.set(position);
+            this.channel.position(position);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void fileSize(long size) {
+        try {
+            raf.setLength(size);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void checkConsistency(long lastKnownPosition) {
+        try {
+            logger.info("Restoring log state and checking consistency until the position {}", lastKnownPosition);
             Reader<T> reader = reader();
             long position = 0;
-            while (reader.hasNext()) {
+            while (reader.hasNext() && position < lastKnownPosition) {
+                reader.next();
                 position = reader.position();
             }
+            if (position != lastKnownPosition) {
+                throw new CorruptedLogException(MessageFormat.format("Expected last position {0}, got {1}", lastKnownPosition, position));
+            }
             logger.info("Log state restored, current position {}", position);
-            return position;
         } catch (Exception e) {
-            throw new IllegalStateException("Inconsistent log state found while restoring state");
+            throw new CorruptedLogException("Inconsistent log state found while restoring state", e);
         }
     }
 
     public long position() {
-        try {
-            return channel.position();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+        if (!this.channel.isOpen()) {
+            throw new RuntimeException("Appender is closed");
         }
+        return position.get();
     }
 
     @Override
@@ -92,13 +132,16 @@ public class LogAppender<T> implements Writer<T>, Closeable {
 
             byte[] bytes = serializer.toBytes(data);
 
-            long position = channel.position();
+            long recordPosition = channel.position();
             buffer.putInt(bytes.length);
             buffer.putInt(checksum(bytes));
 
+            //------------- NOT THREAD SAFE -------------
             IOUtils.writeFully(channel, buffer, bytes);
-
-            return position;
+            //update the position only after fully inserted the data
+            this.position.set(channel.position());
+            //-------------------------------------------
+            return recordPosition;
 
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -139,7 +182,7 @@ public class LogAppender<T> implements Writer<T>, Closeable {
 //    }
 
     public Reader<T> reader() {
-        return new LogReader<>(raf.getChannel(), serializer);
+        return new LogReader<>(channel, serializer);
     }
 
     @Override
@@ -148,6 +191,7 @@ public class LogAppender<T> implements Writer<T>, Closeable {
         IOUtils.closeQuietly(raf);
     }
 
+    //NOT THREAD SAFE
     private static class LogReader<T> implements Reader<T> {
 
         private final FileChannel channel;
@@ -167,28 +211,30 @@ public class LogAppender<T> implements Writer<T>, Closeable {
         }
 
         private T readAndVerify() throws IOException {
-            if (position + HEADING_SIZE > channel.size()) {
+            long currentPos = position;
+            if (currentPos + HEADING_SIZE > channel.size()) {
                 return null;
             }
 
             //TODO read may return less than the actual dataBuffer size / or zero ?
             ByteBuffer heading = ByteBuffer.allocate(HEADING_SIZE);
-            this.position += IOUtils.readFully(channel, position, heading);
+            currentPos += IOUtils.readFully(channel, currentPos, heading);
 
             heading.flip();
             int length = heading.getInt();
             if (length <= 0) {
                 return null;
             }
-            if (position + length > channel.size()) {
+            if (currentPos + length > channel.size()) {
                 throw new IllegalStateException("Not data to be read");
             }
 
             int writeChecksum = heading.getInt();
 
             ByteBuffer dataBuffer = ByteBuffer.allocate(length);
+            currentPos += IOUtils.readFully(channel, currentPos, dataBuffer);
+            position = currentPos;
 
-            this.position += IOUtils.readFully(channel, position, dataBuffer);
             dataBuffer.flip();
 
             int readChecksum = checksum(dataBuffer);
@@ -198,7 +244,6 @@ public class LogAppender<T> implements Writer<T>, Closeable {
 
             return serializer.fromBytes(dataBuffer.array(), 0, dataBuffer.limit());
         }
-
 
         @Override
         public boolean hasNext() {
