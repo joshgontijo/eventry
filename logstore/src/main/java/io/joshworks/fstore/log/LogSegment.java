@@ -102,10 +102,10 @@ public class LogSegment<T> implements Writer<T>, Closeable {
     }
 
     private void checkConsistency(long lastKnownPosition) {
+        long position = 0;
         try {
             logger.info("Restoring log state and checking consistency until the position {}", lastKnownPosition);
             Reader<T> reader = reader();
-            long position = 0;
             while (reader.hasNext() && position < lastKnownPosition) {
                 reader.next();
                 position = reader.position();
@@ -115,7 +115,7 @@ public class LogSegment<T> implements Writer<T>, Closeable {
             }
             logger.info("Log state restored, current position {}", position);
         } catch (Exception e) {
-            throw new CorruptedLogException("Inconsistent log state found while restoring state", e);
+            throw new CorruptedLogException("Inconsistent log state found while restoring state at position " + position, e);
         }
     }
 
