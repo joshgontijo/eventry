@@ -9,24 +9,30 @@ import de.javakaffee.kryoserializers.GregorianCalendarSerializer;
 import de.javakaffee.kryoserializers.JdkProxySerializer;
 import de.javakaffee.kryoserializers.SynchronizedCollectionsSerializer;
 import de.javakaffee.kryoserializers.UnmodifiableCollectionsSerializer;
-import io.joshworks.fstore.api.Event;
 import io.joshworks.fstore.api.Serializer;
 import org.objenesis.strategy.StdInstantiatorStrategy;
 
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.InvocationHandler;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.GregorianCalendar;
 
-public class KryoStoreSerializer implements Serializer {
+public class KryoStoreSerializer<T> implements Serializer<T> {
 
-    private final Kryo kryo = newKryoInstance();
+    private final Kryo kryo;
+    private final Class<T> type;
 
-    private static Kryo newKryoInstance() {
+    public KryoStoreSerializer(Class<T> type) {
+        this.type = type;
+        kryo = newKryoInstance(type);
+    }
+
+    private static Kryo newKryoInstance(Class<?> type) {
         Kryo kryo = new Kryo();
         kryo.setInstantiatorStrategy(new Kryo.DefaultInstantiatorStrategy(new StdInstantiatorStrategy()));
-        kryo.register(Event.class);
+        kryo.register(type);
         kryo.register(Arrays.asList("").getClass(), new ArraysAsListSerializer());
         kryo.register(Collections.EMPTY_LIST.getClass(), new DefaultSerializers.CollectionsEmptyListSerializer());
         kryo.register(Collections.EMPTY_MAP.getClass(), new DefaultSerializers.CollectionsEmptyMapSerializer());
@@ -43,17 +49,17 @@ public class KryoStoreSerializer implements Serializer {
     }
 
     @Override
-    public byte[] toBytes(Event event) {
+    public ByteBuffer toBytes(T event) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try(Output output = new Output(baos)) {
             kryo.writeObject(output, event);
         }
-        return baos.toByteArray();
+        return ByteBuffer.wrap(baos.toByteArray());
     }
 
     @Override
-    public Event fromBytes(byte[] data) {
-        return kryo.readObject(new Input(data), Event.class);
+    public T fromBytes(ByteBuffer data) {
+        return kryo.readObject(new Input(data.array()), type);
     }
 
 

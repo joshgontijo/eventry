@@ -10,7 +10,6 @@ import org.junit.runner.RunWith;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.UUID;
 
@@ -26,25 +25,19 @@ public class LogSegmentTest {
     @Before
     public void setUp()  {
         testFile = new File("test.db").toPath();
-        appender = LogSegment.create(testFile.toFile(), new StringSerializer(), 2048, 2048);
+        appender = LogSegment.create(testFile.toFile(), new StringSerializer(), 2048);
     }
 
     @After
-    public void cleanup() throws IOException {
+    public void cleanup() {
         IOUtils.closeQuietly(appender);
-        Files.delete(testFile);
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void minimumBuffer() {
-        int minimumSize = 8;
-        LogSegment.create(testFile.toFile(), new StringSerializer(), 1024, minimumSize - 1);
+        Utils.tryRemoveFile(testFile.toFile());
     }
 
     @Test
     public void writePosition() {
         String data = "hello";
-        appender.write(data);
+        appender.append(data);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
     }
@@ -52,11 +45,11 @@ public class LogSegmentTest {
     @Test
     public void writePosition_reopen() {
         String data = "hello";
-        appender.write(data);
+        appender.append(data);
 
         long position = appender.position();
         appender.close();
-        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), 2048, position);
+        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), position);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
     }
@@ -64,7 +57,7 @@ public class LogSegmentTest {
     @Test
     public void write() {
         String data = "hello";
-        appender.write(data);
+        appender.append(data);
 
         Reader<String> reader = appender.reader();
         assertTrue(reader.hasNext());
@@ -75,18 +68,18 @@ public class LogSegmentTest {
     @Test
     public void checkConsistency() {
         String data = "hello";
-        appender.write(data);
+        appender.append(data);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
 
         long position = appender.position();
         appender.close();
-        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), 2048, position, true);
+        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), position, true);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
 
         String data2 = "aaaaaaaaaaaaaaaa";
-        appender.write(data2);
+        appender.append(data2);
 
         int firstEntrySize = 4 + 4 + data.length();
         Reader<String> reader = appender.reader();
@@ -103,19 +96,19 @@ public class LogSegmentTest {
     @Test(expected = CorruptedLogException.class)
     public void checkConsistency_position_ne_previous() {
         String data = "hello";
-        appender.write(data);
+        appender.append(data);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
 
         long position = appender.position();
         appender.close();
-        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), 2048, position + 1, true);
+        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), position + 1, true);
     }
 
     @Test(expected = CorruptedLogException.class)
     public void checkConsistency_position_alteredData() throws IOException {
         String data = "hello";
-        appender.write(data);
+        appender.append(data);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
 
@@ -127,13 +120,13 @@ public class LogSegmentTest {
             raf.writeInt(1);
         }
 
-        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), 2048, position - 1, true);
+        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), position - 1, true);
     }
 
     @Test
     public void reader_reopen() {
         String data = "hello";
-        appender.write(data);
+        appender.append(data);
 
         Reader<String> reader = appender.reader();
         assertTrue(reader.hasNext());
@@ -141,7 +134,7 @@ public class LogSegmentTest {
 
         long position = appender.position();
         appender.close();
-        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), 2048, position);
+        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), position);
 
         reader = appender.reader();
         assertTrue(reader.hasNext());
@@ -152,7 +145,7 @@ public class LogSegmentTest {
     @Test
     public void multiple_readers() {
         String data = "hello";
-        appender.write(data);
+        appender.append(data);
 
         Reader<String> reader1 = appender.reader();
         assertTrue(reader1.hasNext());
@@ -172,7 +165,7 @@ public class LogSegmentTest {
             sb.append(UUID.randomUUID().toString());
         }
         String data = sb.toString();
-        appender.write(data);
+        appender.append(data);
 
         Reader<String> reader1 = appender.reader();
         assertTrue(reader1.hasNext());
@@ -180,4 +173,6 @@ public class LogSegmentTest {
         assertEquals(4 + 4 + data.length(), reader1.position()); // 4 + 4 (heading) + data length
 
     }
+
+
 }

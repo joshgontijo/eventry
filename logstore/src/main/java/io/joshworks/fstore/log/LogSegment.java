@@ -3,110 +3,78 @@ package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.api.Serializer;
 import io.joshworks.fstore.utils.IOUtils;
+import io.joshworks.fstore.utils.io.DiskStorage;
+import io.joshworks.fstore.utils.io.Storage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.text.MessageFormat;
 import java.util.Iterator;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.zip.CRC32;
 
-public class LogSegment<T> implements Writer<T>, Closeable {
+public class LogSegment<T> implements Log<T> {
 
-    private static final byte[] CRC_SEED = ByteBuffer.allocate(4).putInt(456765723).array();
-    private static final int HEADING_SIZE = Integer.BYTES + Integer.BYTES; //length + checksum
-    private static final int DEFAULT_BUFFER_SIZE = 2048;
+
+    private static final int HEADER_SIZE = Integer.BYTES + Integer.BYTES; //length + checksum
 
     private final Serializer<T> serializer;
-    private final FileChannel channel;
-    private final ByteBuffer buffer;
-    private final RandomAccessFile raf;
-
-    //Not using channel's position since we want the position
-    private final AtomicLong position = new AtomicLong();
+    private final Storage storage;
+    private long position;
 
     private static final Logger logger = LoggerFactory.getLogger(LogSegment.class);
 
 
     public static <T> LogSegment<T> create(File file, Serializer<T> serializer, long fileSize) {
-        return create(file, serializer, fileSize, DEFAULT_BUFFER_SIZE);
-    }
-
-    public static <T> LogSegment<T> create(File file, Serializer<T> serializer, long fileSize, int bufferSize) {
-        LogSegment<T> appender = null;
         try {
-            appender = new LogSegment<>(file, serializer, bufferSize);
-            appender.fileSize(fileSize);
-            return appender;
+            RandomAccessFile raf = new RandomAccessFile(file, "rw");
+            raf.setLength(fileSize);
+            return new LogSegment<>(raf, serializer);
         } catch (Exception e) {
-            IOUtils.closeQuietly(appender);
-            throw e;
+            throw new RuntimeException(e);
         }
     }
 
-    public static <T> LogSegment<T> open(File file, Serializer<T> serializer, int bufferSize, long position) {
-        return open(file, serializer, bufferSize, position, false);
+    public static <T> LogSegment<T> open(File file, Serializer<T> serializer, long position) {
+        return open(file, serializer, position, false);
     }
 
-    public static <T> LogSegment<T> open(File file, Serializer<T> serializer, int bufferSize, long position, boolean checkConsistency) {
+    public static <T> LogSegment<T> open(File file, Serializer<T> serializer, long position, boolean checkIntegrity) {
         LogSegment<T> appender = null;
         try {
-            appender = new LogSegment<>(file, serializer, bufferSize);
-            if (checkConsistency) {
-                appender.checkConsistency(position);
+            RandomAccessFile raf = new RandomAccessFile(file, "rw");
+            raf.seek(position);
+            appender = new LogSegment<>(raf, serializer);
+            if (checkIntegrity) {
+                appender.checkIntegrity(position);
             }
             appender.position(position);
             return appender;
-        } catch (Exception e) {
+        } catch (CorruptedLogException e) {
             IOUtils.closeQuietly(appender);
             throw e;
-        }
-    }
-
-    private LogSegment(File file, Serializer<T> serializer, int bufferSize) {
-        try {
-            if (bufferSize < HEADING_SIZE)
-                throw new IllegalArgumentException(MessageFormat.format("bufferSize must be greater or equals to {0}", HEADING_SIZE));
-
-            this.serializer = serializer;
-            this.raf = new RandomAccessFile(file, "rw");
-            this.channel = raf.getChannel();
-
-            this.buffer = ByteBuffer.allocate(bufferSize);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    private LogSegment(RandomAccessFile raf, Serializer<T> serializer) {
+        this.serializer = serializer;
+        this.storage = new DiskStorage(raf);
     }
 
     private void position(long position) {
-        try {
-            this.position.set(position);
-            this.channel.position(position);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        this.position = position;
     }
 
-    private void fileSize(long size) {
-        try {
-            raf.setLength(size);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void checkConsistency(long lastKnownPosition) {
+    private void checkIntegrity(long lastKnownPosition) {
         long position = 0;
         try {
             logger.info("Restoring log state and checking consistency until the position {}", lastKnownPosition);
             Reader<T> reader = reader();
-            while (reader.hasNext() && position < lastKnownPosition) {
+            while (reader.hasNext()) {
                 reader.next();
                 position = reader.position();
             }
@@ -119,54 +87,28 @@ public class LogSegment<T> implements Writer<T>, Closeable {
         }
     }
 
+    @Override
     public long position() {
-        if (!this.channel.isOpen()) {
-            throw new RuntimeException("Appender is closed");
-        }
-        return position.get();
+        return position;
     }
 
     @Override
-    public long write(T data) {
-        try {
+    public long append(T data) {
+        ByteBuffer bytes = serializer.toBytes(data);
 
-            byte[] bytes = serializer.toBytes(data);
+        long recordPosition = position;
+        ByteBuffer bb = ByteBuffer.allocate(HEADER_SIZE + bytes.remaining());
+        bb.putInt(bytes.remaining());
+        bb.putInt(Checksum.checksum(bytes));
+        bb.put(bytes);
 
-            long recordPosition = channel.position();
-            buffer.putInt(bytes.length);
-            buffer.putInt(checksum(bytes));
+        bb.flip();
+        position += storage.write(position, bb);
 
-            //------------- NOT THREAD SAFE -------------
-            IOUtils.writeFully(channel, buffer, bytes);
-            //update the position only after fully inserted the data
-            this.position.set(channel.position());
-            //-------------------------------------------
-            return recordPosition;
-
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        } finally {
-            buffer.clear();
-        }
+        return recordPosition;
     }
 
-    private static int checksum(byte[] data) {
-        return checksum(data, 0, data.length);
-    }
 
-    private static int checksum(ByteBuffer buffer) {
-        if (!buffer.hasArray()) {
-            throw new IllegalArgumentException("ByteBuffer must be an array backed buffer");
-        }
-        return checksum(buffer.array(), 0, buffer.limit());
-    }
-
-    private static int checksum(byte[] data, int offset, int length) {
-        final CRC32 checksum = new CRC32();
-        checksum.update(CRC_SEED);
-        checksum.update(data, offset, length);
-        return (int) checksum.getValue();
-    }
 
 
 //    protected byte[] writeData(Serializer<T> serializer, T data) throws IOException {
@@ -181,68 +123,78 @@ public class LogSegment<T> implements Writer<T>, Closeable {
 //        return baos.toByteArray();
 //    }
 
+    @Override
     public Reader<T> reader() {
-        return new LogReader<>(channel, serializer);
+        return new LogReader<>(storage, serializer);
+    }
+
+    @Override
+    public Reader<T> reader(long position) {
+        return new LogReader<>(storage, serializer, position);
     }
 
     @Override
     public void close() {
-        IOUtils.closeQuietly(channel);
-        IOUtils.closeQuietly(raf);
+        IOUtils.closeQuietly(storage);
+    }
+
+    @Override
+    public void flush() throws IOException {
+        storage.flush();
     }
 
     //NOT THREAD SAFE
     private static class LogReader<T> implements Reader<T> {
 
-        private final FileChannel channel;
+        private final Storage storage;
         private final Serializer<T> serializer;
         private T data;
         private boolean completed = false;
         private long position;
 
-        private LogReader(FileChannel channel, Serializer<T> serializer) {
-            this(channel, serializer, 0);
+        private LogReader(Storage storage, Serializer<T> serializer) {
+            this(storage, serializer, 0);
         }
 
-        private LogReader(FileChannel channel, Serializer<T> serializer, long initialPosition) {
-            this.channel = channel;
+        private LogReader(Storage storage, Serializer<T> serializer, long initialPosition) {
+            this.storage = storage;
             this.serializer = serializer;
             this.position = initialPosition;
         }
 
-        private T readAndVerify() throws IOException {
+        private T readAndVerify() {
             long currentPos = position;
-            if (currentPos + HEADING_SIZE > channel.size()) {
+            if (currentPos + HEADER_SIZE > storage.size()) {
                 return null;
             }
 
             //TODO read may return less than the actual dataBuffer size / or zero ?
-            ByteBuffer heading = ByteBuffer.allocate(HEADING_SIZE);
-            currentPos += IOUtils.readFully(channel, currentPos, heading);
+            ByteBuffer heading = ByteBuffer.allocate(HEADER_SIZE);
+            currentPos += storage.read(currentPos, heading);
 
             heading.flip();
             int length = heading.getInt();
             if (length <= 0) {
                 return null;
             }
-            if (currentPos + length > channel.size()) {
+            if (currentPos + length > storage.size()) {
                 throw new IllegalStateException("Not data to be read");
             }
 
             int writeChecksum = heading.getInt();
 
             ByteBuffer dataBuffer = ByteBuffer.allocate(length);
-            currentPos += IOUtils.readFully(channel, currentPos, dataBuffer);
+            currentPos += storage.read(currentPos, dataBuffer);
             position = currentPos;
 
             dataBuffer.flip();
 
-            int readChecksum = checksum(dataBuffer);
+            int readChecksum = Checksum.checksum(dataBuffer);
             if (readChecksum != writeChecksum) {
                 throw new IllegalStateException("Corrupted data");
             }
 
-            return serializer.fromBytes(dataBuffer.array(), 0, dataBuffer.limit());
+            return serializer.fromBytes(dataBuffer);
         }
 
         @Override

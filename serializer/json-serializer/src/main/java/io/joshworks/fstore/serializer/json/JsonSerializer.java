@@ -1,29 +1,25 @@
 package io.joshworks.fstore.serializer.json;
 
 import com.google.gson.Gson;
-import io.joshworks.fstore.api.Event;
+import com.google.gson.reflect.TypeToken;
 import io.joshworks.fstore.api.Serializer;
+import io.joshworks.fstore.serializer.StringSerializer;
+
+import java.nio.ByteBuffer;
 
 
-public class JsonSerializer implements Serializer<String> {
+public class JsonSerializer<T> implements Serializer<T> {
 
     private static final Gson gson = new Gson();
+    private static final StringSerializer stringSerializer = new StringSerializer();
 
     @Override
-    public byte[] toBytes(Event event) {
-        return gson.toJson(event).getBytes();
+    public ByteBuffer toBytes(T event) {
+        return stringSerializer.toBytes(gson.toJson(event));
     }
 
     @Override
-    public Event fromBytes(byte[] data) {
-        String stringData = null;
-        try {
-            stringData = new String(data);
-            return gson.fromJson(stringData, Event.class);
-
-        } catch (Exception e) {
-            System.err.println("VALUE:" + stringData);
-            throw new RuntimeException(e);
-        }
+    public T fromBytes(ByteBuffer data) {
+        return gson.fromJson(stringSerializer.fromBytes(data), new TypeToken<T>() {}.getType());
     }
 }
