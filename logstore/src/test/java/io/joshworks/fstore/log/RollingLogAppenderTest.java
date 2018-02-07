@@ -4,6 +4,7 @@ import io.joshworks.fstore.serializer.StringSerializer;
 import io.joshworks.fstore.utils.IOUtils;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -19,7 +20,7 @@ public class RollingLogAppenderTest {
     private Log<String> appender;
 
     private File testDirectory;
-    private static final int SEGMENT_SIZE = 1024 * 1000 * 10;//10mb
+    private static final int SEGMENT_SIZE = 1024 * 1000;//1mb
 
     @Before
     public void setUp() throws IOException {
@@ -109,6 +110,7 @@ public class RollingLogAppenderTest {
     }
 
     @Test
+    @Ignore
     public void large_items() {
         int counter = 0;
 

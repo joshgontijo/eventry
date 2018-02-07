@@ -1,18 +1,22 @@
 package io.joshworks.fstore.log;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.DataInput;
+import java.io.DataInputStream;
+import java.io.DataOutput;
+import java.io.DataOutputStream;
 import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -59,27 +63,23 @@ public final class LogFileUtils {
         }
     }
 
-    static void writeMetadata(File directory, Map<String, Object> metadata) throws IOException {
-        Gson gson = new Gson();
-        File file = new File(directory, METADATA_FILE);
-        if(!file.exists())
-            file.createNewFile();
-        try (FileWriter fw = new FileWriter(file, false)) {
-            gson.toJson(metadata, fw);
+    static void writeMetadata(File directory, RollingLogAppender.Metadata metadata) throws IOException {
+        try (OutputStream os = new FileOutputStream(new File(directory, METADATA_FILE))) {
+            DataOutput baos = new DataOutputStream(os);
+            baos.writeLong(metadata.lastPosition);
+            baos.writeInt(metadata.segmentSize);
         }
     }
 
-    static Map<String, Object> readMetadata(File directory) throws IOException {
-        Gson gson = new Gson();
-        try (FileReader fr = new FileReader(new File(directory, METADATA_FILE))) {
-            return gson.fromJson(fr, new TypeToken<Map<String, Object>>() {
-            }.getType());
+    static RollingLogAppender.Metadata readMetadata(File directory) throws IOException {
+        try (InputStream os = new FileInputStream(new File(directory, METADATA_FILE))) {
+            DataInput input = new DataInputStream(os);
+            return new RollingLogAppender.Metadata(input.readLong(), input.readInt());
         }
     }
 
     static boolean metadataExists(File directory) {
-        File metadata = new File(directory, METADATA_FILE);
-        return metadata.exists();
+        return new File(directory, METADATA_FILE).exists();
     }
 
 }

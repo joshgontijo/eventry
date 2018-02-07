@@ -1,7 +1,5 @@
 package io.joshworks.fstore.api;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 
 import java.io.Serializable;
 import java.util.HashMap;
@@ -13,7 +11,6 @@ import java.util.Objects;
  */
 public class Event implements Serializable {
 
-    private static final Gson gson = new Gson();
     private static final Map<String, Class<? extends EventType>> eventsTypes = new HashMap<>();
     private static final Map<Class<? extends EventType>, String> eventsNames = new HashMap<>();
 
@@ -24,7 +21,7 @@ public class Event implements Serializable {
     private String type;
     private int version;
     private long timestamp;
-    private Map<String, Object> data;
+    private byte[] data;
 
     //TODO removed for testing porpuses, uncomment it when needed
 //    private EventType parsedEvent;
@@ -39,7 +36,7 @@ public class Event implements Serializable {
         }
         this.type = eventType;
         this.streamId = streamId;
-        this.data = data;
+        this.data = null; //FIXME
         this.version = version;
         this.timestamp = timestamp;
     }
@@ -61,11 +58,12 @@ public class Event implements Serializable {
     }
 
     public static <E extends EventType> Event create(String streamId, E data, int version) {
-        String evType = eventsNames.get(data.getClass());
-        Map<String, Object> dataMap = gson.fromJson(gson.toJson(data), new TypeToken<Map<String, Object>>() {
-        }.getType());
-
-        return create(streamId, dataMap, evType, version);
+//        String evType = eventsNames.get(data.getClass());
+//        Map<String, Object> dataMap = gson.fromJson(gson.toJson(data), new TypeToken<Map<String, Object>>() {
+//        }.getType());
+//
+//        return create(streamId, dataMap, evType, version);
+        return null;
     }
 
     public static Event of(String streamId, Map<String, Object> data, String eventType, int version, long timestamp) {
@@ -97,7 +95,7 @@ public class Event implements Serializable {
     }
 
     public Map<String, Object> getData() {
-        return data;
+        return null;
     }
 
     public void setStreamId(String streamId) {

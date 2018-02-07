@@ -3,27 +3,37 @@ package io.joshworks.fstore.utils.io;
 
 import io.joshworks.fstore.utils.IOUtils;
 
+import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 
 
-public class MMapStorage implements Storage {
+public class MMapStorage extends Storage {
 
-    private final RandomAccessFile raf;
     private MappedByteBuffer mbb;
     private final FileChannel.MapMode mode;
 
-    public MMapStorage(RandomAccessFile raf, FileChannel.MapMode mode) {
+    public MMapStorage(File file, FileChannel.MapMode mode) {
+        super(file);
         this.mode = mode;
-        this.raf = raf;
         try {
             this.mbb = raf.getChannel().map(mode, 0, raf.length());
-        } catch (Exception e) {
+        } catch (IOException e) {
             IOUtils.closeQuietly(raf);
-            throw new RuntimeException(e);
+            throw RuntimeIOException.of(e);
+        }
+    }
+
+    public MMapStorage(File file, long length, FileChannel.MapMode mode) {
+        super(file, length);
+        this.mode = mode;
+        try {
+            this.mbb = raf.getChannel().map(mode, 0, raf.length());
+        } catch (IOException e) {
+            IOUtils.closeQuietly(raf);
+            throw RuntimeIOException.of(e);
         }
     }
 
@@ -56,33 +66,34 @@ public class MMapStorage implements Storage {
 
     private void checkBoundaries(long position) {
         if(position > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("position must not be greater than " + Integer.MAX_VALUE);
+            throw new IllegalArgumentException("position must less than " + Integer.MAX_VALUE);
         }
     }
 
     private void ensureCapacity(ByteBuffer data) {
         try {
             if (mbb.remaining() < data.remaining()) {
-                raf.setLength(raf.length() + data.remaining()); //TODO better approach to expand, 10% or enough to fit data ?
+                //TODO better approach to expand, 10% or enough to fit data ?
+                raf.setLength(raf.length() + data.remaining());
                 mbb = raf.getChannel().map(mode, 0, raf.length());
             }
 
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
         }
     }
 
     @Override
-    public void close()throws IOException {
-        flush();
+    public void close() throws IOException {
         mbb = null;
         System.gc(); //this is horrible
-        IOUtils.closeQuietly(raf);
+        super.close();
     }
 
     @Override
     public void flush() throws IOException {
         if(mbb != null)
             mbb.force();
+        super.flush();
     }
 }

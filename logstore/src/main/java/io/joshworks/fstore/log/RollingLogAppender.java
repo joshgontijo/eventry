@@ -1,15 +1,16 @@
 package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.api.Serializer;
+import io.joshworks.fstore.utils.io.DiskStorage;
+import io.joshworks.fstore.utils.io.RuntimeIOException;
+import io.joshworks.fstore.utils.io.Storage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 public class RollingLogAppender<T> implements Log<T> {
 
@@ -25,7 +26,7 @@ public class RollingLogAppender<T> implements Log<T> {
     private final List<Log<T>> segments;
     private Log<T> currentSegment;
 
-    private final Map<String, Object> metadata;
+    private final Metadata metadata;
     private long position;
     private final int segmentSize;
 
@@ -35,18 +36,16 @@ public class RollingLogAppender<T> implements Log<T> {
             throw new RuntimeException("Metadata file found, use open instead");
         }
 
-        Map<String, Object> metadata = new HashMap<>();
         try {
-            metadata.put(METADATA_LAST_POSITION, 0L);
-            metadata.put(METADATA_SEGMENT_SIZE, segmentSize);
+            Metadata metadata = new Metadata(0, segmentSize);
 
             LogFileUtils.createRoot(directory);
             LogFileUtils.writeMetadata(directory, metadata);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
 
-        return new RollingLogAppender<>(directory, serializer, metadata, segmentSize);
+            return new RollingLogAppender<>(directory, serializer, metadata);
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
     }
 
     public static <T> RollingLogAppender<T> open(File directory, Serializer<T> serializer) {
@@ -60,22 +59,21 @@ public class RollingLogAppender<T> implements Log<T> {
             throw new IllegalStateException("Directory doesn't contain any metadata information");
         }
         try {
-            Map<String, Object> metadata = LogFileUtils.readMetadata(directory);
-            int segmentSize = (int) metadata.get(METADATA_SEGMENT_SIZE);
+            Metadata metadata = LogFileUtils.readMetadata(directory);
 
-            return new RollingLogAppender<>(directory, serializer, metadata, segmentSize);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            return new RollingLogAppender<>(directory, serializer, metadata);
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
         }
     }
 
-    private RollingLogAppender(File directory, Serializer<T> serializer, Map<String, Object> metadata, int segmentSize) {
+    private RollingLogAppender(File directory, Serializer<T> serializer, Metadata metadata) {
         this.directory = directory;
         this.serializer = serializer;
         this.metadata = metadata;
 
-        this.position = (long) metadata.getOrDefault(METADATA_LAST_POSITION, 0L);
-        this.segmentSize = segmentSize;
+        this.position = metadata.lastPosition;
+        this.segmentSize = metadata.segmentSize;
         this.segments = LogFileUtils.loadSegments(directory, f -> openSegment(f, serializer, 0, false));
         if (this.segments.isEmpty()) {
             File segmentFile = LogFileUtils.newSegmentFile(directory, this.segments.size());
@@ -87,30 +85,31 @@ public class RollingLogAppender<T> implements Log<T> {
     }
 
 
-    protected Log<T> createSegment(File file, Serializer<T> serializer, int size) {
-        return LogSegment.create(file, serializer, size);
+    protected Log<T> createSegment(File segmentFile, Serializer<T> serializer, int segmentSize) {
+        Storage storage = new DiskStorage(segmentFile, segmentSize);
+        return LogSegment.create(storage, serializer);
     }
 
-    protected Log<T> openSegment(File file, Serializer<T> serializer, long position, boolean checkConsistency) {
-        return LogSegment.open(file, serializer, position, checkConsistency);
+    protected Log<T> openSegment(File segmentFile, Serializer<T> serializer, long position, boolean checkIntegrity) {
+        Storage storage = new DiskStorage(segmentFile, segmentSize);
+        return LogSegment.open(storage, serializer, position, checkIntegrity);
     }
-
 
     private Log<T> roll() {
         try {
             logger.info("Rolling appender");
-            metadata.put(METADATA_LAST_POSITION, position);
+            metadata.lastPosition = position;
+
             LogFileUtils.writeMetadata(directory, metadata);
             currentSegment.flush();
 
-            int segmentSize = (int) metadata.get(METADATA_SEGMENT_SIZE);
             File newSegmentFile = LogFileUtils.newSegmentFile(directory, this.segments.size());
 
-            Log<T> newSegment = createSegment(newSegmentFile, serializer, segmentSize);
+            Log<T> newSegment = createSegment(newSegmentFile, serializer, metadata.segmentSize);
             this.segments.add(newSegment);
             return newSegment;
         } catch (IOException e) {
-            throw new RuntimeException("Could not close segment file", e);
+            throw new RuntimeIOException("Could not close segment file", e);
         }
     }
 
@@ -155,6 +154,8 @@ public class RollingLogAppender<T> implements Log<T> {
 
     @Override
     public void close() throws IOException {
+        metadata.lastPosition = position;
+        LogFileUtils.writeMetadata(directory, metadata);
         for (Log<T> segment : segments) {
             segment.close();
         }
@@ -209,6 +210,16 @@ public class RollingLogAppender<T> implements Log<T> {
         @Override
         public T next() {
             return current.next();
+        }
+    }
+
+    public static class Metadata {
+        public long lastPosition;
+        public int segmentSize;
+
+        Metadata(long lastPosition, int segmentSize) {
+            this.lastPosition = lastPosition;
+            this.segmentSize = segmentSize;
         }
     }
 

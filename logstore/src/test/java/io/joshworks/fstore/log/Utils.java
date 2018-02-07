@@ -14,7 +14,7 @@ public class Utils {
 
     //terrible work around for waiting the mapped buffer to release file lock
     static void tryRemoveFile(File file) {
-        int maxTries = 50;
+        int maxTries = 5;
         int counter = 0;
         while (counter++ < maxTries) {
             try {
@@ -31,7 +31,7 @@ public class Utils {
                 System.err.println(":: LOCK NOT RELEASED YET ::");
                 e.printStackTrace();
                 try {
-                    Thread.sleep(100);
+                    Thread.sleep(2000);
                 } catch (InterruptedException e1) {
                     e1.printStackTrace();
                 }

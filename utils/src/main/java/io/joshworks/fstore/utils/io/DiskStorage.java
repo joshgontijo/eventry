@@ -1,24 +1,24 @@
 package io.joshworks.fstore.utils.io;
 
 
-import io.joshworks.fstore.utils.IOUtils;
-
+import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 
-public class DiskStorage implements Storage {
+public class DiskStorage extends Storage {
 
-    private final RandomAccessFile raf;
-    private final FileChannel channel;
-    //TODO lock ?
 
-    public DiskStorage(RandomAccessFile raf) {
-        this.raf = raf;
-        this.channel = raf.getChannel();
+    public DiskStorage(File target) {
+        super(target);
     }
 
+    public DiskStorage(File target, long length) {
+        super(target, length);
+    }
+
+    /**
+     * Using channel.write(buffer, position) will result in a pwrite() sys call
+     */
     @Override
     public int write(long position, ByteBuffer data) {
         try {
@@ -27,8 +27,8 @@ public class DiskStorage implements Storage {
                 written += channel.write(data, position + written);
             }
             return written;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
         }
     }
 
@@ -40,8 +40,8 @@ public class DiskStorage implements Storage {
                 read += channel.read(data, position);
             }
             return read;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
         }
     }
 
@@ -50,20 +50,7 @@ public class DiskStorage implements Storage {
         try {
             return raf.length();
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw RuntimeIOException.of(e);
         }
-    }
-
-    @Override
-    public void close() throws IOException {
-        flush();
-        IOUtils.closeQuietly(channel);
-        IOUtils.closeQuietly(raf);
-    }
-
-    @Override
-    public void flush() throws IOException {
-        if (channel.isOpen())
-            channel.force(true);
     }
 }

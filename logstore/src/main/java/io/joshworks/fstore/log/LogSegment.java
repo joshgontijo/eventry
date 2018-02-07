@@ -3,14 +3,11 @@ package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.api.Serializer;
 import io.joshworks.fstore.utils.IOUtils;
-import io.joshworks.fstore.utils.io.DiskStorage;
 import io.joshworks.fstore.utils.io.Storage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.text.MessageFormat;
 import java.util.Iterator;
@@ -27,26 +24,19 @@ public class LogSegment<T> implements Log<T> {
     private static final Logger logger = LoggerFactory.getLogger(LogSegment.class);
 
 
-    public static <T> LogSegment<T> create(File file, Serializer<T> serializer, long fileSize) {
-        try {
-            RandomAccessFile raf = new RandomAccessFile(file, "rw");
-            raf.setLength(fileSize);
-            return new LogSegment<>(raf, serializer);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
+    public static <T> LogSegment<T> create(Storage storage, Serializer<T> serializer) {
+       return new LogSegment<>(storage, serializer);
     }
 
-    public static <T> LogSegment<T> open(File file, Serializer<T> serializer, long position) {
-        return open(file, serializer, position, false);
+    public static <T> LogSegment<T> open(Storage storage, Serializer<T> serializer, long position) {
+        return open(storage, serializer, position, false);
     }
 
-    public static <T> LogSegment<T> open(File file, Serializer<T> serializer, long position, boolean checkIntegrity) {
+    public static <T> LogSegment<T> open(Storage storage, Serializer<T> serializer, long position, boolean checkIntegrity) {
         LogSegment<T> appender = null;
         try {
-            RandomAccessFile raf = new RandomAccessFile(file, "rw");
-            raf.seek(position);
-            appender = new LogSegment<>(raf, serializer);
+
+            appender = new LogSegment<>(storage, serializer);
             if (checkIntegrity) {
                 appender.checkIntegrity(position);
             }
@@ -55,14 +45,12 @@ public class LogSegment<T> implements Log<T> {
         } catch (CorruptedLogException e) {
             IOUtils.closeQuietly(appender);
             throw e;
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 
-    private LogSegment(RandomAccessFile raf, Serializer<T> serializer) {
+    private LogSegment(Storage storage, Serializer<T> serializer) {
         this.serializer = serializer;
-        this.storage = new DiskStorage(raf);
+        this.storage = storage;
     }
 
     private void position(long position) {
@@ -71,20 +59,16 @@ public class LogSegment<T> implements Log<T> {
 
     private void checkIntegrity(long lastKnownPosition) {
         long position = 0;
-        try {
-            logger.info("Restoring log state and checking consistency until the position {}", lastKnownPosition);
-            Reader<T> reader = reader();
-            while (reader.hasNext()) {
-                reader.next();
-                position = reader.position();
-            }
-            if (position != lastKnownPosition) {
-                throw new CorruptedLogException(MessageFormat.format("Expected last position {0}, got {1}", lastKnownPosition, position));
-            }
-            logger.info("Log state restored, current position {}", position);
-        } catch (Exception e) {
-            throw new CorruptedLogException("Inconsistent log state found while restoring state at position " + position, e);
+        logger.info("Restoring log state and checking consistency until the position {}", lastKnownPosition);
+        Reader<T> reader = reader();
+        while (reader.hasNext()) {
+            reader.next();
+            position = reader.position();
         }
+        if (position != lastKnownPosition) {
+            throw new CorruptedLogException(MessageFormat.format("Expected last position {0}, got {1}", lastKnownPosition, position));
+        }
+        logger.info("Log state restored, current position {}", position);
     }
 
     @Override
@@ -107,21 +91,6 @@ public class LogSegment<T> implements Log<T> {
 
         return recordPosition;
     }
-
-
-
-
-//    protected byte[] writeData(Serializer<T> serializer, T data) throws IOException {
-//
-//
-//        //compressed
-//        ByteArrayOutputStream baos = new ByteArrayOutputStream(bytes.length);
-//        DeflaterOutputStream dos = new DeflaterOutputStream(baos, new Deflater(Deflater.BEST_SPEED));
-//        dos.write(bytes);
-//        dos.close();
-//
-//        return baos.toByteArray();
-//    }
 
     @Override
     public Reader<T> reader() {
@@ -191,7 +160,7 @@ public class LogSegment<T> implements Log<T> {
 
             int readChecksum = Checksum.checksum(dataBuffer);
             if (readChecksum != writeChecksum) {
-                throw new IllegalStateException("Corrupted data");
+                throw new CorruptedLogException("Checksum verification failed");
             }
 
             return serializer.fromBytes(dataBuffer);
@@ -202,15 +171,10 @@ public class LogSegment<T> implements Log<T> {
             if (completed) {
                 return false;
             }
-            try {
-                this.data = readAndVerify();
-                this.completed = this.data == null;
-                return !completed;
+            this.data = readAndVerify();
+            this.completed = this.data == null;
+            return !completed;
 
-            } catch (Exception e) {
-                this.completed = true;
-                throw new RuntimeException(e);
-            }
         }
 
         @Override
@@ -259,6 +223,18 @@ public class LogSegment<T> implements Log<T> {
 ////            answer[k++] = b[j++];
 //
 //        return answer;
+//    }
+
+    //    protected byte[] writeData(Serializer<T> serializer, T data) throws IOException {
+//
+//
+//        //compressed
+//        ByteArrayOutputStream baos = new ByteArrayOutputStream(bytes.length);
+//        DeflaterOutputStream dos = new DeflaterOutputStream(baos, new Deflater(Deflater.BEST_SPEED));
+//        dos.write(bytes);
+//        dos.close();
+//
+//        return baos.toByteArray();
 //    }
 
 }

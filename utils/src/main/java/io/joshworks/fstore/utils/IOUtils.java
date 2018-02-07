@@ -6,10 +6,13 @@
 package io.joshworks.fstore.utils;
 
 
+import io.joshworks.fstore.utils.io.RuntimeIOException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -58,10 +61,26 @@ public final class IOUtils {
         while (buffer.hasRemaining()) {
             bytesRead += from.read(buffer, offset + bytesRead);
             if (bytesRead == -1) {
-                throw new IOException("Data stream ended prematurely");
+                throw new RuntimeIOException("Data stream ended prematurely");
             }
         }
         return bytesRead;
+    }
+
+    public static RandomAccessFile readWriteRandomAccessFile(File file) {
+        try {
+            return new RandomAccessFile(file, "rw");
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static RandomAccessFile readRandomAccessFileRaf(File file) {
+        try {
+            return new RandomAccessFile(file, "r");
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        }
     }
 
 
@@ -103,7 +122,7 @@ public final class IOUtils {
                 closeable.close();
             }
         } catch (Exception e) {
-            logger.warn("Error while closing resource" , e);
+            logger.warn("Error while closing resource", e);
         }
     }
 }

@@ -6,7 +6,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -23,12 +22,12 @@ public abstract class StorageTest {
     private Storage storage;
     private Path testFile;
 
-    protected abstract Storage store(RandomAccessFile raf) throws Exception;
+    protected abstract Storage store(File raf) throws Exception;
 
     @Before
     public void setUp() throws Exception {
         testFile = new File("storage.db").toPath();
-        storage = store(new RandomAccessFile(testFile.toFile(), "rw"));
+        storage = store(testFile.toFile());
     }
 
     @After

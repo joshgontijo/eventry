@@ -1,11 +1,11 @@
 package io.joshworks.fstore.utils.io;
 
-import java.io.RandomAccessFile;
+import java.io.File;
 
 public class DiskStorageTest extends StorageTest {
 
     @Override
-    protected Storage store(RandomAccessFile raf) {
-        return new DiskStorage(raf);
+    protected Storage store(File file) {
+        return new DiskStorage(file);
     }
 }

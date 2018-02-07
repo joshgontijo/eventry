@@ -2,6 +2,8 @@ package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.serializer.StringSerializer;
 import io.joshworks.fstore.utils.IOUtils;
+import io.joshworks.fstore.utils.io.DiskStorage;
+import io.joshworks.fstore.utils.io.Storage;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -21,15 +23,18 @@ public class LogSegmentTest {
 
     private LogSegment<String> appender;
     private Path testFile;
+    private Storage storage;
 
     @Before
     public void setUp()  {
         testFile = new File("test.db").toPath();
-        appender = LogSegment.create(testFile.toFile(), new StringSerializer(), 2048);
+        storage = new DiskStorage(testFile.toFile());
+        appender = LogSegment.create(storage, new StringSerializer());
     }
 
     @After
-    public void cleanup() {
+    public void cleanup() throws IOException {
+        IOUtils.closeQuietly(storage);
         IOUtils.closeQuietly(appender);
         Utils.tryRemoveFile(testFile.toFile());
     }
@@ -49,7 +54,9 @@ public class LogSegmentTest {
 
         long position = appender.position();
         appender.close();
-        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), position);
+
+        storage = new DiskStorage(testFile.toFile());
+        appender = LogSegment.open(storage, new StringSerializer(), position);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
     }
@@ -74,7 +81,9 @@ public class LogSegmentTest {
 
         long position = appender.position();
         appender.close();
-        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), position, true);
+
+        storage = new DiskStorage(testFile.toFile());
+        appender = LogSegment.open(storage, new StringSerializer(), position, true);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
 
@@ -102,7 +111,9 @@ public class LogSegmentTest {
 
         long position = appender.position();
         appender.close();
-        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), position + 1, true);
+
+        storage = new DiskStorage(testFile.toFile());
+        appender = LogSegment.open(storage, new StringSerializer(), position + 1, true);
     }
 
     @Test(expected = CorruptedLogException.class)
@@ -120,7 +131,8 @@ public class LogSegmentTest {
             raf.writeInt(1);
         }
 
-        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), position - 1, true);
+        storage = new DiskStorage(testFile.toFile());
+        appender = LogSegment.open(storage, new StringSerializer(), position - 1, true);
     }
 
     @Test
@@ -134,7 +146,9 @@ public class LogSegmentTest {
 
         long position = appender.position();
         appender.close();
-        appender = LogSegment.open(testFile.toFile(), new StringSerializer(), position);
+
+        storage = new DiskStorage(testFile.toFile());
+        appender = LogSegment.open(storage, new StringSerializer(), position);
 
         reader = appender.reader();
         assertTrue(reader.hasNext());
