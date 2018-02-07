@@ -138,12 +138,12 @@ public class RollingLogAppender<T> implements Log<T> {
     }
 
     @Override
-    public Reader<T> reader() {
+    public Scanner<T> scanner() {
         return new RollingSegmentReader<>(segments, 0);
     }
 
     @Override
-    public Reader<T> reader(long position) {
+    public Scanner<T> scanner(long position) {
         return new RollingSegmentReader<>(segments, position);
     }
 
@@ -166,17 +166,17 @@ public class RollingLogAppender<T> implements Log<T> {
         currentSegment.flush();
     }
 
-    private static class RollingSegmentReader<T> implements Reader<T> {
+    private static class RollingSegmentReader<T> implements Scanner<T> {
 
         private final List<Log<T>> segments;
-        private Reader<T> current;
+        private Scanner<T> current;
         private int segmentIdx;
 
         public RollingSegmentReader(List<Log<T>> segments, long position) {
             this.segments = segments;
             if (!segments.isEmpty()) {
                 this.segmentIdx = getSegment(position);
-                this.current = segments.get(segmentIdx).reader(getPositionOnSegment(position));
+                this.current = segments.get(segmentIdx).scanner(getPositionOnSegment(position));
             }
         }
 
@@ -200,7 +200,7 @@ public class RollingLogAppender<T> implements Log<T> {
                 if (++segmentIdx >= segments.size()) {
                     return false;
                 }
-                current = segments.get(segmentIdx).reader();
+                current = segments.get(segmentIdx).scanner();
                 return current.hasNext();
             }
             return true;

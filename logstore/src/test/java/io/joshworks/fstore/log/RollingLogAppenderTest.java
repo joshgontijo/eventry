@@ -74,13 +74,13 @@ public class RollingLogAppenderTest {
         String lastEntry = "FIRST-ENTRY-NEXT-SEGMENT";
         long lastWrittenPosition = appender.append(lastEntry);
 
-        Reader<String> reader = appender.reader();
+        Scanner<String> scanner = appender.scanner();
 
         String lastValue = null;
         long lastPosition = -1;
-        for (String value : reader) {
+        for (String value : scanner) {
             lastValue = value;
-            lastPosition = reader.position();
+            lastPosition = scanner.position();
         }
 
         assertEquals(lastEntry, lastValue);
@@ -102,11 +102,11 @@ public class RollingLogAppenderTest {
         String lastEntry = "FIRST-ENTRY-NEXT-SEGMENT";
         long lastWrittenPosition = appender.append(lastEntry);
 
-        Reader<String> reader = appender.reader(lastWrittenPosition);
+        Scanner<String> scanner = appender.scanner(lastWrittenPosition);
 
-        assertTrue(reader.hasNext());
-        assertEquals(lastEntry, reader.next());
-        assertEquals(lastWrittenPosition + lastEntry.length() + Integer.BYTES * 2, reader.position());
+        assertTrue(scanner.hasNext());
+        assertEquals(lastEntry, scanner.next());
+        assertEquals(lastWrittenPosition + lastEntry.length() + Integer.BYTES * 2, scanner.position());
     }
 
     @Test
@@ -122,7 +122,7 @@ public class RollingLogAppenderTest {
         }
 //        System.out.println(written);
 //
-//        for (String item : appender.reader()) {
+//        for (String item : appender.scanner()) {
 //            System.out.println(item);
 //        }
 

@@ -60,10 +60,10 @@ public class LogSegment<T> implements Log<T> {
     private void checkIntegrity(long lastKnownPosition) {
         long position = 0;
         logger.info("Restoring log state and checking consistency until the position {}", lastKnownPosition);
-        Reader<T> reader = reader();
-        while (reader.hasNext()) {
-            reader.next();
-            position = reader.position();
+        Scanner<T> scanner = scanner();
+        while (scanner.hasNext()) {
+            scanner.next();
+            position = scanner.position();
         }
         if (position != lastKnownPosition) {
             throw new CorruptedLogException(MessageFormat.format("Expected last position {0}, got {1}", lastKnownPosition, position));
@@ -74,6 +74,39 @@ public class LogSegment<T> implements Log<T> {
     @Override
     public long position() {
         return position;
+    }
+
+    @Override
+    public T get(long position) {
+        ByteBuffer header = ByteBuffer.allocate(HEADER_SIZE);
+        //TODO allocate 4kb buffer and read all at once ???
+        storage.read(position, header);
+        header.flip();
+        int length = header.getInt();
+        long checksum = header.getLong();
+        ByteBuffer data = ByteBuffer.allocate(length);
+        return readData(data, checksum);
+
+    }
+
+    @Override
+    public T get(long position, int length) {
+        ByteBuffer fullData = ByteBuffer.allocate(HEADER_SIZE + length);
+        storage.read(position, fullData);
+        fullData.flip();
+        long dataLength = fullData.getLong();
+        if(length != dataLength) {
+            throw new IllegalStateException("Data length doesn't match, expected " + length + " got " + dataLength);
+        }
+        int checksum = fullData.getInt();
+        return readData(fullData, checksum);
+    }
+
+    private T readData(ByteBuffer buffer, long checksum) {
+        if(Checksum.checksum(buffer) != checksum) {
+            throw new ChecksumException();
+        }
+        return serializer.fromBytes(buffer);
     }
 
     @Override
@@ -93,12 +126,12 @@ public class LogSegment<T> implements Log<T> {
     }
 
     @Override
-    public Reader<T> reader() {
+    public Scanner<T> scanner() {
         return new LogReader<>(storage, serializer);
     }
 
     @Override
-    public Reader<T> reader(long position) {
+    public Scanner<T> scanner(long position) {
         return new LogReader<>(storage, serializer, position);
     }
 
@@ -113,7 +146,7 @@ public class LogSegment<T> implements Log<T> {
     }
 
     //NOT THREAD SAFE
-    private static class LogReader<T> implements Reader<T> {
+    private static class LogReader<T> implements Scanner<T> {
 
         private final Storage storage;
         private final Serializer<T> serializer;
@@ -138,11 +171,11 @@ public class LogSegment<T> implements Log<T> {
             }
 
             //TODO read may return less than the actual dataBuffer size / or zero ?
-            ByteBuffer heading = ByteBuffer.allocate(HEADER_SIZE);
-            currentPos += storage.read(currentPos, heading);
+            ByteBuffer header = ByteBuffer.allocate(HEADER_SIZE);
+            currentPos += storage.read(currentPos, header);
 
-            heading.flip();
-            int length = heading.getInt();
+            header.flip();
+            int length = header.getInt();
             if (length <= 0) {
                 return null;
             }
@@ -150,7 +183,7 @@ public class LogSegment<T> implements Log<T> {
                 throw new IllegalStateException("Not data to be read");
             }
 
-            int writeChecksum = heading.getInt();
+            int writeChecksum = header.getInt();
 
             ByteBuffer dataBuffer = ByteBuffer.allocate(length);
             currentPos += storage.read(currentPos, dataBuffer);
@@ -160,7 +193,7 @@ public class LogSegment<T> implements Log<T> {
 
             int readChecksum = Checksum.checksum(dataBuffer);
             if (readChecksum != writeChecksum) {
-                throw new CorruptedLogException("Checksum verification failed");
+                throw new ChecksumException();
             }
 
             return serializer.fromBytes(dataBuffer);

@@ -4,10 +4,14 @@ import java.io.Closeable;
 
 public interface Log<T> extends Writer<T>, Closeable {
 
-    Reader<T> reader();
+    Scanner<T> scanner();
 
-    Reader<T> reader(long position);
+    Scanner<T> scanner(long position);
 
     long position();
+
+    T get(long position);
+
+    T get(long position, int length);
 
 }

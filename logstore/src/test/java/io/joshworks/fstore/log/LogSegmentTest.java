@@ -66,10 +66,10 @@ public class LogSegmentTest {
         String data = "hello";
         appender.append(data);
 
-        Reader<String> reader = appender.reader();
-        assertTrue(reader.hasNext());
-        assertEquals(data, reader.next());
-        assertEquals(4 + 4 + data.length(), reader.position()); // 4 + 4 (heading) + data length
+        Scanner<String> scanner = appender.scanner();
+        assertTrue(scanner.hasNext());
+        assertEquals(data, scanner.next());
+        assertEquals(4 + 4 + data.length(), scanner.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -91,15 +91,15 @@ public class LogSegmentTest {
         appender.append(data2);
 
         int firstEntrySize = 4 + 4 + data.length();
-        Reader<String> reader = appender.reader();
-        assertTrue(reader.hasNext());
-        assertEquals(data, reader.next());
-        assertEquals(firstEntrySize, reader.position()); // 4 + 4 (heading) + data length
+        Scanner<String> scanner = appender.scanner();
+        assertTrue(scanner.hasNext());
+        assertEquals(data, scanner.next());
+        assertEquals(firstEntrySize, scanner.position()); // 4 + 4 (heading) + data length
 
         int secondEntrySize = 4 + 4 + data2.length();
-        assertTrue(reader.hasNext());
-        assertEquals(data2, reader.next());
-        assertEquals(firstEntrySize + secondEntrySize, reader.position()); // 4 + 4 (heading) + data length
+        assertTrue(scanner.hasNext());
+        assertEquals(data2, scanner.next());
+        assertEquals(firstEntrySize + secondEntrySize, scanner.position()); // 4 + 4 (heading) + data length
     }
 
     @Test(expected = CorruptedLogException.class)
@@ -140,9 +140,9 @@ public class LogSegmentTest {
         String data = "hello";
         appender.append(data);
 
-        Reader<String> reader = appender.reader();
-        assertTrue(reader.hasNext());
-        assertEquals(data, reader.next());
+        Scanner<String> scanner = appender.scanner();
+        assertTrue(scanner.hasNext());
+        assertEquals(data, scanner.next());
 
         long position = appender.position();
         appender.close();
@@ -150,10 +150,10 @@ public class LogSegmentTest {
         storage = new DiskStorage(testFile.toFile());
         appender = LogSegment.open(storage, new StringSerializer(), position);
 
-        reader = appender.reader();
-        assertTrue(reader.hasNext());
-        assertEquals(data, reader.next());
-        assertEquals(4 + 4 + data.length(), reader.position()); // 4 + 4 (heading) + data length
+        scanner = appender.scanner();
+        assertTrue(scanner.hasNext());
+        assertEquals(data, scanner.next());
+        assertEquals(4 + 4 + data.length(), scanner.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -161,15 +161,15 @@ public class LogSegmentTest {
         String data = "hello";
         appender.append(data);
 
-        Reader<String> reader1 = appender.reader();
-        assertTrue(reader1.hasNext());
-        assertEquals(data, reader1.next());
-        assertEquals(4 + 4 + data.length(), reader1.position()); // 4 + 4 (heading) + data length
+        Scanner<String> scanner1 = appender.scanner();
+        assertTrue(scanner1.hasNext());
+        assertEquals(data, scanner1.next());
+        assertEquals(4 + 4 + data.length(), scanner1.position()); // 4 + 4 (heading) + data length
 
-        Reader<String> reader2 = appender.reader();
-        assertTrue(reader2.hasNext());
-        assertEquals(data, reader2.next());
-        assertEquals(4 + 4 + data.length(), reader1.position()); // 4 + 4 (heading) + data length
+        Scanner<String> scanner2 = appender.scanner();
+        assertTrue(scanner2.hasNext());
+        assertEquals(data, scanner2.next());
+        assertEquals(4 + 4 + data.length(), scanner1.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -181,10 +181,10 @@ public class LogSegmentTest {
         String data = sb.toString();
         appender.append(data);
 
-        Reader<String> reader1 = appender.reader();
-        assertTrue(reader1.hasNext());
-        assertEquals(data, reader1.next());
-        assertEquals(4 + 4 + data.length(), reader1.position()); // 4 + 4 (heading) + data length
+        Scanner<String> scanner1 = appender.scanner();
+        assertTrue(scanner1.hasNext());
+        assertEquals(data, scanner1.next());
+        assertEquals(4 + 4 + data.length(), scanner1.position()); // 4 + 4 (heading) + data length
 
     }
 
