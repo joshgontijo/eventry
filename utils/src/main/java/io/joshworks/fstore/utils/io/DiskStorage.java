@@ -36,7 +36,7 @@ public class DiskStorage extends Storage {
     public int read(long position, ByteBuffer data) {
         try {
             int read = 0;
-            while (data.hasRemaining()) {
+            while (data.hasRemaining() && read >= 0) {
                 read += channel.read(data, position);
             }
             return read;

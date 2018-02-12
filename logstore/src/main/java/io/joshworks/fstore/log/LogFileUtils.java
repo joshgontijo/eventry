@@ -33,7 +33,7 @@ public final class LogFileUtils {
     static void createRoot(File directory) {
         try {
             if (!directory.exists()) {
-                if(!directory.mkdir()) {
+                if (!directory.mkdir()) {
                     throw new IllegalStateException("Could not create root directory");
                 }
             }
@@ -63,18 +63,29 @@ public final class LogFileUtils {
         }
     }
 
-    static void writeMetadata(File directory, RollingLogAppender.Metadata metadata) throws IOException {
+    static void writeMetadata(File directory, Metadata metadata) throws IOException {
         try (OutputStream os = new FileOutputStream(new File(directory, METADATA_FILE))) {
             DataOutput baos = new DataOutputStream(os);
-            baos.writeLong(metadata.lastPosition);
-            baos.writeInt(metadata.segmentSize);
+
+            baos.writeLong(metadata.lastPosition());
+            baos.writeInt(metadata.segmentSize());
+            baos.writeLong(metadata.maxBlockSize());
+            baos.writeInt(metadata.blockBitShift());
+            baos.writeInt(metadata.entryIdxBitShift());
+            baos.writeInt(metadata.segmentBitShift());
         }
     }
 
-    static RollingLogAppender.Metadata readMetadata(File directory) throws IOException {
+    static Metadata readMetadata(File directory) throws IOException {
         try (InputStream os = new FileInputStream(new File(directory, METADATA_FILE))) {
             DataInput input = new DataInputStream(os);
-            return new RollingLogAppender.Metadata(input.readLong(), input.readInt());
+            return new Metadata()
+                    .lastPosition(input.readLong())
+                    .segmentSize(input.readInt())
+                    .maxBlockSize(input.readLong())
+                    .blockBitShift(input.readInt())
+                    .entryIdxBitShift(input.readInt())
+                    .segmentBitShift(input.readInt());
         }
     }
 

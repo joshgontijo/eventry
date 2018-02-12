@@ -17,6 +17,7 @@ public class IntegerArraySerializer extends ArraySerializer<int[]> {
         int size = getSize(data);
         int[] array = new int[size];
         data.asIntBuffer().get(array);
+        data.position(data.position() + array.length * byteSize());
         return array;
     }
 

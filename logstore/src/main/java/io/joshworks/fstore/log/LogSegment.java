@@ -83,7 +83,7 @@ public class LogSegment<T> implements Log<T> {
         storage.read(position, header);
         header.flip();
         int length = header.getInt();
-        long checksum = header.getLong();
+        int checksum = header.getInt();
         ByteBuffer data = ByteBuffer.allocate(length);
         return readData(data, checksum);
 
@@ -102,7 +102,7 @@ public class LogSegment<T> implements Log<T> {
         return readData(fullData, checksum);
     }
 
-    private T readData(ByteBuffer buffer, long checksum) {
+    private T readData(ByteBuffer buffer, int checksum) {
         if(Checksum.checksum(buffer) != checksum) {
             throw new ChecksumException();
         }

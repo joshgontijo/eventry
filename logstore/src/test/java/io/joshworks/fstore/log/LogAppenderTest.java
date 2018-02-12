@@ -14,7 +14,7 @@ import java.util.UUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class RollingLogAppenderTest {
+public class LogAppenderTest {
 
     private static final String folder = System.getProperty("user.home") + File.separator + ".fstore";
     private Log<String> appender;
@@ -29,7 +29,7 @@ public class RollingLogAppenderTest {
             testDirectory.mkdir();
         }
         Utils.removeFiles(testDirectory);
-        appender = RollingLogAppender.create(testDirectory, new StringSerializer(), SEGMENT_SIZE);
+        appender = LogAppender.create(testDirectory, new StringSerializer(), SEGMENT_SIZE);
     }
 
     @After
@@ -56,7 +56,7 @@ public class RollingLogAppenderTest {
         }
         appender.append("CAUSES-ROLL");
         long newSegmentPosition = appender.append("new-segment");
-        assertEquals(RollingLogAppender.SEGMENT_MULTIPLIER * 2, newSegmentPosition);
+        assertEquals(LogAppender.SEGMENT_MULTIPLIER * 2, newSegmentPosition);
     }
 
     @Test
