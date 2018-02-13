@@ -17,7 +17,7 @@ import static org.junit.Assert.assertTrue;
 public class LogAppenderTest {
 
     private static final String folder = System.getProperty("user.home") + File.separator + ".fstore";
-    private Log<String> appender;
+    private LogAppender<String> appender;
 
     private File testDirectory;
     private static final int SEGMENT_SIZE = 1024 * 1000;//1mb
@@ -38,15 +38,6 @@ public class LogAppenderTest {
     }
 
     @Test
-    public void position() {
-        long position1 = appender.append("test1");
-        assertTrue(position1 > 0);
-
-        long position2 = appender.append("test2");
-        assertTrue(position2 > position1);
-    }
-
-    @Test
     public void roll() {
         int written = 0;
         while (written <= SEGMENT_SIZE) {
@@ -55,8 +46,8 @@ public class LogAppenderTest {
             written += data.length() + Integer.BYTES * 2; //header size
         }
         appender.append("CAUSES-ROLL");
-        long newSegmentPosition = appender.append("new-segment");
-        assertEquals(LogAppender.SEGMENT_MULTIPLIER * 2, newSegmentPosition);
+        appender.append("new-segment");
+        assertEquals(2, appender.segments.size());
     }
 
     @Test
@@ -72,19 +63,32 @@ public class LogAppenderTest {
         appender.append("LAST-ENTRY-ON-FIRST-SEGMENT");
 
         String lastEntry = "FIRST-ENTRY-NEXT-SEGMENT";
-        long lastWrittenPosition = appender.append(lastEntry);
+        appender.append(lastEntry);
 
         Scanner<String> scanner = appender.scanner();
 
         String lastValue = null;
-        long lastPosition = -1;
         for (String value : scanner) {
             lastValue = value;
-            lastPosition = scanner.position();
         }
 
         assertEquals(lastEntry, lastValue);
-        assertEquals(lastWrittenPosition + lastEntry.length() + Integer.BYTES * 2, lastPosition);
+    }
+
+    @Test
+    public void position() {
+
+        int segmentIdx = 1;
+        long positionOnSegment = 32;
+        long position = appender.toSegmentedPosition(segmentIdx, positionOnSegment);
+
+        int segment = appender.getSegment(position);
+        long foundPositionOnSegment = appender.getPositionOnSegment(position);
+
+        assertEquals(segmentIdx, segment);
+        assertEquals(positionOnSegment, foundPositionOnSegment);
+
+
     }
 
     @Test
@@ -106,7 +110,6 @@ public class LogAppenderTest {
 
         assertTrue(scanner.hasNext());
         assertEquals(lastEntry, scanner.next());
-        assertEquals(lastWrittenPosition + lastEntry.length() + Integer.BYTES * 2, scanner.position());
     }
 
     @Test

@@ -20,6 +20,8 @@ import static org.junit.Assert.assertNull;
 public class CompressedBlockLogSegmentTest {
 
     private static final int BLOCK_SIZE = 16;
+    private static final int BLOCK_BIT_SHIFT = 54;
+    private static final int ENTRY_IDX_BIT_SHIFT = 10;
 
     private Log<String> log;
     private Path testFile;
@@ -29,7 +31,7 @@ public class CompressedBlockLogSegmentTest {
     public void setUp() {
         testFile = new File("test.db").toPath();
         storage = new DiskStorage(testFile.toFile());
-        log = CompressedBlockLogSegment.create(storage, new StringSerializer(), new SnappyCodec(), BLOCK_SIZE);
+        log = CompressedBlockLogSegment.create(storage, new StringSerializer(), new SnappyCodec(), BLOCK_SIZE, BLOCK_BIT_SHIFT, ENTRY_IDX_BIT_SHIFT);
     }
 
     @After
@@ -37,16 +39,6 @@ public class CompressedBlockLogSegmentTest {
         IOUtils.closeQuietly(storage);
         IOUtils.closeQuietly(log);
         Utils.tryRemoveFile(testFile.toFile());
-    }
-
-    @Test
-    public void append_position() {
-        String value = "hello";
-        long pos = log.append(value);
-        assertEquals(0, pos);
-
-        pos = log.append(value);
-        assertEquals(5, pos);
     }
 
     @Test
@@ -80,12 +72,13 @@ public class CompressedBlockLogSegmentTest {
     public void blockPosition() {
         long address = 100564646540L;
         int entryIdx = 5;
-        long position = CompressedBlockLogSegment.toAbsolutePosition(address, entryIdx);
-        int positionOnBlock = CompressedBlockLogSegment.getPositionOnBlock(position);
-        long blockAddress = CompressedBlockLogSegment.getBlockAddress(position);
+
+        CompressedBlockLogSegment cbls = (CompressedBlockLogSegment) log;
+        long position = cbls.toAbsolutePosition(address, entryIdx);
+        int positionOnBlock = cbls.getPositionOnBlock(position);
+        long blockAddress = cbls.getBlockAddress(position);
         assertEquals(address, blockAddress);
         assertEquals(entryIdx, positionOnBlock);
-
     }
 
     @Test
@@ -93,7 +86,7 @@ public class CompressedBlockLogSegmentTest {
         List<Long> positions = new LinkedList<>();
 
         long writeStart = System.currentTimeMillis();
-        for (int i = 0; i < 100000; i++) {
+        for (int i = 0; i < 100; i++) {
             positions.add(log.append(String.valueOf(i)));
         }
         log.flush();
@@ -101,7 +94,7 @@ public class CompressedBlockLogSegmentTest {
 
 
         long readStart = System.currentTimeMillis();
-        for (int i = 0; i < 100000; i++) {
+        for (int i = 0; i < 100; i++) {
             String found = log.get(positions.get(i));
             assertEquals(String.valueOf(i), found);
         }

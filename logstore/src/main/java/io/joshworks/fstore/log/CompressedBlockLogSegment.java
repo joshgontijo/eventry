@@ -181,7 +181,7 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
         ByteBuffer dataBytes = serializer.toBytes(data);
 
         dataBytes.flip();
-        if (currentBlock.size > maxBlockSize || currentBlock.data.size() >= maxEntriesPerBlock) {
+        if (currentBlock.size >= maxBlockSize || currentBlock.data.size() >= maxEntriesPerBlock) {
             flush();
             currentBlock = new Block(maxBlockSize);
         }

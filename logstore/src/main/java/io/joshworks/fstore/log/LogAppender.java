@@ -10,30 +10,28 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 
 public class LogAppender<T> implements Log<T> {
 
     private static final Logger logger = LoggerFactory.getLogger(LogAppender.class);
 
+    private static final int DEFAULT_SEGMENT_BIT_SHIFT = 28;
+
     private final int segmentBitShift;
+    private final long maxSegments;
 
     private final File directory;
     private final Serializer<T> serializer;
 
-    private final List<Log<T>> segments;
+    final List<Log<T>> segments;
     private Log<T> currentSegment;
 
     private final Metadata metadata;
     private long position;
     private final int segmentSize;
 
-
-    public static void main(String[] args) {
-        long a = 1;
-        System.out.println(Long.toBinaryString(a));
-        System.out.println(Long.toBinaryString(-a));
-    }
 
     public static <T> LogAppender<T> create(File directory, Serializer<T> serializer, int segmentSize) {
         if (LogFileUtils.metadataExists(directory)) {
@@ -43,7 +41,9 @@ public class LogAppender<T> implements Log<T> {
         try {
             LogFileUtils.createRoot(directory);
 
-            Metadata metadata = new Metadata().segmentSize(segmentSize);
+            Metadata metadata = new Metadata()
+                    .segmentSize(segmentSize)
+                    .segmentBitShift(DEFAULT_SEGMENT_BIT_SHIFT);
             LogFileUtils.writeMetadata(directory, metadata);
 
             return new LogAppender<>(directory, serializer, metadata);
@@ -75,10 +75,12 @@ public class LogAppender<T> implements Log<T> {
         this.directory = directory;
         this.serializer = serializer;
         this.metadata = metadata;
+        this.maxSegments = (long) Math.pow(2, metadata.segmentBitShift());
 
         this.position = metadata.lastPosition();
         this.segmentSize = metadata.segmentSize();
         this.segmentBitShift = metadata.segmentBitShift();
+
 
         this.segments = LogFileUtils.loadSegments(directory, f -> openSegment(f, serializer, 0, false));
         if (this.segments.isEmpty()) {
@@ -119,23 +121,33 @@ public class LogAppender<T> implements Log<T> {
         }
     }
 
-    private static int getSegment(long position) {
-        int pos = position == 0 ? 1 : (int) (position / SEGMENT_MULTIPLIER);
-        return pos - 1; //requires offset to access the array, here values start with 1
+    int getSegment(long position) {
+        int segmentIdx = (int) (position >> segmentBitShift);
+        if (segmentIdx > maxSegments) {
+            throw new IllegalArgumentException("Invalid segment, value cannot be greater than " + maxSegments);
+        }
+        return segmentIdx;
     }
 
-    private static long toSegmentedPosition(int segmentIdx, long position) {
-        return SEGMENT_MULTIPLIER * segmentIdx + position;
+    long toSegmentedPosition(int segmentIdx, long position) {
+        if(segmentIdx < 0) {
+            throw new IllegalArgumentException("Segment index cannot less than zero");
+        }
+        if (segmentIdx > maxSegments) {
+            throw new IllegalArgumentException("Segment index cannot be greater than " + maxSegments);
+        }
+        return segmentIdx << segmentBitShift | position; //segments will always start at 1
     }
 
-    private static long getPositionOnSegment(long position) {
-        return position % SEGMENT_MULTIPLIER;
+    long getPositionOnSegment(long position) {
+        long mask = (1 << segmentBitShift) - 1;
+        return (int) (position & mask);
     }
 
     @Override
     public long append(T data) {
         long segmentPosition = currentSegment.append(data);
-        this.position = toSegmentedPosition(segments.size(), segmentPosition);
+        this.position = toSegmentedPosition(segments.size() - 1, segmentPosition);
         if (segmentPosition > segmentSize) {
             currentSegment = roll();
         }
@@ -144,12 +156,12 @@ public class LogAppender<T> implements Log<T> {
 
     @Override
     public Scanner<T> scanner() {
-        return new RollingSegmentReader<>(segments, 0);
+        return new RollingSegmentReader(new LinkedList<>(segments), 0);
     }
 
     @Override
     public Scanner<T> scanner(long position) {
-        return new RollingSegmentReader<>(segments, position);
+        return new RollingSegmentReader(new LinkedList<>(segments), position);
     }
 
     @Override
@@ -200,7 +212,7 @@ public class LogAppender<T> implements Log<T> {
         currentSegment.flush();
     }
 
-    private static class RollingSegmentReader<T> implements Scanner<T> {
+    private class RollingSegmentReader implements Scanner<T> {
 
         private final List<Log<T>> segments;
         private Scanner<T> current;
@@ -210,13 +222,14 @@ public class LogAppender<T> implements Log<T> {
             this.segments = segments;
             if (!segments.isEmpty()) {
                 this.segmentIdx = getSegment(position);
-                this.current = segments.get(segmentIdx).scanner(getPositionOnSegment(position));
+                long positionOnSegment = getPositionOnSegment(position);
+                this.current = segments.get(segmentIdx).scanner(positionOnSegment);
             }
         }
 
         @Override
         public long position() {
-            return toSegmentedPosition(segmentIdx + 1, current.position());
+            return toSegmentedPosition(segmentIdx -1, current.position());
         }
 
         @Override
