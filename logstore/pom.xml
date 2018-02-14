@@ -13,7 +13,7 @@
     <dependencies>
         <dependency>
             <groupId>io.joshworks.fstore</groupId>
-            <artifactId>api</artifactId>
+            <artifactId>core</artifactId>
         </dependency>
         <dependency>
             <groupId>io.joshworks.fstore</groupId>
@@ -27,12 +27,6 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.xerial.snappy</groupId>
-            <artifactId>snappy-java</artifactId>
-            <version>1.1.7.1</version>
-        </dependency>
-
 
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -43,6 +37,16 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>snappy</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>lz4</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

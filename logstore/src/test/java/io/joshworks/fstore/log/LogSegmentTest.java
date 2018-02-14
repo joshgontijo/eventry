@@ -1,9 +1,9 @@
 package io.joshworks.fstore.log;
 
+import io.joshworks.fstore.core.io.DiskStorage;
+import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.serializer.StringSerializer;
-import io.joshworks.fstore.utils.IOUtils;
-import io.joshworks.fstore.utils.io.DiskStorage;
-import io.joshworks.fstore.utils.io.Storage;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -13,6 +13,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
@@ -33,7 +35,7 @@ public class LogSegmentTest {
     }
 
     @After
-    public void cleanup() throws IOException {
+    public void cleanup() {
         IOUtils.closeQuietly(storage);
         IOUtils.closeQuietly(appender);
         Utils.tryRemoveFile(testFile.toFile());
@@ -188,5 +190,39 @@ public class LogSegmentTest {
 
     }
 
+    @Test
+    public void get() throws IOException {
+        List<Long> positions = new ArrayList<>();
 
+        int items = 10;
+        for (int i = 0; i < items; i++) {
+            positions.add(appender.append(String.valueOf(i)));
+        }
+        appender.flush();
+
+        for (int i = 0; i < items; i++) {
+            String found = appender.get(positions.get(i));
+            assertEquals(String.valueOf(i), found);
+        }
+    }
+
+    @Test
+    public void getWithLength() throws IOException {
+        List<Long> positions = new ArrayList<>();
+        List<String> values = new ArrayList<>();
+
+        int items = 10;
+        for (int i = 0; i < items; i++) {
+            String value = UUID.randomUUID().toString();
+            values.add(value);
+            positions.add(appender.append(value));
+        }
+        appender.flush();
+
+        int length = 36;
+        for (int i = 0; i < items; i++) {
+            String found = appender.get(positions.get(i), length);
+            assertEquals(values.get(i), found);
+        }
+    }
 }

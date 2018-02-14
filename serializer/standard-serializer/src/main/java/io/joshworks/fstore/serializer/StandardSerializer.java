@@ -1,6 +1,6 @@
 package io.joshworks.fstore.serializer;
 
-import io.joshworks.fstore.api.Serializer;
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.arrays.BooleanArraySerializer;
 import io.joshworks.fstore.serializer.arrays.ByteArraySerializer;
 import io.joshworks.fstore.serializer.arrays.DoubleArraySerializer;

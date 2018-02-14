@@ -1,11 +1,11 @@
 package io.joshworks.fstore.log;
 
 
-import io.joshworks.fstore.api.Codec;
-import io.joshworks.fstore.api.Serializer;
+import io.joshworks.fstore.core.Codec;
+import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.serializer.arrays.IntegerArraySerializer;
-import io.joshworks.fstore.utils.IOUtils;
-import io.joshworks.fstore.utils.io.Storage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -214,7 +214,6 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
 
     private Block loadBlock(long blockAddress) {
 
-
         ByteBuffer header = ByteBuffer.allocate(HEADER_SIZE);
         int read = storage.read(blockAddress, header);
         if (read <= 0) {
@@ -225,13 +224,13 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
         int checksum = header.getInt();
 
         ByteBuffer blockData = ByteBuffer.allocate(blockSize);
-        storage.read(blockAddress + HEADER_SIZE, blockData);
+        storage.read(HEADER_SIZE + blockAddress, blockData);
         blockData.flip();
 
         if (Checksum.checksum(blockData) != checksum) {
             throw new ChecksumException();
         }
-        return Block.decompressing(codec, blockData);
+        return Block.decompressing(codec, blockData, blockSize);
     }
 
     //NOT THREAD SAFE
@@ -340,8 +339,8 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
             return new Block(READ_ONLY, data);
         }
 
-        public static Block decompressing(Codec decompressor, ByteBuffer buffer) {
-            ByteBuffer decompressed = ByteBuffer.wrap(decompressor.decompress(buffer.array()));
+        public static Block decompressing(Codec decompressor, ByteBuffer buffer, int blockSize) {
+            ByteBuffer decompressed = ByteBuffer.wrap(decompressor.decompress(buffer.array(), blockSize));
             int[] lengths = lengthSerializer.fromBytes(decompressed);
             List<ByteBuffer> buffers = new LinkedList<>();
 

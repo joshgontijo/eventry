@@ -1,9 +1,9 @@
 package io.joshworks.fstore.log;
 
-import io.joshworks.fstore.api.Serializer;
-import io.joshworks.fstore.utils.io.DiskStorage;
-import io.joshworks.fstore.utils.io.RuntimeIOException;
-import io.joshworks.fstore.utils.io.Storage;
+import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.io.DiskStorage;
+import io.joshworks.fstore.core.io.Storage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

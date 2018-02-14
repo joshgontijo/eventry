@@ -1,6 +1,6 @@
 package io.joshworks.fstore.serializer;
 
-import io.joshworks.fstore.api.Serializer;
+import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 

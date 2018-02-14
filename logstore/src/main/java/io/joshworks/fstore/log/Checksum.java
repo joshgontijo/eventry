@@ -18,7 +18,7 @@ public class Checksum {
         if (!buffer.hasArray()) {
             throw new IllegalArgumentException("ByteBuffer must be an array backed buffer");
         }
-        return checksum(buffer.array(), 0, buffer.limit());
+        return checksum(buffer.array(), buffer.position(), buffer.remaining());
     }
 
     private static int checksum(byte[] data, int offset, int length) {

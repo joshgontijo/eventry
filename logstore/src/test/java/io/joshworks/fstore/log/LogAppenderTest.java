@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log;
 
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.serializer.StringSerializer;
-import io.joshworks.fstore.utils.IOUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;

@@ -2,7 +2,7 @@ package io.joshworks.fstore.serializer.json;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import io.joshworks.fstore.api.Serializer;
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.StringSerializer;
 
 import java.nio.ByteBuffer;

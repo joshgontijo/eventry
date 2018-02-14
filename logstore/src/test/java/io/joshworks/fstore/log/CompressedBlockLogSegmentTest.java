@@ -1,9 +1,10 @@
 package io.joshworks.fstore.log;
 
+import io.joshworks.fstore.codec.lz4.LZ4Coded;
+import io.joshworks.fstore.core.io.DiskStorage;
+import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.serializer.StringSerializer;
-import io.joshworks.fstore.utils.IOUtils;
-import io.joshworks.fstore.utils.io.DiskStorage;
-import io.joshworks.fstore.utils.io.Storage;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -11,7 +12,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -31,7 +32,7 @@ public class CompressedBlockLogSegmentTest {
     public void setUp() {
         testFile = new File("test.db").toPath();
         storage = new DiskStorage(testFile.toFile());
-        log = CompressedBlockLogSegment.create(storage, new StringSerializer(), new SnappyCodec(), BLOCK_SIZE, BLOCK_BIT_SHIFT, ENTRY_IDX_BIT_SHIFT);
+        log = CompressedBlockLogSegment.create(storage, new StringSerializer(), new LZ4Coded(), BLOCK_SIZE, BLOCK_BIT_SHIFT, ENTRY_IDX_BIT_SHIFT);
     }
 
     @After
@@ -82,23 +83,26 @@ public class CompressedBlockLogSegmentTest {
     }
 
     @Test
-    public void multiple_blocks() throws IOException {
-        List<Long> positions = new LinkedList<>();
+    public void get() throws IOException {
+        List<Long> positions = new ArrayList<>();
 
-        long writeStart = System.currentTimeMillis();
-        for (int i = 0; i < 100; i++) {
+        int items = 10;
+        for (int i = 0; i < items; i++) {
             positions.add(log.append(String.valueOf(i)));
         }
         log.flush();
-        System.out.println("WRITE: " + (System.currentTimeMillis() - writeStart));
 
-
-        long readStart = System.currentTimeMillis();
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < items; i++) {
             String found = log.get(positions.get(i));
             assertEquals(String.valueOf(i), found);
         }
-        System.out.println("READ: " + (System.currentTimeMillis() - readStart));
     }
+
+    @Test(expected = UnsupportedOperationException.class)
+    public void getWithLength() throws IOException {
+        log.get(1, 10);
+    }
+
+
 
 }

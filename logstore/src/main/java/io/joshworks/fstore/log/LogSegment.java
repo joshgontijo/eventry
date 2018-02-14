@@ -1,9 +1,9 @@
 package io.joshworks.fstore.log;
 
 
-import io.joshworks.fstore.api.Serializer;
-import io.joshworks.fstore.utils.IOUtils;
-import io.joshworks.fstore.utils.io.Storage;
+import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.Storage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,7 +25,7 @@ public class LogSegment<T> implements Log<T> {
 
 
     public static <T> LogSegment<T> create(Storage storage, Serializer<T> serializer) {
-       return new LogSegment<>(storage, serializer);
+        return new LogSegment<>(storage, serializer);
     }
 
     public static <T> LogSegment<T> open(Storage storage, Serializer<T> serializer, long position) {
@@ -59,12 +59,18 @@ public class LogSegment<T> implements Log<T> {
 
     private void checkIntegrity(long lastKnownPosition) {
         long position = 0;
-        logger.info("Restoring log state and checking consistency until the position {}", lastKnownPosition);
-        Scanner<T> scanner = scanner();
-        while (scanner.hasNext()) {
-            scanner.next();
-            position = scanner.position();
+        try {
+
+            logger.info("Restoring log state and checking consistency until the position {}", lastKnownPosition);
+            Scanner<T> scanner = scanner();
+            while (scanner.hasNext()) {
+                scanner.next();
+                position = scanner.position();
+            }
+        } catch (Exception e) {
+            throw new CorruptedLogException("Failed on integrity check", e);
         }
+        //TODO - should advance further after the lastKnownPosition ? (probably yes) lastKnownPosition should be used just for checkpoint
         if (position != lastKnownPosition) {
             throw new CorruptedLogException(MessageFormat.format("Expected last position {0}, got {1}", lastKnownPosition, position));
         }
@@ -83,10 +89,7 @@ public class LogSegment<T> implements Log<T> {
         storage.read(position, header);
         header.flip();
         int length = header.getInt();
-        int checksum = header.getInt();
-        ByteBuffer data = ByteBuffer.allocate(length);
-        return readData(data, checksum);
-
+        return get(position, length);
     }
 
     @Override
@@ -94,8 +97,8 @@ public class LogSegment<T> implements Log<T> {
         ByteBuffer fullData = ByteBuffer.allocate(HEADER_SIZE + length);
         storage.read(position, fullData);
         fullData.flip();
-        long dataLength = fullData.getLong();
-        if(length != dataLength) {
+        long dataLength = fullData.getInt();
+        if (length != dataLength) {
             throw new IllegalStateException("Data length doesn't match, expected " + length + " got " + dataLength);
         }
         int checksum = fullData.getInt();
@@ -103,7 +106,7 @@ public class LogSegment<T> implements Log<T> {
     }
 
     private T readData(ByteBuffer buffer, int checksum) {
-        if(Checksum.checksum(buffer) != checksum) {
+        if (Checksum.checksum(buffer) != checksum) {
             throw new ChecksumException();
         }
         return serializer.fromBytes(buffer);
