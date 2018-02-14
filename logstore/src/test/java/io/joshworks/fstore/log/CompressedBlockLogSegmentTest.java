@@ -1,6 +1,6 @@
 package io.joshworks.fstore.log;
 
-import io.joshworks.fstore.codec.lz4.LZ4Coded;
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.io.DiskStorage;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
@@ -32,7 +32,7 @@ public class CompressedBlockLogSegmentTest {
     public void setUp() {
         testFile = new File("test.db").toPath();
         storage = new DiskStorage(testFile.toFile());
-        log = CompressedBlockLogSegment.create(storage, new StringSerializer(), new LZ4Coded(), BLOCK_SIZE, BLOCK_BIT_SHIFT, ENTRY_IDX_BIT_SHIFT);
+        log = CompressedBlockLogSegment.create(storage, new StringSerializer(), new SnappyCodec(), BLOCK_SIZE, BLOCK_BIT_SHIFT, ENTRY_IDX_BIT_SHIFT);
     }
 
     @After
@@ -99,10 +99,60 @@ public class CompressedBlockLogSegmentTest {
     }
 
     @Test(expected = UnsupportedOperationException.class)
-    public void getWithLength() throws IOException {
+    public void getWithLength() {
         log.get(1, 10);
     }
 
 
+    @Test
+    public void reader() throws IOException {
+        List<String> addedItems = new ArrayList<>();
+        int items = 1000;
+        for (int i = 0; i < items; i++) {
+            String item = String.valueOf(i);
+            addedItems.add(item);
+            log.append(item);
+        }
+        log.flush();
 
+        int itemIdx = 0;
+        for (String value : log.scanner()) {
+            String expected = addedItems.get(itemIdx++);
+            assertEquals(expected, value);
+        }
+        assertEquals(items, itemIdx);
+
+    }
+
+    @Test
+    public void reader_position() throws IOException {
+        List<String> addedItems = new ArrayList<>();
+        List<Long> positions = new ArrayList<>();
+        int items = 1000;
+        for (int i = 0; i < items; i++) {
+            String item = String.valueOf(i);
+            addedItems.add(item);
+            long position = log.append(item);
+            positions.add(position);
+        }
+        log.flush();
+
+        //creates a scanner starting at each position of the log
+        for (int i = 0; i < positions.size(); i++) {
+            long pos = positions.get(i);
+            int itemIdx = i;
+            int foundItems = 0;
+            for (String value : log.scanner(pos)) {
+                String expected = addedItems.get(itemIdx++);
+                assertEquals(expected, value);
+                foundItems++;
+            }
+            assertEquals(addedItems.size() - i, foundItems);
+
+        }
+
+
+
+
+    }
 }

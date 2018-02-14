@@ -87,8 +87,6 @@ public class LogAppenderTest {
 
         assertEquals(segmentIdx, segment);
         assertEquals(positionOnSegment, foundPositionOnSegment);
-
-
     }
 
     @Test

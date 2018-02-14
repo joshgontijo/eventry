@@ -44,11 +44,6 @@
             <artifactId>snappy</artifactId>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>io.joshworks.fstore</groupId>
-            <artifactId>lz4</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
 
