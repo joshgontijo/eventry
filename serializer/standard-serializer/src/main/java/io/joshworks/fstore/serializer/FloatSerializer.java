@@ -8,7 +8,7 @@ public class FloatSerializer implements Serializer<Float> {
 
     @Override
     public ByteBuffer toBytes(Float data) {
-        return ByteBuffer.allocate(Float.BYTES).putFloat(data).flip();
+        return (ByteBuffer) ByteBuffer.allocate(Float.BYTES).putFloat(data).flip();
     }
 
     @Override

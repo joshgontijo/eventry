@@ -29,7 +29,7 @@ public class Java9ImmutableMapSerializer extends Serializer<Map<Object, Object>>
         Map map = kryo.readObject(input, HashMap.class);
         Set<Map.Entry<Object, Object>> entries = map.entrySet();
         Map.Entry<Object, Object>[] entriesArray = entries.toArray(new Map.Entry[entries.size()]);
-        return Map.ofEntries(entriesArray);
+        return null;//Map.ofEntries(entriesArray);
     }
 
     /**
@@ -55,17 +55,17 @@ public class Java9ImmutableMapSerializer extends Serializer<Map<Object, Object>>
         Object value = new Object();
 
 
-        kryo.register(Map.of(key1, value).getClass(), serializer);
-        kryo.register(Map.of(key1, value, key2, value).getClass(), serializer);
-        kryo.register(Map.of(key1, value, key2, value, key3, value).getClass(), serializer);
-        kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value).getClass(), serializer);
-        kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value, key5, value).getClass(), serializer);
-        kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value).getClass(), serializer);
-        kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value, key7, value).getClass(), serializer);
-        kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value, key7, value, key8, value).getClass(), serializer);
-        kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value, key7, value, key8, value, key9, value).getClass(), serializer);
-        kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value, key7, value, key8, value, key9, value, key10, value).getClass(), serializer);
-        kryo.register(Map.ofEntries(Map.entry(key1, value)).getClass(), serializer);
+//        kryo.register(Map.of(key1, value).getClass(), serializer);
+//        kryo.register(Map.of(key1, value, key2, value).getClass(), serializer);
+//        kryo.register(Map.of(key1, value, key2, value, key3, value).getClass(), serializer);
+//        kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value).getClass(), serializer);
+//        kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value, key5, value).getClass(), serializer);
+//        kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value).getClass(), serializer);
+//        kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value, key7, value).getClass(), serializer);
+//        kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value, key7, value, key8, value).getClass(), serializer);
+//        kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value, key7, value, key8, value, key9, value).getClass(), serializer);
+//        kryo.register(Map.of(key1, value, key2, value, key3, value, key4, value, key5, value, key6, value, key7, value, key8, value, key9, value, key10, value).getClass(), serializer);
+//        kryo.register(Map.ofEntries(Map.entry(key1, value)).getClass(), serializer);
 
     }
 }

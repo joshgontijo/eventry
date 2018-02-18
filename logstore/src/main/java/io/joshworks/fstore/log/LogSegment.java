@@ -11,17 +11,19 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.text.MessageFormat;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 public class LogSegment<T> implements Log<T> {
 
-
-    private static final int HEADER_SIZE = Integer.BYTES + Integer.BYTES; //length + checksum
+    private static final int HEADER_SIZE = Integer.BYTES + Integer.BYTES; //length + crc32
 
     private final Serializer<T> serializer;
     private final Storage storage;
     private long position;
 
     private static final Logger logger = LoggerFactory.getLogger(LogSegment.class);
+    private long entryCount;
+    private long size;
 
 
     public static <T> LogSegment<T> create(Storage storage, Serializer<T> serializer) {
@@ -105,8 +107,18 @@ public class LogSegment<T> implements Log<T> {
         return readData(fullData, checksum);
     }
 
+    @Override
+    public long entries() {
+        return entryCount;
+    }
+
+    @Override
+    public long size() {
+        return size;
+    }
+
     private T readData(ByteBuffer buffer, int checksum) {
-        if (Checksum.checksum(buffer) != checksum) {
+        if (Checksum.crc32(buffer) != checksum) {
             throw new ChecksumException();
         }
         return serializer.fromBytes(buffer);
@@ -119,12 +131,14 @@ public class LogSegment<T> implements Log<T> {
         long recordPosition = position;
         ByteBuffer bb = ByteBuffer.allocate(HEADER_SIZE + bytes.remaining());
         bb.putInt(bytes.remaining());
-        bb.putInt(Checksum.checksum(bytes));
+        bb.putInt(Checksum.crc32(bytes));
         bb.put(bytes);
 
         bb.flip();
         position += storage.write(position, bb);
 
+        entryCount++;
+        size += bytes.limit();
         return recordPosition;
     }
 
@@ -173,7 +187,7 @@ public class LogSegment<T> implements Log<T> {
                 return null;
             }
 
-            //TODO read may return less than the actual dataBuffer size / or zero ?
+            //TODO read may return less than the actual dataBuffer entries / or zero ?
             ByteBuffer header = ByteBuffer.allocate(HEADER_SIZE);
             currentPos += storage.read(currentPos, header);
 
@@ -182,6 +196,10 @@ public class LogSegment<T> implements Log<T> {
             if (length <= 0) {
                 return null;
             }
+            if (length > storage.size()) {
+                throw new IllegalArgumentException("Entry length " + length + " is greater than file size: " + storage.size());
+            }
+
             if (currentPos + length > storage.size()) {
                 throw new IllegalStateException("Not data to be read");
             }
@@ -194,7 +212,7 @@ public class LogSegment<T> implements Log<T> {
 
             dataBuffer.flip();
 
-            int readChecksum = Checksum.checksum(dataBuffer);
+            int readChecksum = Checksum.crc32(dataBuffer);
             if (readChecksum != writeChecksum) {
                 throw new ChecksumException();
             }
@@ -215,7 +233,10 @@ public class LogSegment<T> implements Log<T> {
 
         @Override
         public T next() {
-            return this.data;
+            if (data == null) {
+                throw new NoSuchElementException();
+            }
+            return data;
         }
 
         @Override

@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
 public class DoubleSerializer implements Serializer<Double> {
     @Override
     public ByteBuffer toBytes(Double data) {
-        return ByteBuffer.allocate(Double.BYTES).putDouble(data).flip();
+        return (ByteBuffer) ByteBuffer.allocate(Double.BYTES).putDouble(data).flip();
     }
 
     @Override

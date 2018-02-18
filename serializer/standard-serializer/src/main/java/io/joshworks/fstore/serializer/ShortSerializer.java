@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
 public class ShortSerializer implements Serializer<Short> {
     @Override
     public ByteBuffer toBytes(Short data) {
-        return ByteBuffer.allocate(Short.BYTES).putShort(data).flip();
+        return (ByteBuffer) ByteBuffer.allocate(Short.BYTES).putShort(data).flip();
     }
 
     @Override

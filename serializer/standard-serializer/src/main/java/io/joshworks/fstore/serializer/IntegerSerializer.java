@@ -8,7 +8,7 @@ class IntegerSerializer implements Serializer<Integer> {
 
     @Override
     public ByteBuffer toBytes(Integer data) {
-        return ByteBuffer.allocate(Integer.BYTES).putInt(data).flip();
+        return (ByteBuffer) ByteBuffer.allocate(Integer.BYTES).putInt(data).flip();
     }
 
     @Override

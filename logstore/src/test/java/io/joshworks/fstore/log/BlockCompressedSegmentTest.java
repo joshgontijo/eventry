@@ -18,7 +18,7 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
-public class CompressedBlockLogSegmentTest {
+public class BlockCompressedSegmentTest {
 
     private static final int BLOCK_SIZE = 16;
     private static final int BLOCK_BIT_SHIFT = 54;
@@ -32,14 +32,14 @@ public class CompressedBlockLogSegmentTest {
     public void setUp() {
         testFile = new File("test.db").toPath();
         storage = new DiskStorage(testFile.toFile());
-        log = CompressedBlockLogSegment.create(storage, new StringSerializer(), new SnappyCodec(), BLOCK_SIZE, BLOCK_BIT_SHIFT, ENTRY_IDX_BIT_SHIFT);
+        log = BlockCompressedSegment.create(storage, new StringSerializer(), new SnappyCodec(), BLOCK_SIZE, BLOCK_BIT_SHIFT, ENTRY_IDX_BIT_SHIFT);
     }
 
     @After
     public void cleanup() {
         IOUtils.closeQuietly(storage);
         IOUtils.closeQuietly(log);
-        Utils.tryRemoveFile(testFile.toFile());
+        Utils.tryDelete(testFile.toFile());
     }
 
     @Test
@@ -74,12 +74,23 @@ public class CompressedBlockLogSegmentTest {
         long address = 100564646540L;
         int entryIdx = 5;
 
-        CompressedBlockLogSegment cbls = (CompressedBlockLogSegment) log;
-        long position = cbls.toAbsolutePosition(address, entryIdx);
+        BlockCompressedSegment cbls = (BlockCompressedSegment) log;
+        long position = cbls.toBlockPosition(address, entryIdx);
         int positionOnBlock = cbls.getPositionOnBlock(position);
         long blockAddress = cbls.getBlockAddress(position);
         assertEquals(address, blockAddress);
         assertEquals(entryIdx, positionOnBlock);
+    }
+
+    @Test
+    public void append() {
+        String val = "a";
+        long pos1 = log.append(val);
+        assertEquals(0, pos1);
+
+        long pos2 = log.append(val);
+        assertEquals(1, pos2);
+
     }
 
     @Test

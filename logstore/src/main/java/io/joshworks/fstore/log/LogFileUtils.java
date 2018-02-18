@@ -1,19 +1,18 @@
 package io.joshworks.fstore.log;
 
 
+import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.log.appender.BlockAppenderMetadata;
+import io.joshworks.fstore.log.appender.Metadata;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.DataInput;
 import java.io.DataInputStream;
-import java.io.DataOutput;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -28,21 +27,22 @@ public final class LogFileUtils {
     private static final Logger logger = LoggerFactory.getLogger(LogFileUtils.class);
 
     private static final String METADATA_FILE = "metadata.dat";
-    private static final String LATEST_SEGMENT = "metadata.dat";
 
-    static void createRoot(File directory) {
+    public static void createRoot(File directory) {
+        checkCreatePreConditions(directory);
         try {
             if (!directory.exists()) {
-                if (!directory.mkdir()) {
-                    throw new IllegalStateException("Could not create root directory");
-                }
+                Files.createDirectory(directory.toPath());
+            }
+            if (!new File(directory, METADATA_FILE).createNewFile()) {
+                throw new RuntimeException("Failed to create metadata file");
             }
         } catch (Exception e) {
             throw new RuntimeException("Could not create log directory", e);
         }
     }
 
-    static File newSegmentFile(File directory, int segmentCount) {
+    public static File newSegmentFile(File directory, int segmentCount) {
         String fileName = "segment_" + segmentCount + ".dat";
         File newFile = new File(directory, fileName);
         if (newFile.exists()) {
@@ -51,7 +51,7 @@ public final class LogFileUtils {
         return newFile;
     }
 
-    static <T> List<Log<T>> loadSegments(File directory, Function<File, Log<T>> loader) {
+    public static <T> List<Log<T>> loadSegments(File directory, Function<File, Log<T>> loader) {
         try {
             return Files.list(directory.toPath())
                     .filter(p -> p.getFileName().startsWith("segment_") && p.getFileName().endsWith(".dat"))
@@ -63,33 +63,63 @@ public final class LogFileUtils {
         }
     }
 
-    static void writeMetadata(File directory, Metadata metadata) throws IOException {
-        try (OutputStream os = new FileOutputStream(new File(directory, METADATA_FILE))) {
-            DataOutput baos = new DataOutputStream(os);
-
-            baos.writeLong(metadata.lastPosition());
-            baos.writeInt(metadata.segmentSize());
-            baos.writeLong(metadata.maxBlockSize());
-            baos.writeInt(metadata.blockBitShift());
-            baos.writeInt(metadata.entryIdxBitShift());
-            baos.writeInt(metadata.segmentBitShift());
+    public static void writeMetadata(File directory, Metadata metadata) {
+        try (DataOutputStream out = new DataOutputStream(new FileOutputStream(new File(directory, METADATA_FILE)))) {
+            metadata.writeTo(out);
+            out.flush();
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
         }
     }
 
-    static Metadata readMetadata(File directory) throws IOException {
-        try (InputStream os = new FileInputStream(new File(directory, METADATA_FILE))) {
-            DataInput input = new DataInputStream(os);
-            return new Metadata()
-                    .lastPosition(input.readLong())
-                    .segmentSize(input.readInt())
-                    .maxBlockSize(input.readLong())
-                    .blockBitShift(input.readInt())
-                    .entryIdxBitShift(input.readInt())
-                    .segmentBitShift(input.readInt());
+    public static void writeMetadata(File directory, BlockAppenderMetadata metadata) {
+        try (DataOutputStream out = new DataOutputStream(new FileOutputStream(new File(directory, METADATA_FILE)))) {
+            metadata.writeTo(out);
+            out.flush();
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
         }
     }
 
-    static boolean metadataExists(File directory) {
+    public static Metadata readBaseMetadata(File directory) {
+        checkOpenPreConditions(directory);
+        try (DataInputStream input = new DataInputStream(new FileInputStream(new File(directory, METADATA_FILE)))) {
+            return Metadata.of(input);
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
+    }
+
+    public static BlockAppenderMetadata readBlockMetadata(File directory) {
+        try (DataInputStream input = new DataInputStream(new FileInputStream(new File(directory, METADATA_FILE)))) {
+            return BlockAppenderMetadata.of(input);
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
+    }
+
+    public static void checkCreatePreConditions(File directory) {
+        if (directory.exists()) {
+            throw new IllegalArgumentException("Directory " + directory.getPath() + " already exist");
+        }
+        if (LogFileUtils.metadataExists(directory)) {
+            throw new IllegalStateException("Metadata file found, use open instead");
+        }
+    }
+
+    public static void checkOpenPreConditions(File directory) {
+        if (!directory.exists()) {
+            throw new IllegalArgumentException("Directory doesn't exist");
+        }
+        if (!directory.isDirectory()) {
+            throw new IllegalArgumentException(directory.getName() + " is not a directory");
+        }
+        if (!LogFileUtils.metadataExists(directory)) {
+            throw new IllegalStateException("Metadata file not found, use create instead");
+        }
+    }
+
+    public static boolean metadataExists(File directory) {
         return new File(directory, METADATA_FILE).exists();
     }
 

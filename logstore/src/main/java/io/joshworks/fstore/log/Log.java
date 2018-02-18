@@ -14,4 +14,8 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     T get(long position, int length);
 
+    long entries();
+
+    long size();
+
 }

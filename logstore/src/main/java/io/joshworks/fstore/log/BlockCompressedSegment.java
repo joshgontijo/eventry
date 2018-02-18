@@ -16,11 +16,12 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 /**
  * A Log segment that is compressed when flushed to disk. Data is kept in memory until blockSize threshold, or flush()
  */
-public class CompressedBlockLogSegment<T> implements Log<T> {
+public class BlockCompressedSegment<T> implements Log<T> {
 
     //[block_address(54)][entry_position(10)]
 //    private static final int BLOCK_ADDRESS_BIT_SHIFT = 54;
@@ -29,7 +30,8 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
     private final long maxEntriesPerBlock;
 
     //TODO move to parent ?
-    private static final int HEADER_SIZE = Integer.BYTES + Integer.BYTES; //length + checksum
+    private static final int HEADER_SIZE = Integer.BYTES + Integer.BYTES; //length + crc32
+
 
     private final Serializer<T> serializer;
     private final Storage storage;
@@ -37,14 +39,15 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
     private final int maxBlockSize;
     private final int blockBitShift;
     private final int entryIdxBitShift;
-    private long position;
+    private long nextBlockPosition; //updated on every block flush
     private Block currentBlock;
+    private long entryCount;
+    private long size;
 
-    private static final Logger logger = LoggerFactory.getLogger(CompressedBlockLogSegment.class);
-
+    private static final Logger logger = LoggerFactory.getLogger(BlockCompressedSegment.class);
 
     //TODO Builder would be better here
-    public static <T> CompressedBlockLogSegment<T> create(
+    public static <T> BlockCompressedSegment<T> create(
             Storage storage,
             Serializer<T> serializer,
             Codec codec,
@@ -52,15 +55,15 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
             int blockBitShift,
             int entryIdxBitShift) {
 
-        return new CompressedBlockLogSegment<>(storage, serializer, codec, maxBlockSize, blockBitShift, entryIdxBitShift, 0);
+        return new BlockCompressedSegment<>(storage, serializer, codec, maxBlockSize, blockBitShift, entryIdxBitShift, 0);
     }
 
     //so far, a block cannot be opened for writing
-    public static <T> CompressedBlockLogSegment<T> open(Storage storage, Serializer<T> serializer, Codec codec, long position, int blockBitShift, int entryIdxBitShift) {
+    public static <T> BlockCompressedSegment<T> open(Storage storage, Serializer<T> serializer, Codec codec, long position, int blockBitShift, int entryIdxBitShift) {
         return open(storage, serializer, codec, position, blockBitShift, entryIdxBitShift, false);
     }
 
-    public static <T> CompressedBlockLogSegment<T> open(
+    public static <T> BlockCompressedSegment<T> open(
             Storage storage,
             Serializer<T> serializer,
             Codec codec,
@@ -69,14 +72,14 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
             int entryIdxBitShift,
             boolean checkIntegrity) {
 
-        CompressedBlockLogSegment<T> appender = null;
+        BlockCompressedSegment<T> appender = null;
         try {
 
-            appender = new CompressedBlockLogSegment<>(storage, serializer, codec, -1, blockBitShift, entryIdxBitShift, position);
+            appender = new BlockCompressedSegment<>(storage, serializer, codec, -1, blockBitShift, entryIdxBitShift, position);
             if (checkIntegrity) {
                 appender.checkIntegrity(position);
             }
-            appender.position = position;
+            appender.nextBlockPosition = position;
             return appender;
         } catch (CorruptedLogException e) {
             IOUtils.closeQuietly(appender);
@@ -84,7 +87,7 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
         }
     }
 
-    private CompressedBlockLogSegment(Storage storage, Serializer<T> serializer, Codec codec, int maxBlockSize, int blockBitShift, int entryIdxBitShift, long position) {
+    private BlockCompressedSegment(Storage storage, Serializer<T> serializer, Codec codec, int maxBlockSize, int blockBitShift, int entryIdxBitShift, long position) {
         this.serializer = serializer;
         this.storage = storage;
         this.codec = codec;
@@ -92,27 +95,28 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
         this.currentBlock = new Block(maxBlockSize, position);
         this.blockBitShift = blockBitShift;
         this.entryIdxBitShift = entryIdxBitShift;
+
         this.maxBlockAddress = (long) Math.pow(2, blockBitShift) - 1;
         this.maxEntriesPerBlock = (long) Math.pow(2, entryIdxBitShift);
     }
 
     private void checkIntegrity(long lastKnownPosition) {
         long position = 0;
-        logger.info("Restoring log state and checking consistency until the position {}", lastKnownPosition);
+        logger.info("Restoring log state and checking consistency until the address {}", lastKnownPosition);
         Scanner<T> scanner = scanner();
         while (scanner.hasNext()) {
             scanner.next();
             position = scanner.position();
         }
         if (position != lastKnownPosition) {
-            throw new CorruptedLogException(MessageFormat.format("Expected last position {0}, got {1}", lastKnownPosition, position));
+            throw new CorruptedLogException(MessageFormat.format("Expected last address {0}, got {1}", lastKnownPosition, position));
         }
-        logger.info("Log state restored, current position {}", position);
+        logger.info("Log state restored, current nextBlockPosition {}", position);
     }
 
     @Override
     public long position() {
-        return position;
+        return nextBlockPosition;
     }
 
     @Override
@@ -135,6 +139,16 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public long entries() {
+        return entryCount;
+    }
+
+    @Override
+    public long size() {
+        return size;
+    }
+
     long getBlockAddress(long position) {
         long blockAddress = position >> entryIdxBitShift;
         if (blockAddress > maxBlockAddress) {
@@ -143,7 +157,7 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
         return blockAddress;
     }
 
-    long toAbsolutePosition(long position, int entryPosition) {
+    long toBlockPosition(long position, int entryPosition) {
         if (entryPosition > maxEntriesPerBlock) {
             throw new IllegalArgumentException(MessageFormat.format("entryPosition {0} cannot be greater than {}", entryPosition, maxEntriesPerBlock));
         }
@@ -162,10 +176,12 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
         dataBytes.flip();
         if (currentBlock.size >= maxBlockSize || currentBlock.data.size() >= maxEntriesPerBlock) {
             flush();
-            currentBlock = new Block(maxBlockSize, position);//with updated position
+            currentBlock = new Block(maxBlockSize, nextBlockPosition);//with updated nextBlockPosition
         }
-        long pos = toAbsolutePosition(position, currentBlock.data.size());
+        long pos = toBlockPosition(nextBlockPosition, currentBlock.data.size());
         currentBlock.add(dataBytes);
+        entryCount++;
+        size += dataBytes.limit();
         return pos;
     }
 
@@ -186,8 +202,11 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
 
     @Override
     public void flush() {
+        if(currentBlock.data.isEmpty()) {
+            return;
+        }
         ByteBuffer compressed = currentBlock.compress(codec);
-        this.position += storage.write(this.position, compressed);
+        this.nextBlockPosition += storage.write(this.nextBlockPosition, compressed);
     }
 
 
@@ -199,7 +218,7 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
         private final Codec codec;
         private T data;
         private boolean completed = false;
-        private Block currentBlock;
+        private BlockCompressedSegment.Block currentBlock;
         private int blockEntryIdx;
 
         private LogReader(Storage storage, Serializer<T> serializer, Codec codec) {
@@ -252,12 +271,15 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
 
         @Override
         public T next() {
-            return this.data;
+            if(data == null) {
+                throw new NoSuchElementException();
+            }
+            return data;
         }
 
         @Override
         public long position() {
-            return position;
+            return nextBlockPosition;
         }
 
         @Override
@@ -294,8 +316,8 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
             int[] lengths = lengthSerializer.fromBytes(decompressed);
             List<ByteBuffer> buffers = new LinkedList<>();
 
-            for (int i = 0; i < lengths.length; i++) {
-                byte[] dataArray = new byte[lengths[i]];
+            for (int length : lengths) {
+                byte[] dataArray = new byte[length];
                 decompressed.get(dataArray);
                 buffers.add(ByteBuffer.wrap(dataArray));
             }
@@ -313,6 +335,9 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
             header.flip();
             int blockSize = header.getInt();
             int checksum = header.getInt();
+            if(blockSize == 0) {
+                return null;
+            }
 
             ByteBuffer blockData = ByteBuffer.allocate(blockSize);
             storage.read(HEADER_SIZE + blockAddress, blockData);
@@ -320,7 +345,7 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
 
             int byteSize = blockData.remaining();
 
-            if (Checksum.checksum(blockData) != checksum) {
+            if (Checksum.crc32(blockData) != checksum) {
                 throw new ChecksumException();
             }
             List<ByteBuffer> entries = decompressing(codec, blockData, blockSize);
@@ -330,16 +355,16 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
             return block;
         }
 
-        public void add(ByteBuffer buffer) {
+        void add(ByteBuffer buffer) {
             if (maxSize == READ_ONLY) {
                 throw new IllegalStateException("Block is read only");
             }
             buffer.clear();
+            size += buffer.limit();
             data.add(buffer);
-            size += buffer.remaining();
         }
 
-        public ByteBuffer compress(Codec compressor) {
+        ByteBuffer compress(Codec compressor) {
             if (maxSize == READ_ONLY) {
                 throw new IllegalStateException("Block is not writable");
             }
@@ -356,8 +381,9 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
             byte[] compressed = compressor.compress(withLength.array());
             ByteBuffer finalData = ByteBuffer.allocate(HEADER_SIZE + compressed.length);
             finalData.putInt(compressed.length);
-            finalData.putInt(Checksum.checksum(compressed));
+            finalData.putInt(Checksum.crc32(compressed));
             finalData.put(compressed);
+            //NEXT_BLOCK_SIZE_SECTION is left as zero
             finalData.flip();
             return finalData;
         }
@@ -375,9 +401,6 @@ public class CompressedBlockLogSegment<T> implements Log<T> {
         }
 
         public long nextBlock() {
-            if(compressedSize < 0) {
-                throw new IllegalStateException("compressedSize not available, cannot determine the next block");
-            }
             return address + HEADER_SIZE + compressedSize;
         }
 

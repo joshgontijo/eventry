@@ -7,7 +7,7 @@ import java.nio.ByteBuffer;
 public class CharacterSerializer implements Serializer<Character> {
     @Override
     public ByteBuffer toBytes(Character data) {
-        return ByteBuffer.allocate(Character.BYTES).putChar(data).flip();
+        return (ByteBuffer) ByteBuffer.allocate(Character.BYTES).putChar(data).flip();
     }
 
     @Override

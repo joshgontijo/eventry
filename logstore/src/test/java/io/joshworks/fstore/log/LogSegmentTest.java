@@ -9,9 +9,9 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -28,17 +28,17 @@ public class LogSegmentTest {
     private Storage storage;
 
     @Before
-    public void setUp()  {
-        testFile = new File("test.db").toPath();
+    public void setUp() throws IOException {
+        testFile = Files.createTempFile(UUID.randomUUID().toString().substring(0,8), ".db");
         storage = new DiskStorage(testFile.toFile());
         appender = LogSegment.create(storage, new StringSerializer());
     }
 
     @After
-    public void cleanup() {
+    public void cleanup() throws IOException {
         IOUtils.closeQuietly(storage);
         IOUtils.closeQuietly(appender);
-        Utils.tryRemoveFile(testFile.toFile());
+        Files.delete(testFile);
     }
 
     @Test
@@ -77,7 +77,7 @@ public class LogSegmentTest {
     @Test
     public void checkConsistency() {
         String data = "hello";
-        appender.append(data);
+        long position1 = appender.append(data);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
 

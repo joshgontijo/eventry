@@ -11,6 +11,7 @@
 
     <artifactId>serializer</artifactId>
     <packaging>pom</packaging>
+
     <modules>
         <module>json-serializer</module>
         <module>kryo-serializer</module>
