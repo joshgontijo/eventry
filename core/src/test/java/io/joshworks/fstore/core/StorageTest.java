@@ -59,7 +59,7 @@ public abstract class StorageTest {
     @Test
     public void write_large() {
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 1000; i++) {
+        for (int i = 0; i < 10000; i++) {
             sb.append(UUID.randomUUID().toString());
         }
 
@@ -74,6 +74,12 @@ public abstract class StorageTest {
         assertEquals(write, read);
         assertTrue(Arrays.equals(bb.array(), result.array()));
     }
+
+    @Test
+    public void ensureCapacity() {
+
+    }
+
 
     //terrible work around for waiting the mapped buffer to release file lock
     private void tryRemoveFile() {

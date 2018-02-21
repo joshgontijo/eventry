@@ -87,6 +87,12 @@ public class LogAppender<T> implements Log<T> {
         return appender;
     }
 
+    //FIXME (OPEN): Exception in thread "main" java.lang.IllegalStateException: Segment file 'segment_0.dat' already exist
+    //	at io.joshworks.fstore.log.LogFileUtils.newSegmentFile(LogFileUtils.java:49)
+    //	at io.joshworks.fstore.log.appender.LogAppender.initSegment(LogAppender.java:91)
+    //	at io.joshworks.fstore.log.appender.LogAppender.open(LogAppender.java:70)
+    //	at io.joshworks.fstore.mldb.Store.open(Store.java:32)
+    //	at io.joshworks.fstore.mldb.Main.main(Main.java:16)
     protected void initSegment() {
         File segmentFile = LogFileUtils.newSegmentFile(directory, 0);
         Storage storage = createStorage(segmentFile, segmentSize);

@@ -9,6 +9,7 @@ import io.joshworks.fstore.serializer.arrays.IntegerArraySerializer;
 import io.joshworks.fstore.serializer.arrays.LongArraySerializer;
 import io.joshworks.fstore.serializer.arrays.ShortArraySerializer;
 
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -25,7 +26,7 @@ public class StandardSerializer {
         serializers.put(Boolean.class, new BooleanSerializer());
         serializers.put(Character.class, new CharacterSerializer());
         serializers.put(Byte.class, new ByteSerializer());
-        serializers.put(String.class, new StringSerializer());
+        serializers.put(String.class, new VStringSerializer());
 
         serializers.put(Integer.TYPE, new IntegerSerializer());
         serializers.put(Double.TYPE, new DoubleSerializer());
@@ -60,6 +61,23 @@ public class StandardSerializer {
             throw new IllegalArgumentException("Could not found serializer for class " + type.getName());
         }
         return serializer;
+    }
+
+    public static Serializer<byte[]> noSerializer() {
+        return new Serializer<byte[]>() {
+            @Override
+            public ByteBuffer toBytes(byte[] data) {
+                return ByteBuffer.wrap(data);
+            }
+
+            @Override
+            public byte[] fromBytes(ByteBuffer buffer) {
+                if(!buffer.hasArray()) {
+                    throw new IllegalArgumentException("buffer is not backed by an array");
+                }
+                return buffer.slice().array();
+            }
+        };
     }
 
 }

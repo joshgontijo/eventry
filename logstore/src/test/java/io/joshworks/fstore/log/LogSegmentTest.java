@@ -9,6 +9,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
@@ -21,16 +22,19 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
 @RunWith(RandomOrderEnforcer.class)
-public class LogSegmentTest {
+public abstract class LogSegmentTest {
 
     private LogSegment<String> appender;
     private Path testFile;
     private Storage storage;
 
+
+    abstract Storage getStorage(File file);
+
     @Before
     public void setUp() throws IOException {
-        testFile = Files.createTempFile(UUID.randomUUID().toString().substring(0,8), ".db");
-        storage = new DiskStorage(testFile.toFile());
+        testFile = Files.createTempFile(UUID.randomUUID().toString().substring(0, 8), ".db");
+        storage = getStorage(testFile.toFile());
         appender = LogSegment.create(storage, new StringSerializer());
     }
 
@@ -119,7 +123,7 @@ public class LogSegmentTest {
     }
 
     @Test(expected = CorruptedLogException.class)
-    public void checkConsistency_position_alteredData() throws IOException {
+    public void checkConsistency_position_tamperedData() throws IOException {
         String data = "hello";
         appender.append(data);
 
@@ -129,7 +133,7 @@ public class LogSegmentTest {
         appender.close();
 
         //add some random data
-        try(RandomAccessFile raf = new RandomAccessFile(testFile.toFile(), "rw")) {
+        try (RandomAccessFile raf = new RandomAccessFile(testFile.toFile(), "rw")) {
             raf.writeInt(1);
         }
 
@@ -186,7 +190,7 @@ public class LogSegmentTest {
         Scanner<String> scanner1 = appender.scanner();
         assertTrue(scanner1.hasNext());
         assertEquals(data, scanner1.next());
-        assertEquals(4 + 4 + data.length(), scanner1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Log.HEADER_SIZE + data.length(), scanner1.position()); // 4 + 4 (heading) + data length
 
     }
 

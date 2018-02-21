@@ -99,9 +99,12 @@ public final class LogFileUtils {
     }
 
     public static void checkCreatePreConditions(File directory) {
-        if (directory.exists()) {
-            throw new IllegalArgumentException("Directory " + directory.getPath() + " already exist");
+        if (directory.exists() && !directory.isDirectory()) {
+            throw new IllegalArgumentException("Destination must be a directory");
         }
+//        if (directory.exists()) {
+//            throw new IllegalArgumentException("Directory " + directory.getPath() + " already exist");
+//        }
         if (LogFileUtils.metadataExists(directory)) {
             throw new IllegalStateException("Metadata file found, use open instead");
         }

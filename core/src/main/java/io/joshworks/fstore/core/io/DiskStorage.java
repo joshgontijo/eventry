@@ -9,7 +9,6 @@ import java.nio.ByteBuffer;
 
 public class DiskStorage extends Storage {
 
-
     public DiskStorage(File target) {
         super(target);
     }
@@ -28,6 +27,7 @@ public class DiskStorage extends Storage {
             while (data.hasRemaining()) {
                 written += channel.write(data, position + written);
             }
+            size += written;
             return written;
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
@@ -37,12 +37,11 @@ public class DiskStorage extends Storage {
     @Override
     public int read(long position, ByteBuffer data) {
         try {
-            return  channel.read(data, position);
-//            int read = 0;
-//            while (data.hasRemaining() && read >= 0) {
-//                read += channel.read(data, position);
-//            }
-//            return read;
+            int read = 0;
+            while (data.hasRemaining() && read >= 0) {
+                read += channel.read(data, position);
+            }
+            return read;
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }

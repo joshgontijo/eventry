@@ -5,13 +5,16 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import org.xerial.snappy.Snappy;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 public class SnappyCodec implements Codec {
 
     @Override
-    public byte[] compress(byte[] data) {
+    public ByteBuffer compress(ByteBuffer data) {
         try {
-            return Snappy.compress(data);
+
+            byte[] compressed = Snappy.compress(getBytes(data));
+            return ByteBuffer.wrap(compressed);
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
@@ -19,11 +22,20 @@ public class SnappyCodec implements Codec {
 
 
     @Override
-    public byte[] decompress(byte[] data, int length) {
+    public ByteBuffer decompress(ByteBuffer compressed) {
         try {
-            return Snappy.uncompress(data);
+            byte[] uncompressed = Snappy.uncompress(getBytes(compressed));
+            return ByteBuffer.wrap(uncompressed);
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
+    }
+
+    private static byte[] getBytes(ByteBuffer data) {
+        byte[] b = new byte[data.remaining()];
+        data.mark();
+        data.get(b);
+        data.reset();
+        return b;
     }
 }

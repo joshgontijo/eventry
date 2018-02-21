@@ -1,8 +1,10 @@
 package io.joshworks.fstore.core;
 
+import java.nio.ByteBuffer;
+
 public interface Codec {
 
-    byte[] compress(byte[] data);
-    byte[] decompress(byte[] data, int length);
+    ByteBuffer compress(ByteBuffer data);
+    ByteBuffer decompress(ByteBuffer compressed);
 
 }

@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.RuntimeIOException;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -29,19 +30,15 @@ public class MMapStorage extends Storage {
     public MMapStorage(File file, long length, FileChannel.MapMode mode) {
         super(file, length);
         this.mode = mode;
-        try {
-            this.mbb = raf.getChannel().map(mode, 0, raf.length());
-        } catch (IOException e) {
-            IOUtils.closeQuietly(raf);
-            throw RuntimeIOException.of(e);
-        }
+        this.mbb = map(raf);
+
     }
 
     @Override
     public int write(long position, ByteBuffer data) {
         checkBoundaries(position);
 
-        ensureCapacity(data);
+        ensureCapacity(position, data);
         int written = data.remaining();
         mbb.put(data);
         return written;
@@ -53,15 +50,10 @@ public class MMapStorage extends Storage {
 
         mbb.position((int) position);
         ByteBuffer slice = mbb.slice();
-        int start = data.position();
+        int prevPos = data.position();
         slice.limit(data.remaining());
         data.put(slice.asReadOnlyBuffer());
-        return data.position() - start;
-    }
-
-    @Override
-    public long size() {
-        return mbb.capacity();
+        return data.position() - prevPos;
     }
 
     private void checkBoundaries(long position) {
@@ -70,15 +62,28 @@ public class MMapStorage extends Storage {
         }
     }
 
-    private void ensureCapacity(ByteBuffer data) {
+    private void ensureCapacity(long position, ByteBuffer data) {
         try {
-            if (mbb.remaining() < data.remaining()) {
+            if (position + data.remaining() > mbb.capacity()) {
                 //TODO better approach to expand, 10% or enough to fit data ?
                 raf.setLength(raf.length() + data.remaining());
-                mbb = raf.getChannel().map(mode, 0, raf.length());
+                this.mbb = map(raf);
             }
 
         } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
+    }
+
+    private MappedByteBuffer map(RandomAccessFile raf) {
+        try {
+            return raf.getChannel().map(mode, 0, raf.length());
+        } catch (IOException e) {
+            try {
+                close();
+            } catch (IOException e1) {
+                e1.printStackTrace();
+            }
             throw RuntimeIOException.of(e);
         }
     }

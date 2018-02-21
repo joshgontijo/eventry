@@ -12,7 +12,7 @@ public final class Builder<T> {
     final Serializer<T> serializer;
 
     int segmentBitShift = 28;
-    int segmentSize;
+    int segmentSize = 1073741824;
     boolean mmap;
     long rollFrequency = -1; //never
 

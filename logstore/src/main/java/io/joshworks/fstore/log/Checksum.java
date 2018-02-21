@@ -16,7 +16,11 @@ public class Checksum {
 
     public static int crc32(ByteBuffer buffer) {
         if (!buffer.hasArray()) {
-            throw new IllegalArgumentException("ByteBuffer must be an array backed buffer");
+            byte[] data = new byte[buffer.remaining()];
+            buffer.mark();
+            buffer.get(data);
+            buffer.reset();
+            return crc32(data, 0, data.length);
         }
         return crc32(buffer.array(), buffer.position(), buffer.remaining());
     }
