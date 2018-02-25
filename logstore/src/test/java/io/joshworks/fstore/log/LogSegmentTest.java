@@ -33,7 +33,7 @@ public abstract class LogSegmentTest {
 
     @Before
     public void setUp() throws IOException {
-        testFile = Files.createTempFile(UUID.randomUUID().toString().substring(0, 8), ".db");
+        testFile = Files.createTempFile(UUID.randomUUID().toString().substring(0, 8), ".ldb");
         storage = getStorage(testFile.toFile());
         appender = LogSegment.create(storage, new StringSerializer());
     }
@@ -42,7 +42,7 @@ public abstract class LogSegmentTest {
     public void cleanup() throws IOException {
         IOUtils.closeQuietly(storage);
         IOUtils.closeQuietly(appender);
-        Files.delete(testFile);
+        Utils.tryDelete(testFile.toFile());
     }
 
     @Test
@@ -61,7 +61,6 @@ public abstract class LogSegmentTest {
         long position = appender.position();
         appender.close();
 
-        storage = new DiskStorage(testFile.toFile());
         appender = LogSegment.open(storage, new StringSerializer(), position);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
@@ -88,7 +87,7 @@ public abstract class LogSegmentTest {
         long position = appender.position();
         appender.close();
 
-        storage = new DiskStorage(testFile.toFile());
+        storage = getStorage(testFile.toFile());
         appender = LogSegment.open(storage, new StringSerializer(), position, true);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
@@ -228,5 +227,42 @@ public abstract class LogSegmentTest {
             String found = appender.get(positions.get(i), length);
             assertEquals(values.get(i), found);
         }
+    }
+
+    @Test
+    public void scanner_0() throws IOException {
+        testScanner(0);
+    }
+
+    @Test
+    public void scanner_1() throws IOException {
+        testScanner(1);
+    }
+
+    @Test
+    public void scanner_10() throws IOException {
+        testScanner(10);
+    }
+
+    @Test
+    public void scanner_1000() throws IOException {
+        testScanner(1000);
+    }
+
+    private void testScanner(int items) throws IOException {
+        List<String> values = new ArrayList<>();
+        for (int i = 0; i < items; i++) {
+            String value = UUID.randomUUID().toString();
+            values.add(value);
+            appender.append(value);
+        }
+        appender.flush();
+
+        int i =0;
+        for (String s : appender.scanner()) {
+            assertEquals("Failed on iteration " + i, values.get(i), s);
+            i++;
+        }
+        assertEquals(items, i);
     }
 }

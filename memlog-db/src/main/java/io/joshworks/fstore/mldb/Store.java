@@ -10,7 +10,6 @@ import io.joshworks.fstore.log.appender.LogAppender;
 import java.io.File;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 
 public class Store<K extends Comparable<K>, V> {
@@ -63,14 +62,8 @@ public class Store<K extends Comparable<K>, V> {
         return log.get(address);
     }
 
-    public Iterator<V> iterator(IteradorOrder order) {
-        Objects.requireNonNull(order, "IteratorOrder must be provided");
-
-        if(IteradorOrder.INSERT.equals(order)){
-            return log.scanner();
-        }
-
-        return new Iterator<V>() {
+    public Iterator<V> iterator() {
+         return new Iterator<V>() {
             private Iterator<Map.Entry<K, Long>> indexIterator = index.iterator();
             @Override
             public boolean hasNext() {
@@ -94,6 +87,6 @@ public class Store<K extends Comparable<K>, V> {
             K k = keyMapper.apply(value);
             index.put(k, position);
         }
-        System.out.println("Reindexing complete: " + (System.currentTimeMillis() - start) + "ms");
+        System.out.println("Reindexing complete in " + (System.currentTimeMillis() - start) + "ms");
     }
 }

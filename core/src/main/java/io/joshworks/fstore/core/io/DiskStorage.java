@@ -22,6 +22,7 @@ public class DiskStorage extends Storage {
      */
     @Override
     public int write(long position, ByteBuffer data) {
+        ensureNonEmpty(data);
         try {
             int written = 0;
             while (data.hasRemaining()) {

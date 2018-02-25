@@ -52,6 +52,7 @@ public class StandardSerializer {
 
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> Serializer<T> of(Class<T> type) {
         if (type == null) {
             throw new IllegalArgumentException("Class type must be provided");

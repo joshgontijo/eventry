@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 
-class IntegerSerializer implements Serializer<Integer> {
+public class IntegerSerializer implements Serializer<Integer> {
 
     @Override
     public ByteBuffer toBytes(Integer data) {

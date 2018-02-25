@@ -23,8 +23,8 @@ public class LogAppenderBench {
 
     public static void main(String[] args) throws IOException {
 //        raf();
-//        segmentAppender();
-        blockCompressedSegmentAppender();
+        segmentAppender();
+//        blockCompressedSegmentAppender();
     }
 
 
@@ -43,7 +43,7 @@ public class LogAppenderBench {
         Scanner<String> scanner = appender.scanner();
         while(scanner.hasNext()) {
             String value = scanner.next();
-//            System.out.println(value);
+            System.out.println(value);
         }
         System.out.println("SEGMENT_APPENDER_READ: " + (System.currentTimeMillis() - start) + "ms");
     }

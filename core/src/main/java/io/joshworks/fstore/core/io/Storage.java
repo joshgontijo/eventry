@@ -37,6 +37,12 @@ public abstract class Storage implements Flushable, Closeable {
 
     public abstract int read(long position, ByteBuffer data);
 
+    protected void ensureNonEmpty(ByteBuffer data) {
+        if (data.remaining() == 0) {
+            throw new IllegalArgumentException("Cannot store empty record");
+        }
+    }
+
     public long size() {
         return size;
     }
@@ -50,7 +56,7 @@ public abstract class Storage implements Flushable, Closeable {
 
     @Override
     public void flush() throws IOException {
-        if(channel.isOpen())
+        if (channel.isOpen())
             channel.force(true);
     }
 

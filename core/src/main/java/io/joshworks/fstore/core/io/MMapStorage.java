@@ -36,10 +36,12 @@ public class MMapStorage extends Storage {
 
     @Override
     public int write(long position, ByteBuffer data) {
+        ensureNonEmpty(data);
         checkBoundaries(position);
 
         ensureCapacity(position, data);
         int written = data.remaining();
+        mbb.position((int) position);
         mbb.put(data);
         return written;
     }
@@ -90,6 +92,7 @@ public class MMapStorage extends Storage {
 
     @Override
     public void close() throws IOException {
+        flush();
         mbb = null;
         System.gc(); //this is horrible
         super.close();

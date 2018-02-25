@@ -172,13 +172,13 @@ public class BlockCompressedSegment<T> implements Log<T> {
 
     @Override
     public long append(T data) {
-        ByteBuffer dataBytes = serializer.toBytes(data);
-
-        dataBytes.flip();
         if (currentBlock.size >= maxBlockSize || currentBlock.data.size() >= maxEntriesPerBlock) {
             flush();
             currentBlock = new Block(maxBlockSize, nextBlockPosition);//with updated nextBlockPosition
         }
+        ByteBuffer dataBytes = serializer.toBytes(data);
+        dataBytes.flip();
+
         long pos = toBlockPosition(nextBlockPosition, currentBlock.data.size());
         currentBlock.add(dataBytes);
         entryCount++;
@@ -365,11 +365,6 @@ public class BlockCompressedSegment<T> implements Log<T> {
             withLength.flip();
             ByteBuffer compressed = compressor.compress(withLength);
 
-//            ByteBuffer finalData = ByteBuffer.allocate(HEADER_SIZE + compressed.length + HEADER_SIZE);
-//            finalData.putInt(compressed.length);
-//            finalData.putInt(Checksum.crc32(compressed));
-//            finalData.put(compressed);
-//            finalData.flip();
             return Log.write(storage, compressed, position);
         }
 

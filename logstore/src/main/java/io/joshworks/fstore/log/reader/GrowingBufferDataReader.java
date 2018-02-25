@@ -23,8 +23,12 @@ public class GrowingBufferDataReader extends ChecksumDataReader {
         storage.read(position, buffer);
         buffer.flip();
 
+        if(buffer.remaining() == 0) {
+            return ByteBuffer.allocate(0);
+        }
+
         int length = buffer.getInt();
-        if(length == Log.EOF || length == 0) {
+        if(length == 0) {
             return ByteBuffer.allocate(0);
         }
 

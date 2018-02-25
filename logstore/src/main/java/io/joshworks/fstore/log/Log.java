@@ -8,8 +8,6 @@ import java.nio.ByteBuffer;
 public interface Log<T> extends Writer<T>, Closeable {
 
     int HEADER_SIZE = Integer.BYTES + Integer.BYTES; //length + crc32
-    int EOF = -1;
-    int EOF_SIZE = HEADER_SIZE;
 
     Scanner<T> scanner();
 
@@ -26,20 +24,13 @@ public interface Log<T> extends Writer<T>, Closeable {
     long size();
 
     static long write(Storage storage, ByteBuffer bytes, long position) {
-        ByteBuffer bb = ByteBuffer.allocate(HEADER_SIZE + bytes.remaining() + EOF_SIZE);
+        ByteBuffer bb = ByteBuffer.allocate(HEADER_SIZE + bytes.remaining());
         bb.putInt(bytes.remaining());
         bb.putInt(Checksum.crc32(bytes));
         bb.put(bytes);
-        addEOF(bb);
 
         bb.flip();
         int written = storage.write(position, bb);
-        return position + written - EOF_SIZE;
+        return position + written;
     }
-
-    static void addEOF(ByteBuffer bb) {
-        bb.putInt(EOF);
-        bb.putInt(0);
-    }
-
 }

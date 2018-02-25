@@ -19,8 +19,12 @@ public class HeaderLengthDataReader extends ChecksumDataReader {
         storage.read(position, header);
         header.flip();
 
+        if(header.remaining() == 0) {
+            return ByteBuffer.allocate(0);
+        }
+
         int length = header.getInt();
-        if(length == Log.EOF || length == 0) {
+        if(length == 0) {
             return ByteBuffer.allocate(0);
         }
         int checksum = header.getInt();
