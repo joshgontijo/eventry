@@ -206,7 +206,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
         if(currentBlock.data.isEmpty()) {
             return;
         }
-        nextBlockPosition = currentBlock.write(storage, codec, nextBlockPosition);
+        nextBlockPosition = currentBlock.writeTo(storage, codec, nextBlockPosition);
     }
 
 
@@ -349,7 +349,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
             data.add(buffer);
         }
 
-        long write(Storage storage, Codec compressor, long position) {
+        long writeTo(Storage storage, Codec compressor, long position) {
             if (maxSize == READ_ONLY) {
                 throw new IllegalStateException("Block is not writable");
             }

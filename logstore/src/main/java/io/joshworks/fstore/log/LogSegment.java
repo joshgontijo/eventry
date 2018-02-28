@@ -32,7 +32,7 @@ public class LogSegment<T> implements Log<T> {
 //        ByteBuffer eof = ByteBuffer.allocate(EOF_SIZE);
 //        Log.addEOF(eof);
 //        eof.flip();
-//        storage.write(0, eof);
+//        storage.writeTo(0, eof);
         return new LogSegment<>(storage, serializer);
     }
 
@@ -251,7 +251,7 @@ public class LogSegment<T> implements Log<T> {
 //        //compressed
 //        ByteArrayOutputStream baos = new ByteArrayOutputStream(bytes.length);
 //        DeflaterOutputStream dos = new DeflaterOutputStream(baos, new Deflater(Deflater.BEST_SPEED));
-//        dos.write(bytes);
+//        dos.writeTo(bytes);
 //        dos.close();
 //
 //        return baos.toByteArray();

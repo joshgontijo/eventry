@@ -11,5 +11,16 @@
 
     <artifactId>index</artifactId>
 
+    <dependencies>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>standard-serializer</artifactId>
+        </dependency>
+    </dependencies>
+
 
 </project>
