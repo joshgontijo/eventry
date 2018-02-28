@@ -20,13 +20,13 @@ public interface Hash<T> {
 
     class Murmur64<T> implements Hash<T> {
 
+        private static final long SEED = 0x4F7DFD47E49L;
         private final Serializer<T> serializer;
 
         public Murmur64(Serializer<T> serializer) {
             this.serializer = serializer;
         }
 
-        private static final long SEED = 0x4F7DFD47E49L;
 
         @Override
         public int[] hash(int m, int k, T val) {

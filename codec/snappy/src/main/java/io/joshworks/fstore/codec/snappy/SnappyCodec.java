@@ -12,14 +12,12 @@ public class SnappyCodec implements Codec {
     @Override
     public ByteBuffer compress(ByteBuffer data) {
         try {
-
             byte[] compressed = Snappy.compress(getBytes(data));
             return ByteBuffer.wrap(compressed);
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
     }
-
 
     @Override
     public ByteBuffer decompress(ByteBuffer compressed) {

@@ -29,10 +29,6 @@ public class LogSegment<T> implements Log<T> {
 
 
     public static <T> LogSegment<T> create(Storage storage, Serializer<T> serializer) {
-//        ByteBuffer eof = ByteBuffer.allocate(EOF_SIZE);
-//        Log.addEOF(eof);
-//        eof.flip();
-//        storage.writeTo(0, eof);
         return new LogSegment<>(storage, serializer);
     }
 
