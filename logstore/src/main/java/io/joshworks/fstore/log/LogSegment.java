@@ -14,6 +14,10 @@ import java.nio.ByteBuffer;
 import java.text.MessageFormat;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class LogSegment<T> implements Log<T> {
 
@@ -132,6 +136,11 @@ public class LogSegment<T> implements Log<T> {
     @Override
     public Scanner<T> scanner() {
         return new LogReader<>(reader, serializer);
+    }
+
+    @Override
+    public Stream<T> stream() {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(scanner(), Spliterator.ORDERED), false);
     }
 
     @Override

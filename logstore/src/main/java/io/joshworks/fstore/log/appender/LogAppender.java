@@ -20,6 +20,10 @@ import java.nio.file.Files;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class LogAppender<T> implements Log<T> {
 
@@ -94,7 +98,7 @@ public class LogAppender<T> implements Log<T> {
     //	at io.joshworks.fstore.mldb.Store.open(Store.java:32)
     //	at io.joshworks.fstore.mldb.Main.main(Main.java:16)
     protected void initSegment() {
-        File segmentFile = LogFileUtils.newSegmentFile(directory, 0);
+        File segmentFile = LogFileUtils.newSegmentFile(directory, segments.size());
         Storage storage = createStorage(segmentFile, segmentSize);
         currentSegment = createSegment(storage, serializer);
         segments.add(currentSegment);
@@ -180,7 +184,7 @@ public class LogAppender<T> implements Log<T> {
         return (int) (position & mask);
     }
 
-    protected boolean shouldRoll(Log<T> currentSegment) {
+    private boolean shouldRoll(Log<T> currentSegment) {
         if (currentSegment.size() > segmentSize) {
             return true;
         }
@@ -202,6 +206,11 @@ public class LogAppender<T> implements Log<T> {
     @Override
     public Scanner<T> scanner() {
         return new RollingSegmentReader(new LinkedList<>(segments), 0);
+    }
+
+    @Override
+    public Stream<T> stream() {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(scanner(), Spliterator.ORDERED), false);
     }
 
     @Override
@@ -284,7 +293,7 @@ public class LogAppender<T> implements Log<T> {
 
         @Override
         public long position() {
-            return toSegmentedPosition(segmentIdx - 1, current.position());
+            return toSegmentedPosition(segmentIdx, current.position());
         }
 
         @Override

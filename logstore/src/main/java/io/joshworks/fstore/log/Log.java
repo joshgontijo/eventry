@@ -4,12 +4,15 @@ import io.joshworks.fstore.core.io.Storage;
 
 import java.io.Closeable;
 import java.nio.ByteBuffer;
+import java.util.stream.Stream;
 
 public interface Log<T> extends Writer<T>, Closeable {
 
     int HEADER_SIZE = Integer.BYTES + Integer.BYTES; //length + crc32
 
     Scanner<T> scanner();
+
+    Stream<T> stream();
 
     Scanner<T> scanner(long position);
 

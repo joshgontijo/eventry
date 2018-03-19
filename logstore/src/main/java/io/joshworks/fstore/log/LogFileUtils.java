@@ -54,7 +54,7 @@ public final class LogFileUtils {
     public static <T> List<Log<T>> loadSegments(File directory, Function<File, Log<T>> loader) {
         try {
             return Files.list(directory.toPath())
-                    .filter(p -> p.getFileName().startsWith("segment_") && p.getFileName().endsWith(".dat"))
+                    .filter(p -> p.getFileName().toFile().getName().startsWith("segment_") && p.getFileName().toFile().getName().endsWith(".dat"))
                     .map(Path::toFile)
                     .map(loader)
                     .collect(Collectors.toList());

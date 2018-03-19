@@ -81,7 +81,7 @@ public abstract class LogAppenderTest {
     }
 
     @Test
-    public void position() {
+    public void positionOnSegment() {
 
         int segmentIdx = 1;
         long positionOnSegment = 32;
@@ -92,6 +92,51 @@ public abstract class LogAppenderTest {
 
         assertEquals(segmentIdx, segment);
         assertEquals(positionOnSegment, foundPositionOnSegment);
+    }
+
+    @Test
+    public void get() throws IOException {
+        long pos1 = appender.append("1");
+        long pos2 = appender.append("2");
+
+        appender.flush();
+
+        assertEquals("1", appender.get(pos1));
+        assertEquals("2", appender.get(pos2));
+    }
+
+    @Test
+    public void position() throws IOException {
+
+        assertEquals(0, appender.position());
+
+        long pos1 = appender.append("1");
+        assertEquals(pos1, appender.position());
+
+        long pos2 = appender.append("2");
+        assertEquals(pos2, appender.position());
+
+        long pos3 = appender.append("3");
+        assertEquals(pos3, appender.position());
+
+        appender.flush();
+        Scanner<String> scanner = appender.scanner();
+
+        scanner.hasNext();
+        String found = scanner.next();
+        assertEquals("1", found);
+
+        assertEquals(pos2, scanner.position());
+        scanner.hasNext();
+        found = scanner.next();
+        assertEquals("2", found);
+
+        assertEquals(pos3, scanner.position());
+        scanner.hasNext();
+        found = scanner.next();
+        assertEquals("3", found);
+
+
     }
 
     @Test

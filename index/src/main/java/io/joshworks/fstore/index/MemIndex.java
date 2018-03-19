@@ -28,6 +28,11 @@ public class MemIndex<K extends Comparable<K>, V> implements Index<K, V> {
     }
 
     @Override
+    public void clear() {
+        index.clear();
+    }
+
+    @Override
     public Iterator<Map.Entry<K, V>> iterator() {
         return index.entrySet().iterator();
     }

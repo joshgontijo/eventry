@@ -19,6 +19,10 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * A Log segment that is compressed when flushed to disk. Data is kept in memory until blockSize threshold, or flush()
@@ -192,6 +196,11 @@ public class BlockCompressedSegment<T> implements Log<T> {
     }
 
     @Override
+    public Stream<T> stream() {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(scanner(), Spliterator.ORDERED), false);
+    }
+
+    @Override
     public Scanner<T> scanner(long position) {
         return new LogReader(reader, serializer, codec, position);
     }
@@ -279,7 +288,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
 
         @Override
         public long position() {
-            return nextBlockPosition;
+            return toBlockPosition(currentBlock.address, blockEntryIdx);
         }
 
         @Override
