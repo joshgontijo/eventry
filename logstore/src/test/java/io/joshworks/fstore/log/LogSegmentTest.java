@@ -7,7 +7,6 @@ import io.joshworks.fstore.serializer.StringSerializer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
 
 import java.io.File;
 import java.io.IOException;
@@ -21,7 +20,6 @@ import java.util.UUID;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-@RunWith(RandomOrderEnforcer.class)
 public abstract class LogSegmentTest {
 
     private LogSegment<String> appender;
@@ -78,9 +76,9 @@ public abstract class LogSegmentTest {
     }
 
     @Test
-    public void checkConsistency() {
+    public void checkIntegrity() {
         String data = "hello";
-        long position1 = appender.append(data);
+        appender.append(data);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
 
@@ -88,7 +86,8 @@ public abstract class LogSegmentTest {
         appender.close();
 
         storage = getStorage(testFile.toFile());
-        appender = LogSegment.open(storage, new StringSerializer(), position, true);
+        appender = LogSegment.open(storage, new StringSerializer(), position);
+        appender.checkIntegrity();
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
 
@@ -108,7 +107,7 @@ public abstract class LogSegmentTest {
     }
 
     @Test(expected = CorruptedLogException.class)
-    public void checkConsistency_position_ne_previous() {
+    public void checkIntegrity_position_ne_previous() {
         String data = "hello";
         appender.append(data);
 
@@ -118,11 +117,12 @@ public abstract class LogSegmentTest {
         appender.close();
 
         storage = new DiskStorage(testFile.toFile());
-        appender = LogSegment.open(storage, new StringSerializer(), position + 1, true);
+        appender = LogSegment.open(storage, new StringSerializer(), position + 1);
+        appender.checkIntegrity();
     }
 
     @Test(expected = CorruptedLogException.class)
-    public void checkConsistency_position_tamperedData() throws IOException {
+    public void checkIntegrity_position_tamperedData() throws IOException {
         String data = "hello";
         appender.append(data);
 
@@ -137,7 +137,8 @@ public abstract class LogSegmentTest {
         }
 
         storage = new DiskStorage(testFile.toFile());
-        appender = LogSegment.open(storage, new StringSerializer(), position - 1, true);
+        appender = LogSegment.open(storage, new StringSerializer(), position - 1);
+        appender.checkIntegrity();
     }
 
     @Test

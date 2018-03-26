@@ -11,7 +11,7 @@ public final class Builder<T> {
     final File directory;
     final Serializer<T> serializer;
 
-    int segmentBitShift = 28;
+    int segmentBitShift = 22;
     int segmentSize = 1073741824;
     boolean mmap;
     long rollFrequency = -1; //never

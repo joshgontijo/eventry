@@ -154,6 +154,11 @@ public class BlockCompressedSegment<T> implements Log<T> {
         return size;
     }
 
+    @Override
+    public void checkIntegrity() {
+        // do nothing
+    }
+
     long getBlockAddress(long position) {
         long blockAddress = position >> entryIdxBitShift;
         if (blockAddress > maxBlockAddress) {

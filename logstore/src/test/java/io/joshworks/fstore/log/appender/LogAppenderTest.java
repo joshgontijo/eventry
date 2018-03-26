@@ -158,4 +158,13 @@ public abstract class LogAppenderTest {
         assertEquals(lastEntry, scanner.next());
     }
 
+    @Test
+    public void segmentBitShift() {
+
+        for (int i = 0; i < appender.maxSegments ; i++) {
+            long position = appender.toSegmentedPosition(i, 0);
+            assertTrue("Failed on " + i, position >= 0);
+        }
+
+    }
 }

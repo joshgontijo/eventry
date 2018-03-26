@@ -4,6 +4,6 @@ public class SimpleLogAppenderTest extends LogAppenderTest {
 
     @Override
     protected LogAppender<String> appender(Builder<String> builder) {
-        return LogAppender.create(builder);
+        return LogAppender.createSimpleLog(builder);
     }
 }

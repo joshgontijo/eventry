@@ -5,14 +5,10 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.BlockCompressedSegment;
 import io.joshworks.fstore.log.Log;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
 
 public class CompressedBlockLogAppender<T> extends LogAppender<T> {
-
-    private static final Logger logger = LoggerFactory.getLogger(CompressedBlockLogAppender.class);
 
     //compressed block log
     private final Codec codec; //may be null
@@ -34,7 +30,7 @@ public class CompressedBlockLogAppender<T> extends LogAppender<T> {
     }
 
     @Override
-    protected Log<T> openSegment(Storage storage, Serializer<T> serializer, long position, boolean checkIntegrity) {
+    protected Log<T> openSegment(Storage storage, Serializer<T> serializer, long position) {
         return BlockCompressedSegment.open(storage, serializer, codec, position, blockBitShift, entryIdxBitShift);
     }
 }

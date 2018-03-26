@@ -7,8 +7,8 @@ public final class BlockSegmentBuilder<T> {
     final Builder<T> base;
     final Codec codec;
     int blockBitShift = 26;
-    int entryIdxBitShift = 10;
-    int maxBlockSize = 64000; //64kb
+    int entryIdxBitShift = 16;
+    int maxBlockSize = 65536; //64kb
 
     public BlockSegmentBuilder(Builder<T> base, Codec codec) {
         this.base = base;

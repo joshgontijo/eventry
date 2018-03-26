@@ -37,17 +37,10 @@ public class LogSegment<T> implements Log<T> {
     }
 
     public static <T> LogSegment<T> open(Storage storage, Serializer<T> serializer, long position) {
-        return open(storage, serializer, position, false);
-    }
-
-    public static <T> LogSegment<T> open(Storage storage, Serializer<T> serializer, long position, boolean checkIntegrity) {
         LogSegment<T> appender = null;
         try {
 
             appender = new LogSegment<>(storage, serializer);
-            if (checkIntegrity) {
-                appender.checkIntegrity(position);
-            }
             appender.position(position);
             return appender;
         } catch (CorruptedLogException e) {
@@ -119,6 +112,11 @@ public class LogSegment<T> implements Log<T> {
     @Override
     public long size() {
         return size;
+    }
+
+    @Override
+    public void checkIntegrity() {
+        checkIntegrity(position);
     }
 
     @Override

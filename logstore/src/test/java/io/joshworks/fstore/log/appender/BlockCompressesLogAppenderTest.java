@@ -9,6 +9,6 @@ public class BlockCompressesLogAppenderTest extends LogAppenderTest {
 
     @Override
     protected LogAppender<String> appender(Builder<String> builder) {
-        return LogAppender.create(new BlockSegmentBuilder<>(builder, codec));
+        return LogAppender.createBlockLog(new BlockSegmentBuilder<>(builder, codec));
     }
 }

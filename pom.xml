@@ -17,6 +17,7 @@
         <module>index</module>
         <module>memlog-db</module>
         <module>benchmark</module>
+        <module>lsm-tree</module>
     </modules>
 
     <properties>

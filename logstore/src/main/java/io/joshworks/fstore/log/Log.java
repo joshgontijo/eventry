@@ -26,6 +26,8 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     long size();
 
+    void checkIntegrity();
+
     static long write(Storage storage, ByteBuffer bytes, long position) {
         ByteBuffer bb = ByteBuffer.allocate(HEADER_SIZE + bytes.remaining());
         bb.putInt(bytes.remaining());

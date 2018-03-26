@@ -27,6 +27,8 @@ public final class LogFileUtils {
     private static final Logger logger = LoggerFactory.getLogger(LogFileUtils.class);
 
     private static final String METADATA_FILE = "metadata.dat";
+    private static final String SEGMENT_EXTENSION = ".dat";
+    private static final String SEGMENT_PREFIX = "segment_";
 
     public static void createRoot(File directory) {
         checkCreatePreConditions(directory);
@@ -42,8 +44,8 @@ public final class LogFileUtils {
         }
     }
 
-    public static File newSegmentFile(File directory, int segmentCount) {
-        String fileName = "segment_" + segmentCount + ".dat";
+    public static File newSegmentFile(File directory, long maxSegments, int segmentCount) {
+        String fileName = segmentName(maxSegments, segmentCount);
         File newFile = new File(directory, fileName);
         if (newFile.exists()) {
             throw new IllegalStateException("Segment file '" + fileName + "' already exist");
@@ -51,10 +53,16 @@ public final class LogFileUtils {
         return newFile;
     }
 
+    private static String segmentName(long maxSegmentSize, int segmentIdx) {
+        long totalLength = (long) (Math.log10(maxSegmentSize) + 1);
+        String format =  SEGMENT_PREFIX+ "%0" + (totalLength) + "d" + SEGMENT_EXTENSION;
+        return String.format(format, segmentIdx);
+    }
+
     public static <T> List<Log<T>> loadSegments(File directory, Function<File, Log<T>> loader) {
         try {
             return Files.list(directory.toPath())
-                    .filter(p -> p.getFileName().toFile().getName().startsWith("segment_") && p.getFileName().toFile().getName().endsWith(".dat"))
+                    .filter(p -> p.getFileName().toFile().getName().startsWith(SEGMENT_PREFIX) && p.getFileName().toFile().getName().endsWith(SEGMENT_EXTENSION))
                     .map(Path::toFile)
                     .map(loader)
                     .collect(Collectors.toList());
