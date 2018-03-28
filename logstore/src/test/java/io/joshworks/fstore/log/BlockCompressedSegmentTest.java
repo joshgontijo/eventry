@@ -26,18 +26,16 @@ public class BlockCompressedSegmentTest {
 
     private Log<String> log;
     private Path testFile;
-    private Storage storage;
 
     @Before
     public void setUp() {
         testFile = new File("test.db").toPath();
-        storage = new DiskStorage(testFile.toFile());
+        Storage storage = new DiskStorage(testFile.toFile());
         log = BlockCompressedSegment.create(storage, new StringSerializer(), new SnappyCodec(), BLOCK_SIZE, BLOCK_BIT_SHIFT, ENTRY_IDX_BIT_SHIFT);
     }
 
     @After
     public void cleanup() {
-        IOUtils.closeQuietly(storage);
         IOUtils.closeQuietly(log);
         Utils.tryDelete(testFile.toFile());
     }
@@ -148,7 +146,7 @@ public class BlockCompressedSegmentTest {
         }
         log.flush();
 
-        //creates a scanner starting at each position of the log
+        //creates a scanner starting at each position readFrom the log
         for (int i = 0; i < positions.size(); i++) {
             long pos = positions.get(i);
             int itemIdx = i;

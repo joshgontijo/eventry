@@ -14,6 +14,7 @@ public abstract class Storage implements Flushable, Closeable {
 
     protected final RandomAccessFile raf;
     protected final FileChannel channel;
+    protected final String name;
     protected long size;
 
     private static final long DEFAULT_LENGTH = 10485760L;//10mb
@@ -25,6 +26,7 @@ public abstract class Storage implements Flushable, Closeable {
     public Storage(File target, long length) {
         this.raf = IOUtils.readWriteRandomAccessFile(target);
         try {
+            this.name = target.getName();
             this.raf.setLength(length);
         } catch (IOException e) {
             IOUtils.closeQuietly(raf);
@@ -58,6 +60,10 @@ public abstract class Storage implements Flushable, Closeable {
     public void flush() throws IOException {
         if (channel.isOpen())
             channel.force(true);
+    }
+
+    public String name() {
+        return name;
     }
 
 }

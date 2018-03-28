@@ -4,6 +4,7 @@ package io.joshworks.fstore.log;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.log.appender.BlockAppenderMetadata;
 import io.joshworks.fstore.log.appender.Metadata;
+import io.joshworks.fstore.log.appender.State;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -16,7 +17,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public final class LogFileUtils {
@@ -27,6 +27,7 @@ public final class LogFileUtils {
     private static final Logger logger = LoggerFactory.getLogger(LogFileUtils.class);
 
     private static final String METADATA_FILE = "metadata.dat";
+    private static final String STATE_FILE = "state.dat";
     private static final String SEGMENT_EXTENSION = ".dat";
     private static final String SEGMENT_PREFIX = "segment_";
 
@@ -59,15 +60,27 @@ public final class LogFileUtils {
         return String.format(format, segmentIdx);
     }
 
-    public static <T> List<Log<T>> loadSegments(File directory, Function<File, Log<T>> loader) {
+    public static List<File> loadSegments(File directory) {
         try {
             return Files.list(directory.toPath())
-                    .filter(p -> p.getFileName().toFile().getName().startsWith(SEGMENT_PREFIX) && p.getFileName().toFile().getName().endsWith(SEGMENT_EXTENSION))
+                    .filter(p -> isSegmentFile(p.getFileName().toFile().getName()))
                     .map(Path::toFile)
-                    .map(loader)
                     .collect(Collectors.toList());
         } catch (Exception e) {
             throw new RuntimeException("Failed to load segments", e);
+        }
+    }
+
+    public static void tryCreateMetadata(File directory, Metadata metadata) {
+        try {
+            LogFileUtils.writeMetadata(directory, metadata);
+        } catch (RuntimeIOException e) {
+            try {
+                Files.delete(directory.toPath());
+            } catch (IOException e1) {
+                logger.error("Failed to revert directory creation: " + directory.getPath());
+            }
+            throw e;
         }
     }
 
@@ -92,7 +105,7 @@ public final class LogFileUtils {
     public static Metadata readBaseMetadata(File directory) {
         checkOpenPreConditions(directory);
         try (DataInputStream input = new DataInputStream(new FileInputStream(new File(directory, METADATA_FILE)))) {
-            return Metadata.of(input);
+            return Metadata.readFrom(input);
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
@@ -101,6 +114,23 @@ public final class LogFileUtils {
     public static BlockAppenderMetadata readBlockMetadata(File directory) {
         try (DataInputStream input = new DataInputStream(new FileInputStream(new File(directory, METADATA_FILE)))) {
             return BlockAppenderMetadata.of(input);
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
+    }
+
+    public static void writeState(File directory, State state) {
+        try (DataOutputStream out = new DataOutputStream(new FileOutputStream(new File(directory, STATE_FILE)))) {
+            state.writeTo(out);
+            out.flush();
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
+    }
+
+    public static State readState(File directory) {
+        try (DataInputStream input = new DataInputStream(new FileInputStream(new File(directory, STATE_FILE)))) {
+            return State.readFrom(input);
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
@@ -134,4 +164,7 @@ public final class LogFileUtils {
         return new File(directory, METADATA_FILE).exists();
     }
 
+    private static boolean isSegmentFile(String name) {
+        return name.startsWith(SEGMENT_PREFIX) && name.endsWith(SEGMENT_EXTENSION);
+    }
 }

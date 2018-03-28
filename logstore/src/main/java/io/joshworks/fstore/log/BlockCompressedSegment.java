@@ -15,10 +15,8 @@ import java.nio.ByteBuffer;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.stream.Stream;
@@ -35,7 +33,6 @@ public class BlockCompressedSegment<T> implements Log<T> {
     private final long maxBlockAddress;
     private final long maxEntriesPerBlock;
 
-
     private final Serializer<T> serializer;
     private final Storage storage;
     private final DataReader reader;
@@ -45,7 +42,6 @@ public class BlockCompressedSegment<T> implements Log<T> {
     private final int entryIdxBitShift;
     private long nextBlockPosition; //updated on every block flush
     private Block currentBlock;
-    private long entryCount;
     private long size;
 
     private static final Logger logger = LoggerFactory.getLogger(BlockCompressedSegment.class);
@@ -62,27 +58,19 @@ public class BlockCompressedSegment<T> implements Log<T> {
         return new BlockCompressedSegment<>(storage, serializer, codec, maxBlockSize, blockBitShift, entryIdxBitShift, 0);
     }
 
-    //so far, a block cannot be opened for writing
-    public static <T> BlockCompressedSegment<T> open(Storage storage, Serializer<T> serializer, Codec codec, long position, int blockBitShift, int entryIdxBitShift) {
-        return open(storage, serializer, codec, position, blockBitShift, entryIdxBitShift, false);
-    }
-
     public static <T> BlockCompressedSegment<T> open(
             Storage storage,
             Serializer<T> serializer,
             Codec codec,
+            int maxBlockSize,
             long position,
             int blockBitShift,
-            int entryIdxBitShift,
-            boolean checkIntegrity) {
+            int entryIdxBitShift) {
 
         BlockCompressedSegment<T> appender = null;
         try {
 
-            appender = new BlockCompressedSegment<>(storage, serializer, codec, -1, blockBitShift, entryIdxBitShift, position);
-            if (checkIntegrity) {
-                appender.checkIntegrity(position);
-            }
+            appender = new BlockCompressedSegment<>(storage, serializer, codec, maxBlockSize, blockBitShift, entryIdxBitShift, position);
             appender.nextBlockPosition = position;
             return appender;
         } catch (CorruptedLogException e) {
@@ -103,20 +91,6 @@ public class BlockCompressedSegment<T> implements Log<T> {
 
         this.maxBlockAddress = (long) Math.pow(2, blockBitShift) - 1;
         this.maxEntriesPerBlock = (long) Math.pow(2, entryIdxBitShift);
-    }
-
-    private void checkIntegrity(long lastKnownPosition) {
-        long position = 0;
-        logger.info("Restoring log state and checking consistency until the address {}", lastKnownPosition);
-        Scanner<T> scanner = scanner();
-        while (scanner.hasNext()) {
-            scanner.next();
-            position = scanner.position();
-        }
-        if (position != lastKnownPosition) {
-            throw new CorruptedLogException(MessageFormat.format("Expected last address {0}, got {1}", lastKnownPosition, position));
-        }
-        logger.info("Log state restored, current nextBlockPosition {}", position);
     }
 
     @Override
@@ -145,18 +119,8 @@ public class BlockCompressedSegment<T> implements Log<T> {
     }
 
     @Override
-    public long entries() {
-        return entryCount;
-    }
-
-    @Override
     public long size() {
         return size;
-    }
-
-    @Override
-    public void checkIntegrity() {
-        // do nothing
     }
 
     long getBlockAddress(long position) {
@@ -190,9 +154,13 @@ public class BlockCompressedSegment<T> implements Log<T> {
 
         long pos = toBlockPosition(nextBlockPosition, currentBlock.data.size());
         currentBlock.add(dataBytes);
-        entryCount++;
         size += dataBytes.limit();
         return pos;
+    }
+
+    @Override
+    public String name() {
+        return storage.name();
     }
 
     @Override
@@ -212,6 +180,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
 
     @Override
     public void close() {
+        flush();
         IOUtils.closeQuietly(storage);
     }
 
@@ -223,15 +192,10 @@ public class BlockCompressedSegment<T> implements Log<T> {
         nextBlockPosition = currentBlock.writeTo(storage, codec, nextBlockPosition);
     }
 
-
     //NOT THREAD SAFE
-    private class LogReader implements Scanner<T> {
+    private class LogReader extends Scanner<T> {
 
-        private final DataReader reader;
-        private final Serializer<T> serializer;
         private final Codec codec;
-        private T data;
-        private boolean completed = false;
         private BlockCompressedSegment.Block currentBlock;
         private int blockEntryIdx;
 
@@ -240,25 +204,25 @@ public class BlockCompressedSegment<T> implements Log<T> {
         }
 
         private LogReader(DataReader reader, Serializer<T> serializer, Codec codec, long initialPosition) {
-            this.reader = reader;
-            this.serializer = serializer;
+            super(reader, serializer, initialPosition);
             this.codec = codec;
             this.currentBlock = Block.load(reader, codec, getBlockAddress(initialPosition));
             this.blockEntryIdx = getPositionOnBlock(initialPosition);
-            if(this.currentBlock == null) {
-                this.completed = true;
+            if (this.currentBlock == null) {
+                super.completed = true;
             }
         }
 
-        private T readAndVerify() {
+        @Override
+        protected T readAndVerify() {
             if (blockEntryIdx >= currentBlock.entries()) {
                 blockEntryIdx = 0;
                 currentBlock = Block.load(reader, codec, currentBlock.nextBlock());
             }
-            if(currentBlock == null) {
+            if (currentBlock == null) {
                 return null;
             }
-            if(currentBlock.entries() == 0) {
+            if (currentBlock.entries() == 0) {
                 return null; //last empty block
             }
 
@@ -273,33 +237,10 @@ public class BlockCompressedSegment<T> implements Log<T> {
         }
 
         @Override
-        public boolean hasNext() {
-            if (completed) {
-                return false;
-            }
-            this.data = readAndVerify();
-            this.completed = this.data == null;
-            return !completed;
-
-        }
-
-        @Override
-        public T next() {
-            if(data == null) {
-                throw new NoSuchElementException();
-            }
-            return data;
-        }
-
-        @Override
         public long position() {
             return toBlockPosition(currentBlock.address, blockEntryIdx);
         }
 
-        @Override
-        public Iterator<T> iterator() {
-            return this;
-        }
     }
 
 
@@ -342,7 +283,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
         private static Block load(DataReader reader, Codec codec, long blockAddress) {
 
             ByteBuffer read = reader.read(blockAddress);
-            if(read.limit() == 0) {
+            if (read.limit() == 0) {
                 return null;
             }
 
@@ -371,7 +312,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
             ByteBuffer lengthData = lengthSerializer.toBytes(lengths);
 
             ByteBuffer withLength = ByteBuffer.allocate(size + lengthData.remaining());
-            withLength.put(lengthData); //length + array of int
+            withLength.put(lengthData); //length + array readFrom int
             for (ByteBuffer entry : data) {
                 withLength.put(entry);
             }

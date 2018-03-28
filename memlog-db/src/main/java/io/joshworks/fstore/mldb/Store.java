@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.index.Index;
 import io.joshworks.fstore.index.MemIndex;
 import io.joshworks.fstore.log.Scanner;
+import io.joshworks.fstore.log.appender.Builder;
 import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.io.Closeable;
@@ -23,7 +24,7 @@ public class Store<K extends Comparable<K>, V> implements Closeable {
     }
 
     public static <K extends Comparable<K>, V> Store<K, V> open(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
-        Store<K, V> kvStore = new Store<>(new MemIndex<>(), LogAppender.simpleLog(directory, LogEntry.serializer(keySerializer, valueSerializer)));
+        Store<K, V> kvStore = new Store<>(new MemIndex<>(), LogAppender.simpleLog(new Builder<>(directory, LogEntry.serializer(keySerializer, valueSerializer))));
         kvStore.reindex();
         return kvStore;
     }

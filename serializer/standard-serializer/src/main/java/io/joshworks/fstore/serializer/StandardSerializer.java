@@ -9,7 +9,6 @@ import io.joshworks.fstore.serializer.arrays.IntegerArraySerializer;
 import io.joshworks.fstore.serializer.arrays.LongArraySerializer;
 import io.joshworks.fstore.serializer.arrays.ShortArraySerializer;
 
-import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -65,20 +64,7 @@ public class StandardSerializer {
     }
 
     public static Serializer<byte[]> noSerializer() {
-        return new Serializer<byte[]>() {
-            @Override
-            public ByteBuffer toBytes(byte[] data) {
-                return ByteBuffer.wrap(data);
-            }
-
-            @Override
-            public byte[] fromBytes(ByteBuffer buffer) {
-                if(!buffer.hasArray()) {
-                    throw new IllegalArgumentException("buffer is not backed by an array");
-                }
-                return buffer.slice().array();
-            }
-        };
+        return new ByteArraySerializer();
     }
 
 }

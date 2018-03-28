@@ -10,8 +10,6 @@ public class Metadata {
     final int segmentBitShift;
     final long rollFrequency;
     final boolean mmap;
-    long lastPosition;
-    long entryCount;
 
     public Metadata(int segmentSize, int segmentBitShift, long rollFrequency, boolean mmap) {
         this.segmentSize = segmentSize;
@@ -20,41 +18,26 @@ public class Metadata {
         this.mmap = mmap;
     }
 
-    public static <T> Metadata of(Builder<T> builder) {
+    public static <T> Metadata readFrom(Builder<T> builder) {
         return new Metadata(builder.segmentSize, builder.segmentBitShift, builder.rollFrequency, builder.mmap);
     }
 
-    public static Metadata of(DataInput in) throws IOException {
-        long lastPosition = in.readLong();
+    public static Metadata readFrom(DataInput in) throws IOException {
         int segmentSize = in.readInt();
         int segmentBitShift = in.readInt();
-        long entryCount = in.readLong();
         long rollFrequency = in.readLong();
         boolean mmap = in.readBoolean();
 
-        return new Metadata(segmentSize, segmentBitShift, rollFrequency, mmap)
-                .entryCount(entryCount)
-                .lastPosition(lastPosition);
+        return new Metadata(segmentSize, segmentBitShift, rollFrequency, mmap);
 
     }
 
     public void writeTo(DataOutput out) throws IOException {
-        out.writeLong(lastPosition);
         out.writeInt(segmentSize);
         out.writeInt(segmentBitShift);
-        out.writeLong(entryCount);
         out.writeLong(rollFrequency);
         out.writeBoolean(mmap);
     }
 
-    public Metadata lastPosition(final long lastPosition) {
-        this.lastPosition = lastPosition;
-        return this;
-    }
-
-    public Metadata entryCount(final long entryCount) {
-        this.entryCount = entryCount;
-        return this;
-    }
 
 }

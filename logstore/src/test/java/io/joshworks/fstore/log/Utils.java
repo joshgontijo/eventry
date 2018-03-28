@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
 
 public class Utils {
 
@@ -34,12 +33,7 @@ public class Utils {
                 break;
             } catch (Exception e) {
                 System.err.println(":: LOCK NOT RELEASED YET :: " + e.getMessage());
-//                e.printStackTrace();
-                try {
-                    Thread.sleep(2000);
-                } catch (InterruptedException e1) {
-                    e1.printStackTrace();
-                }
+                sleep(2000);
             }
         }
     }
@@ -61,6 +55,14 @@ public class Utils {
 
     public static Storage withPrinter(Storage storage, File target, long length) {
         return new PrintStorage(storage, target, length);
+    }
+
+    public static void sleep(long millis) {
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException e1) {
+            e1.printStackTrace();
+        }
     }
 
     private static class PrintStorage extends Storage {
@@ -85,7 +87,7 @@ public class Utils {
             data.get(d);
             data.reset();
 
-            System.out.println(position + " -> " + Arrays.toString(d));
+//            System.out.println(position + " -> " + Arrays.toString(d));
 
             return storage.write(position, data);
         }
@@ -100,7 +102,7 @@ public class Utils {
             data.get(d);
             data.position(pos);
 
-            System.err.println(position + " -> " + Arrays.toString(d));
+//            System.err.println(position + " -> " + Arrays.toString(d));
 
             return read;
         }

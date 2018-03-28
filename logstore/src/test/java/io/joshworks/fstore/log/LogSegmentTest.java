@@ -10,7 +10,6 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -37,7 +36,7 @@ public abstract class LogSegmentTest {
     }
 
     @After
-    public void cleanup() throws IOException {
+    public void cleanup() {
         IOUtils.closeQuietly(storage);
         IOUtils.closeQuietly(appender);
         Utils.tryDelete(testFile.toFile());
@@ -74,73 +73,7 @@ public abstract class LogSegmentTest {
         assertEquals(data, scanner.next());
         assertEquals(4 + 4 + data.length(), scanner.position()); // 4 + 4 (heading) + data length
     }
-
-    @Test
-    public void checkIntegrity() {
-        String data = "hello";
-        appender.append(data);
-
-        assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
-
-        long position = appender.position();
-        appender.close();
-
-        storage = getStorage(testFile.toFile());
-        appender = LogSegment.open(storage, new StringSerializer(), position);
-        appender.checkIntegrity();
-
-        assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
-
-        String data2 = "aaaaaaaaaaaaaaaa";
-        appender.append(data2);
-
-        int firstEntrySize = 4 + 4 + data.length();
-        Scanner<String> scanner = appender.scanner();
-        assertTrue(scanner.hasNext());
-        assertEquals(data, scanner.next());
-        assertEquals(firstEntrySize, scanner.position()); // 4 + 4 (heading) + data length
-
-        int secondEntrySize = 4 + 4 + data2.length();
-        assertTrue(scanner.hasNext());
-        assertEquals(data2, scanner.next());
-        assertEquals(firstEntrySize + secondEntrySize, scanner.position()); // 4 + 4 (heading) + data length
-    }
-
-    @Test(expected = CorruptedLogException.class)
-    public void checkIntegrity_position_ne_previous() {
-        String data = "hello";
-        appender.append(data);
-
-        assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
-
-        long position = appender.position();
-        appender.close();
-
-        storage = new DiskStorage(testFile.toFile());
-        appender = LogSegment.open(storage, new StringSerializer(), position + 1);
-        appender.checkIntegrity();
-    }
-
-    @Test(expected = CorruptedLogException.class)
-    public void checkIntegrity_position_tamperedData() throws IOException {
-        String data = "hello";
-        appender.append(data);
-
-        assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
-
-        long position = appender.position();
-        appender.close();
-
-        //add some random data
-        try (RandomAccessFile raf = new RandomAccessFile(testFile.toFile(), "rw")) {
-            raf.writeInt(1);
-        }
-
-        storage = new DiskStorage(testFile.toFile());
-        appender = LogSegment.open(storage, new StringSerializer(), position - 1);
-        appender.checkIntegrity();
-    }
-
+    
     @Test
     public void reader_reopen() {
         String data = "hello";
@@ -195,7 +128,7 @@ public abstract class LogSegmentTest {
     }
 
     @Test
-    public void get() throws IOException {
+    public void get() {
         List<Long> positions = new ArrayList<>();
 
         int items = 10;
@@ -211,7 +144,7 @@ public abstract class LogSegmentTest {
     }
 
     @Test
-    public void getWithLength() throws IOException {
+    public void getWithLength() {
         List<Long> positions = new ArrayList<>();
         List<String> values = new ArrayList<>();
 
@@ -231,26 +164,26 @@ public abstract class LogSegmentTest {
     }
 
     @Test
-    public void scanner_0() throws IOException {
+    public void scanner_0() {
         testScanner(0);
     }
 
     @Test
-    public void scanner_1() throws IOException {
+    public void scanner_1() {
         testScanner(1);
     }
 
     @Test
-    public void scanner_10() throws IOException {
+    public void scanner_10() {
         testScanner(10);
     }
 
     @Test
-    public void scanner_1000() throws IOException {
+    public void scanner_1000() {
         testScanner(1000);
     }
 
-    private void testScanner(int items) throws IOException {
+    private void testScanner(int items) {
         List<String> values = new ArrayList<>();
         for (int i = 0; i < items; i++) {
             String value = UUID.randomUUID().toString();

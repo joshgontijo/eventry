@@ -22,51 +22,54 @@ public class LogAppenderBench {
     private static final int ITEMS = 1000000;
 
     public static void main(String[] args) throws IOException {
-//        raf();
+        raf();
         segmentAppender();
-//        blockCompressedSegmentAppender();
+        blockCompressedSegmentAppender();
     }
 
 
     public static void segmentAppender() throws IOException {
-        LogAppender<String> appender = LogAppender.create(new Builder<>(new File("appenderBench"), new StringSerializer()).segmentSize(SEGMENT_SIZE));
+        try(LogAppender<String> appender = LogAppender.simpleLog(new Builder<>(new File("appenderBenchSimple"), new StringSerializer()).segmentSize(SEGMENT_SIZE))) {
+            long start = System.currentTimeMillis();
+            for (int i = 0; i < ITEMS; i++) {
+                appender.append(UUID.randomUUID().toString());
+            }
+            System.out.println("SEGMENT_APPENDER_WRITE: " + (System.currentTimeMillis() - start) + "ms");
 
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < ITEMS; i++) {
-            appender.append(UUID.randomUUID().toString());
+            appender.flush();
+
+            start = System.currentTimeMillis();
+            Scanner<String> scanner = appender.scanner();
+            while(scanner.hasNext()) {
+                String value = scanner.next();
+//            System.out.println(value);
+            }
+            System.out.println("SEGMENT_APPENDER_READ: " + (System.currentTimeMillis() - start) + "ms");
         }
-        System.out.println("SEGMENT_APPENDER_WRITE: " + (System.currentTimeMillis() - start) + "ms");
 
-        appender.flush();
-
-        start = System.currentTimeMillis();
-        Scanner<String> scanner = appender.scanner();
-        while(scanner.hasNext()) {
-            String value = scanner.next();
-            System.out.println(value);
-        }
-        System.out.println("SEGMENT_APPENDER_READ: " + (System.currentTimeMillis() - start) + "ms");
     }
 
     public static void blockCompressedSegmentAppender() throws IOException {
-        LogAppender<String> appender = LogAppender.create(
-                new BlockSegmentBuilder<>(new Builder<>(new File("appenderBench"), new StringSerializer()), new SnappyCodec()));
+        try(LogAppender<String> appender = LogAppender.blockLog(
+                new BlockSegmentBuilder<>(new Builder<>(new File("appenderBenchBlock"), new StringSerializer()), new SnappyCodec()))) {
 
         long start = System.currentTimeMillis();
-        for (int i = 0; i < ITEMS; i++) {
-            appender.append(UUID.randomUUID().toString());
-        }
-        System.out.println("BLOCK_SEGMENT_APPENDER_WRITE: " + (System.currentTimeMillis() - start) + "ms");
+            for (int i = 0; i < ITEMS; i++) {
+                appender.append(UUID.randomUUID().toString());
+            }
+            System.out.println("BLOCK_SEGMENT_APPENDER_WRITE: " + (System.currentTimeMillis() - start) + "ms");
 
-        appender.flush();
+            appender.flush();
 
-        start = System.currentTimeMillis();
-        Scanner<String> scanner = appender.scanner();
-        while(scanner.hasNext()) {
-            String value = scanner.next();
+            start = System.currentTimeMillis();
+            Scanner<String> scanner = appender.scanner();
+            while (scanner.hasNext()) {
+                String value = scanner.next();
 //            System.out.println(value);
+            }
+            System.out.println("BLOCK_SEGMENT_APPENDER_READ: " + (System.currentTimeMillis() - start) + "ms");
         }
-        System.out.println("BLOCK_SEGMENT_APPENDER_READ: " + (System.currentTimeMillis() - start) + "ms");
+
     }
 
     public static void raf() throws IOException {

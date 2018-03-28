@@ -16,8 +16,8 @@ public class CompressedBlockLogAppender<T> extends LogAppender<T> {
     private final int entryIdxBitShift;
     private final int maxBlockSize;
 
-    CompressedBlockLogAppender(File directory, Serializer<T> serializer, BlockAppenderMetadata metadata, Codec codec) {
-        super(directory, serializer, metadata.base);
+    CompressedBlockLogAppender(File directory, Serializer<T> serializer, BlockAppenderMetadata metadata, State state, Codec codec) {
+        super(directory, serializer, metadata.base, state);
         this.codec = codec;
         this.blockBitShift = metadata.blockBitShift;
         this.entryIdxBitShift = metadata.entryIdxBitShift;
@@ -31,6 +31,6 @@ public class CompressedBlockLogAppender<T> extends LogAppender<T> {
 
     @Override
     protected Log<T> openSegment(Storage storage, Serializer<T> serializer, long position) {
-        return BlockCompressedSegment.open(storage, serializer, codec, position, blockBitShift, entryIdxBitShift);
+        return BlockCompressedSegment.open(storage, serializer, codec, maxBlockSize, position, blockBitShift, entryIdxBitShift);
     }
 }

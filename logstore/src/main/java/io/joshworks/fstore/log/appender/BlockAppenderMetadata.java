@@ -19,12 +19,12 @@ public class BlockAppenderMetadata  {
     }
 
     public static <T> BlockAppenderMetadata of(BlockSegmentBuilder<T> builder) {
-        Metadata base = Metadata.of(builder.base);
+        Metadata base = Metadata.readFrom(builder.base);
         return new BlockAppenderMetadata(base, builder.maxBlockSize, builder.blockBitShift, builder.entryIdxBitShift);
     }
 
     public static BlockAppenderMetadata of(DataInput in) throws IOException {
-        Metadata base = Metadata.of(in);
+        Metadata base = Metadata.readFrom(in);
         int blockSize = in.readInt();
         int blockBitShift = in.readInt();
         int entryIdxBitShift = in.readInt();

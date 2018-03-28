@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log;
 
 
+import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.IOUtils;
@@ -11,9 +12,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.text.MessageFormat;
-import java.util.Iterator;
-import java.util.NoSuchElementException;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.stream.Stream;
@@ -21,16 +19,13 @@ import java.util.stream.StreamSupport;
 
 public class LogSegment<T> implements Log<T> {
 
-
     private final Serializer<T> serializer;
     private final Storage storage;
     private final DataReader reader;
     private long position;
 
     private static final Logger logger = LoggerFactory.getLogger(LogSegment.class);
-    private long entryCount;
     private long size;
-
 
     public static <T> LogSegment<T> create(Storage storage, Serializer<T> serializer) {
         return new LogSegment<>(storage, serializer);
@@ -61,26 +56,6 @@ public class LogSegment<T> implements Log<T> {
         this.position = position;
     }
 
-    private void checkIntegrity(long lastKnownPosition) {
-        long position = 0;
-        try {
-
-            logger.info("Restoring log state and checking consistency until the position {}", lastKnownPosition);
-            Scanner<T> scanner = scanner();
-            while (scanner.hasNext()) {
-                scanner.next();
-                position = scanner.position();
-            }
-        } catch (Exception e) {
-            throw new CorruptedLogException("Failed on integrity check", e);
-        }
-        //TODO - should advance further after the lastKnownPosition ? (probably yes) lastKnownPosition should be used just for checkpoint
-        if (position != lastKnownPosition) {
-            throw new CorruptedLogException(MessageFormat.format("Expected last position {0}, got {1}", lastKnownPosition, position));
-        }
-        logger.info("Log state restored, current position {}", position);
-    }
-
     @Override
     public long position() {
         return position;
@@ -89,7 +64,7 @@ public class LogSegment<T> implements Log<T> {
     @Override
     public T get(long position) {
         ByteBuffer data = reader.read(position);
-        if(data.remaining() == 0) { //EOF
+        if (data.remaining() == 0) { //EOF
             return null;
         }
         return serializer.fromBytes(data);
@@ -98,25 +73,15 @@ public class LogSegment<T> implements Log<T> {
     @Override
     public T get(long position, int length) {
         ByteBuffer data = reader.read(position, length);
-        if(data.remaining() == 0) { //EOF
+        if (data.remaining() == 0) { //EOF
             return null;
         }
         return serializer.fromBytes(data);
     }
 
     @Override
-    public long entries() {
-        return entryCount;
-    }
-
-    @Override
     public long size() {
         return size;
-    }
-
-    @Override
-    public void checkIntegrity() {
-        checkIntegrity(position);
     }
 
     @Override
@@ -126,9 +91,13 @@ public class LogSegment<T> implements Log<T> {
         long recordPosition = position;
         this.position = Log.write(storage, bytes, position);
 
-        entryCount++;
         size += bytes.limit();
         return recordPosition;
+    }
+
+    @Override
+    public String name() {
+        return storage.name();
     }
 
     @Override
@@ -148,38 +117,37 @@ public class LogSegment<T> implements Log<T> {
 
     @Override
     public void close() {
+        flush();
         IOUtils.closeQuietly(storage);
     }
 
     @Override
-    public void flush() throws IOException {
-        storage.flush();
+    public void flush(){
+        try {
+            storage.flush();
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
     }
 
     //NOT THREAD SAFE
-    private static class LogReader<T> implements Scanner<T> {
+    private static class LogReader<T> extends Scanner<T> {
 
-        private final DataReader reader;
-        private final Serializer<T> serializer;
-        private T data;
-        private boolean completed = false;
-        private long position;
 
         private LogReader(DataReader reader, Serializer<T> serializer) {
             this(reader, serializer, 0);
         }
 
         private LogReader(DataReader reader, Serializer<T> serializer, long initialPosition) {
-            this.reader = reader;
-            this.serializer = serializer;
-            this.position = initialPosition;
+            super(reader, serializer, initialPosition);
         }
 
-        private T readAndVerify() {
+        @Override
+        protected T readAndVerify() {
             long currentPos = position;
 
             ByteBuffer data = reader.read(currentPos);
-            if(data.remaining() == 0) { //EOF
+            if (data.remaining() == 0) { //EOF
                 return null;
             }
             position += data.limit();
@@ -187,33 +155,10 @@ public class LogSegment<T> implements Log<T> {
         }
 
         @Override
-        public boolean hasNext() {
-            if (completed) {
-                return false;
-            }
-            this.data = readAndVerify();
-            this.completed = this.data == null;
-            return !completed;
-
-        }
-
-        @Override
-        public T next() {
-            if (data == null) {
-                throw new NoSuchElementException();
-            }
-            return data;
-        }
-
-        @Override
         public long position() {
             return position;
         }
 
-        @Override
-        public Iterator<T> iterator() {
-            return this;
-        }
     }
 
 
