@@ -133,7 +133,6 @@ public class LogSegment<T> implements Log<T> {
     //NOT THREAD SAFE
     private static class LogReader<T> extends Scanner<T> {
 
-
         private LogReader(DataReader reader, Serializer<T> serializer) {
             this(reader, serializer, 0);
         }

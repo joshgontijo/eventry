@@ -112,6 +112,23 @@ public class LogAppender<T> implements Log<T> {
         return appender;
     }
 
+    //FIXME - ON PREVIOUSLY HALTED
+    //java.io.EOFException
+    //	at java.io.DataInputStream.readFully(DataInputStream.java:197)
+    //	at java.io.DataInputStream.readLong(DataInputStream.java:416)
+    //	at io.joshworks.fstore.log.appender.State.readFrom(State.java:23)
+    //	at io.joshworks.fstore.log.LogFileUtils.readState(LogFileUtils.java:133)
+    //	at io.joshworks.fstore.log.appender.LogAppender.openSimpleLog(LogAppender.java:93)
+    //	at io.joshworks.fstore.log.appender.LogAppender.simpleLog(LogAppender.java:65)
+    //	at io.joshworks.fstore.benchmark.LogAppenderBench.segmentAppender(LogAppenderBench.java:32)
+    //	at io.joshworks.fstore.benchmark.LogAppenderBench.main(LogAppenderBench.java:26)
+    //Exception in thread "main" io.joshworks.fstore.core.RuntimeIOException
+    //	at io.joshworks.fstore.core.RuntimeIOException.of(RuntimeIOException.java:17)
+    //	at io.joshworks.fstore.log.LogFileUtils.readState(LogFileUtils.java:135)
+    //	at io.joshworks.fstore.log.appender.LogAppender.openSimpleLog(LogAppender.java:93)
+    //	at io.joshworks.fstore.log.appender.LogAppender.simpleLog(LogAppender.java:65)
+    //	at io.joshworks.fstore.benchmark.LogAppenderBench.segmentAppender(LogAppenderBench.java:32)
+    //	at io.joshworks.fstore.benchmark.LogAppenderBench.main(LogAppenderBench.java:26)
     private static <T> LogAppender<T> openBlockLog(BlockSegmentBuilder<T> blockBuilder) {
         logger.info("Opening block LogAppender");
 
@@ -154,7 +171,7 @@ public class LogAppender<T> implements Log<T> {
 
         for (int i = 0; i < segmentFiles.size(); i++) {
             File segmentFile = segmentFiles.get(i);
-            if(!state.segments.contains(segmentFile.getName())) {
+            if (!state.segments.contains(segmentFile.getName())) {
                 logger.warn("Segment file '{}' not present in the state, ignoring", segmentFile.getName());
                 continue;
             }
@@ -344,11 +361,12 @@ public class LogAppender<T> implements Log<T> {
         public RollingSegmentReader(List<Log<T>> segments, long position) {
             super(null, null, position);
             this.segments = segments;
-            if (!segments.isEmpty()) {
-                this.segmentIdx = getSegment(position);
-                long positionOnSegment = getPositionOnSegment(position);
-                this.current = segments.get(segmentIdx).scanner(positionOnSegment);
+            this.segmentIdx = getSegment(position);
+            long positionOnSegment = getPositionOnSegment(position);
+            if (segmentIdx > segments.size()) {
+                throw new IllegalArgumentException("No segment for address " + position + " (segmentIdx: " + segmentIdx + "), available segments: " + segments.size());
             }
+            this.current = segments.get(segmentIdx).scanner(positionOnSegment);
         }
 
         @Override
