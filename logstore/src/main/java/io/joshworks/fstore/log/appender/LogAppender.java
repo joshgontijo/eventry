@@ -228,11 +228,14 @@ public class LogAppender<T> implements Log<T> {
     }
 
     int getSegment(long position) {
-        int segmentIdx = (int) (position >> metadata.segmentBitShift);
+        long segmentIdx = (position >> metadata.segmentBitShift);
         if (segmentIdx > maxSegments) {
             throw new IllegalArgumentException("Invalid segment, value cannot be greater than " + maxSegments);
         }
-        return segmentIdx;
+        if (segmentIdx > segments.size()) {
+            throw new IllegalArgumentException("No segment for address " + position + " (segmentIdx: " + segmentIdx + "), available segments: " + segments.size());
+        }
+        return (int) segmentIdx;
     }
 
     long toSegmentedPosition(long segmentIdx, long position) {
@@ -301,7 +304,7 @@ public class LogAppender<T> implements Log<T> {
 
     @Override
     public T get(long position) {
-        int segmentIdx = getSegment(position);
+        int segmentIdx = getSegment(position); POSSIBLY HERE
         if (segmentIdx < 0) {
             return null;
         }
@@ -363,9 +366,6 @@ public class LogAppender<T> implements Log<T> {
             this.segments = segments;
             this.segmentIdx = getSegment(position);
             long positionOnSegment = getPositionOnSegment(position);
-            if (segmentIdx > segments.size()) {
-                throw new IllegalArgumentException("No segment for address " + position + " (segmentIdx: " + segmentIdx + "), available segments: " + segments.size());
-            }
             this.current = segments.get(segmentIdx).scanner(positionOnSegment);
         }
 

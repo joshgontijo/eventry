@@ -11,6 +11,7 @@ import io.joshworks.fstore.serializer.arrays.IntegerArraySerializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.text.MessageFormat;
 import java.util.ArrayList;
@@ -249,7 +250,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
         private static final int READ_ONLY = -1;
 
         private final List<ByteBuffer> data;
-        private int compressedSize = -1;
+        private int compressedSize = 0;
         private int size;
         private final int maxSize;
         private final long address;
@@ -292,6 +293,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
 
             Block block = new Block(READ_ONLY, blockAddress, entries);
             block.compressedSize = size;
+            block.size = entries.stream().mapToInt(Buffer::limit).sum();
             return block;
         }
 

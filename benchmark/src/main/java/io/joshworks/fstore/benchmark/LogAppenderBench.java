@@ -13,6 +13,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.UUID;
 
 public class LogAppenderBench {
@@ -31,21 +33,28 @@ public class LogAppenderBench {
     public static void segmentAppender() throws IOException {
         try (LogAppender<String> appender = LogAppender.simpleLog(new Builder<>(new File("appenderBenchSimple"), new StringSerializer()).segmentSize(SEGMENT_SIZE))) {
             long start = System.currentTimeMillis();
-//            for (int i = 0; i < ITEMS; i++) {
-//                appender.append(UUID.randomUUID().toString());
-//            }
-//            System.out.println("SEGMENT_APPENDER_WRITE: " + (System.currentTimeMillis() - start) + "ms");
-//            appender.flush();
-
-            start = System.currentTimeMillis();
-            Scanner<String> scanner = appender.scanner(10485728);
-            long i = 0;
-            while (scanner.hasNext()) {
-                String value = scanner.next();
-                long position = scanner.position();
-
-                System.out.println("I: " + i++ + " - POS: " + position + " - VAL: " + value);
+            List<Long> vals = new LinkedList<>();
+            for (int i = 0; i < ITEMS; i++) {
+                vals.add(appender.append("A"));
             }
+            System.out.println("SEGMENT_APPENDER_WRITE: " + (System.currentTimeMillis() - start) + "ms");
+            appender.flush();
+
+            int i = 0;
+            for (Long val : vals) {
+                System.out.println("I: " + i++ + " - POS: " + val + " - VAL: " + appender.get(val));
+            }
+
+
+//            start = System.currentTimeMillis();
+//            Scanner<String> scanner = appender.scanner(10485728);
+//            long i = 0;
+//            while (scanner.hasNext()) {
+//                String value = scanner.next();
+//                long position = scanner.position();
+//
+//                System.out.println("I: " + i++ + " - POS: " + position + " - VAL: " + value);
+//            }
             System.out.println("SEGMENT_APPENDER_READ: " + (System.currentTimeMillis() - start) + "ms");
         }
 
