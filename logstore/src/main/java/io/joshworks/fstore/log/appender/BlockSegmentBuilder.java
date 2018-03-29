@@ -25,7 +25,7 @@ public final class BlockSegmentBuilder<T> {
         return this;
     }
 
-    public BlockSegmentBuilder maxBlockSize(int maxBlockSize) {
+    public BlockSegmentBuilder<T> maxBlockSize(int maxBlockSize) {
         this.maxBlockSize = maxBlockSize;
         return this;
     }
