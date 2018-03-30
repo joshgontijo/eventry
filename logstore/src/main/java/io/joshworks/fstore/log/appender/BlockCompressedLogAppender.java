@@ -3,6 +3,7 @@ package io.joshworks.fstore.log.appender;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.BlockCompressedSegment;
 import io.joshworks.fstore.log.Log;
 import org.slf4j.Logger;
@@ -36,8 +37,8 @@ public class BlockCompressedLogAppender<T> extends LogAppender<T> {
             throw new IllegalArgumentException("entryIdxBitShift must be between 0 and " + (metadata.base.segmentBitShift - 1) + " (segmentBitShift)");
         }
 
-        this.maxBlockAddressPerSegment = (long) Math.pow(2, metadata.base.segmentBitShift - metadata.entryIdxBitShift);
-        this.maxEntriesPerBlock = (long) Math.pow(2, metadata.entryIdxBitShift);
+        this.maxBlockAddressPerSegment = BitUtil.maxValueForBits(metadata.base.segmentBitShift - metadata.entryIdxBitShift);
+        this.maxEntriesPerBlock = BitUtil.maxValueForBits(metadata.entryIdxBitShift);
 
         logger.info("MAX BLOCK ADDRESS PER SEGMENT: {} ({} bits)", maxBlockAddressPerSegment, metadata.base.segmentBitShift - metadata.entryIdxBitShift);
         logger.info("MAX ENTRIES PER BLOCK: {} ({} bits)", maxEntriesPerBlock, metadata.entryIdxBitShift);

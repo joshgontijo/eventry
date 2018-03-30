@@ -7,6 +7,7 @@ import io.joshworks.fstore.core.io.DiskStorage;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.MMapStorage;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.Log;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.LogSegment;
@@ -63,8 +64,8 @@ public class LogAppender<T> implements Log<T> {
         this.mmap = metadata.mmap;
         this.state = state;
         this.metadata = metadata;
-        this.maxSegments = (long) Math.pow(2, Long.SIZE - metadata.segmentBitShift);
-        this.maxAddressPerSegment = (long) Math.pow(2,  metadata.segmentBitShift);
+        this.maxSegments = BitUtil.maxValueForBits(Long.SIZE - metadata.segmentBitShift);
+        this.maxAddressPerSegment = BitUtil.maxValueForBits(metadata.segmentBitShift);
 
         if(metadata.segmentBitShift >= Long.SIZE || metadata.segmentBitShift < 0) {
             //just a numeric validation, values near 64 and 0 are still nonsense

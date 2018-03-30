@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.log.BitUtil;
 
 import java.io.File;
 import java.time.Duration;
@@ -26,8 +27,11 @@ public final class Builder<T> {
         this.serializer = serializer;
     }
 
-    //TODO add minimal / max validation (max based on bitShift)
     public Builder<T> segmentSize(int size) {
+        long maxAddress = BitUtil.maxValueForBits(segmentBitShift);
+        if(size > maxAddress) {
+            throw new IllegalArgumentException("Maximum size allowed is " + maxAddress);
+        }
         this.segmentSize = size;
         return this;
     }

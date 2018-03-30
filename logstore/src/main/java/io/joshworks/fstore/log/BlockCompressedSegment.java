@@ -93,7 +93,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
 
         this.entryIdxBitShift = entryIdxBitShift;
 
-        this.maxEntriesPerBlock = (long) Math.pow(2,  entryIdxBitShift);
+        this.maxEntriesPerBlock = BitUtil.maxValueForBits(entryIdxBitShift);
     }
 
     @Override

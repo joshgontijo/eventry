@@ -22,13 +22,14 @@ public class LogAppenderBench {
     private static final int ITEMS = 1000000;
 
     public static void main(String[] args) throws IOException {
+        System.out.println("BENCHMARK WITH " + ITEMS + " ITEMS");
 //        raf();
-        segmentAppender();
+        segmentAppender_RAF();
         blockCompressedSegmentAppender();
     }
 
 
-    public static void segmentAppender() throws IOException {
+    public static void segmentAppender_RAF() throws IOException {
         try (LogAppender<String> appender = LogAppender.simpleLog(new Builder<>(new File("appenderBenchSimple"), new StringSerializer()).segmentSize(SEGMENT_SIZE))) {
             long start = System.currentTimeMillis();
             for (int i = 0; i < ITEMS; i++) {
