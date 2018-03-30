@@ -25,22 +25,26 @@ import java.util.stream.StreamSupport;
 
 /**
  * A Log segment that is compressed when flushed to disk. Data is kept in memory until blockSize threshold, or flush()
+ *
+ * Address format
+ *
+ * [BLOCK_ADDRESS] [ENTRY_IDX_ON_BLOCK]
+ *
  */
 public class BlockCompressedSegment<T> implements Log<T> {
 
-    //[block_address(54)][entry_position(10)]
-//    private static final int BLOCK_ADDRESS_BIT_SHIFT = 54;
-//    private static final int BLOCK_ENTRY_POS_BIT_SHIFT = 10; //max 1024 blocks per file
-    private final long maxBlockAddress;
-    private final long maxEntriesPerBlock;
 
     private final Serializer<T> serializer;
     private final Storage storage;
     private final DataReader reader;
     private final Codec codec;
-    private final int maxBlockSize;
-    private final int blockBitShift;
+
     private final int entryIdxBitShift;
+
+    private final int maxBlockSize;
+    private final long maxBlockAddress;
+    private final long maxEntriesPerBlock;
+
     private long nextBlockPosition; //updated on every block flush
     private Block currentBlock;
     private long size;
@@ -53,10 +57,10 @@ public class BlockCompressedSegment<T> implements Log<T> {
             Serializer<T> serializer,
             Codec codec,
             int maxBlockSize,
-            int blockBitShift,
+            long maxBlockAddress,
             int entryIdxBitShift) {
 
-        return new BlockCompressedSegment<>(storage, serializer, codec, maxBlockSize, blockBitShift, entryIdxBitShift, 0);
+        return new BlockCompressedSegment<>(storage, serializer, codec, maxBlockSize, maxBlockAddress, entryIdxBitShift, 0);
     }
 
     public static <T> BlockCompressedSegment<T> open(
@@ -64,34 +68,32 @@ public class BlockCompressedSegment<T> implements Log<T> {
             Serializer<T> serializer,
             Codec codec,
             int maxBlockSize,
-            long position,
-            int blockBitShift,
-            int entryIdxBitShift) {
+            long maxBlockAddress,
+            int entryIdxBitShift,
+            long position) {
 
-        BlockCompressedSegment<T> appender = null;
         try {
-
-            appender = new BlockCompressedSegment<>(storage, serializer, codec, maxBlockSize, blockBitShift, entryIdxBitShift, position);
+            BlockCompressedSegment<T> appender = new BlockCompressedSegment<>(storage, serializer, codec, maxBlockSize, maxBlockAddress, entryIdxBitShift, position);
             appender.nextBlockPosition = position;
             return appender;
         } catch (CorruptedLogException e) {
-            IOUtils.closeQuietly(appender);
+            IOUtils.closeQuietly(storage);
             throw e;
         }
     }
 
-    private BlockCompressedSegment(Storage storage, Serializer<T> serializer, Codec codec, int maxBlockSize, int blockBitShift, int entryIdxBitShift, long position) {
+    private BlockCompressedSegment(Storage storage, Serializer<T> serializer, Codec codec, int maxBlockSize, long maxBlockAddress, int entryIdxBitShift, long position) {
         this.serializer = serializer;
         this.storage = storage;
         this.reader = new FixedBufferDataReader(storage, false, 1);
         this.codec = codec;
         this.maxBlockSize = maxBlockSize;
+        this.maxBlockAddress = maxBlockAddress;
         this.currentBlock = new Block(maxBlockSize, position);
-        this.blockBitShift = blockBitShift;
+
         this.entryIdxBitShift = entryIdxBitShift;
 
-        this.maxBlockAddress = (long) Math.pow(2, blockBitShift) - 1;
-        this.maxEntriesPerBlock = (long) Math.pow(2, entryIdxBitShift);
+        this.maxEntriesPerBlock = (long) Math.pow(2,  entryIdxBitShift);
     }
 
     @Override
