@@ -52,7 +52,6 @@ public abstract class Storage implements Flushable, Closeable {
     @Override
     public void close() throws IOException {
         flush();
-        raf.setLength(size);
         IOUtils.closeQuietly(channel);
         IOUtils.closeQuietly(raf);
     }

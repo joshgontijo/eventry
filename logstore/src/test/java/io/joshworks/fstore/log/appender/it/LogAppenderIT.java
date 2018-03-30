@@ -63,7 +63,7 @@ public abstract class LogAppenderIT {
 
         appender = appender(builder);
 
-        scheduledFuture = scheduler.scheduleAtFixedRate(() -> System.out.println("APPENDER_SIZE: " + appender.entries()), 1, 1, TimeUnit.SECONDS);
+
 
     }
 
@@ -71,7 +71,6 @@ public abstract class LogAppenderIT {
     public void cleanup() {
         IOUtils.closeQuietly(appender);
         Utils.tryDelete(testDirectory);
-        scheduledFuture.cancel(true);
     }
 
     @Test
@@ -152,32 +151,49 @@ public abstract class LogAppenderIT {
     }
 
     private void appendN(String value, long num) {
+        writeWatch();
         long start = System.currentTimeMillis();
         for (int i = 0; i < num; i++) {
             appender.append(value);
         }
+        stopWriteWatch();
         System.out.println("APPENDER_WRITE - " + appender.entries() + " IN " + (System.currentTimeMillis() - start) + "ms");
     }
 
     private void fillNSegments(String value, long numSegments) {
+        writeWatch();
         long start = System.currentTimeMillis();
         while(appender.segments().size() <= numSegments)
             appender.append(value);
 
         System.out.println("APPENDER_WRITE - " + appender.entries() + " IN " + (System.currentTimeMillis() - start) + "ms");
-        scanAllAssertingSameValue(value);
+        stopWriteWatch();
     }
 
     private void scanAllAssertingSameValue(String expected) {
         long start = System.currentTimeMillis();
         Scanner<String> scanner = appender.scanner();
         long read = 0;
+
+        long lastReadReport = System.currentTimeMillis();
         while (scanner.hasNext()) {
+            if(System.currentTimeMillis() - lastReadReport > TimeUnit.SECONDS.toMillis(1)){
+                System.out.println("READ " + read);
+                lastReadReport = System.currentTimeMillis();
+            }
             String found = scanner.next();
             assertEquals(expected, found);
             read++;
         }
         System.out.println("APPENDER_READ -  READ " + read + " ENTRIES IN "+  (System.currentTimeMillis() - start) + "ms");
+    }
+
+    private void writeWatch() {
+        scheduledFuture = scheduler.scheduleAtFixedRate(() -> System.out.println("APPENDER_SIZE: " + appender.entries()), 1, 1, TimeUnit.SECONDS);
+    }
+
+    private void stopWriteWatch() {
+        scheduledFuture.cancel(true);
     }
 
 }
