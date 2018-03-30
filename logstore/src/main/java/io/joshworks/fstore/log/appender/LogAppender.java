@@ -57,7 +57,7 @@ public class LogAppender<T> implements Log<T> {
     private long lastRollTime = System.currentTimeMillis();
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService executor = Executors.newFixedThreadPool(3);
 
     protected LogAppender(File directory, Serializer<T> serializer, Metadata metadata, State state) {
         this.directory = directory;
@@ -374,14 +374,18 @@ public class LogAppender<T> implements Log<T> {
         if (metadata.asyncFlush) {
             executor.execute(() -> {
                 try {
+                    long start = System.currentTimeMillis();
                     currentSegment.flush();
+                    logger.info("Flush took {}ms", System.currentTimeMillis() - start);
                 } catch (IOException e) {
                     throw RuntimeIOException.of(e);
                 }
             });
 
         } else {
+            long start = System.currentTimeMillis();
             currentSegment.flush();
+            logger.info("Flush took {}ms", System.currentTimeMillis() - start);
         }
 
     }

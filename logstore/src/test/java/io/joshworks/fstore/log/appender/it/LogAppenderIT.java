@@ -151,49 +151,70 @@ public abstract class LogAppenderIT {
     }
 
     private void appendN(String value, long num) {
-        writeWatch();
         long start = System.currentTimeMillis();
+
+        long avg = 0;
+        long lastUpdate = System.currentTimeMillis();
+        long written = 0;
+
         for (int i = 0; i < num; i++) {
+            if(System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
+                avg = (avg + written) / 2;
+                System.out.println("TOTAL WRITTEN: " + appender.entries() + " - LAST SECOND: " + written + " - AVG: " + avg);
+                written = 0;
+                lastUpdate = System.currentTimeMillis();
+            }
             appender.append(value);
+            written++;
         }
-        stopWriteWatch();
+
         System.out.println("APPENDER_WRITE - " + appender.entries() + " IN " + (System.currentTimeMillis() - start) + "ms");
     }
 
     private void fillNSegments(String value, long numSegments) {
-        writeWatch();
         long start = System.currentTimeMillis();
-        while(appender.segments().size() <= numSegments)
+
+        long avg = 0;
+        long lastUpdate = System.currentTimeMillis();
+        long written = 0;
+
+        while(appender.segments().size() < numSegments) {
+            if(System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
+                avg = (avg + written) / 2;
+                System.out.println("TOTAL WRITTEN: " + appender.entries() + " - LAST SECOND: " + written + " - AVG: " + avg);
+                written = 0;
+                lastUpdate = System.currentTimeMillis();
+            }
             appender.append(value);
+            written++;
+        }
+
 
         System.out.println("APPENDER_WRITE - " + appender.entries() + " IN " + (System.currentTimeMillis() - start) + "ms");
-        stopWriteWatch();
     }
 
     private void scanAllAssertingSameValue(String expected) {
         long start = System.currentTimeMillis();
         Scanner<String> scanner = appender.scanner();
-        long read = 0;
 
-        long lastReadReport = System.currentTimeMillis();
+        long avg = 0;
+        long lastUpdate = System.currentTimeMillis();
+        long read = 0;
+        long totalRead = 0;
+
         while (scanner.hasNext()) {
-            if(System.currentTimeMillis() - lastReadReport > TimeUnit.SECONDS.toMillis(1)){
-                System.out.println("READ " + read);
-                lastReadReport = System.currentTimeMillis();
+            if(System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
+                avg = (avg + read) / 2;
+                totalRead += read;
+                System.out.println("TOTAL READ: " + totalRead + " - LAST SECOND: " + read + " - AVG: " + avg);
+                read = 0;
+                lastUpdate = System.currentTimeMillis();
             }
             String found = scanner.next();
             assertEquals(expected, found);
             read++;
         }
         System.out.println("APPENDER_READ -  READ " + read + " ENTRIES IN "+  (System.currentTimeMillis() - start) + "ms");
-    }
-
-    private void writeWatch() {
-        scheduledFuture = scheduler.scheduleAtFixedRate(() -> System.out.println("APPENDER_SIZE: " + appender.entries()), 1, 1, TimeUnit.SECONDS);
-    }
-
-    private void stopWriteWatch() {
-        scheduledFuture.cancel(true);
     }
 
 }
