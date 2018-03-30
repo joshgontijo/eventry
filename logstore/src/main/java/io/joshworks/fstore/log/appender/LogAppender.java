@@ -23,6 +23,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -32,12 +33,11 @@ import java.util.stream.StreamSupport;
 
 /**
  * Position address schema
- *
+ * <p>
  * 64bits
- *
+ * <p>
  * Simple segment
  * [SEGMENT_IDX] [POSITION_ON_SEGMENT]
- *
  */
 public class LogAppender<T> implements Log<T> {
 
@@ -57,6 +57,7 @@ public class LogAppender<T> implements Log<T> {
     private long lastRollTime = System.currentTimeMillis();
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     protected LogAppender(File directory, Serializer<T> serializer, Metadata metadata, State state) {
         this.directory = directory;
@@ -67,7 +68,7 @@ public class LogAppender<T> implements Log<T> {
         this.maxSegments = BitUtil.maxValueForBits(Long.SIZE - metadata.segmentBitShift);
         this.maxAddressPerSegment = BitUtil.maxValueForBits(metadata.segmentBitShift);
 
-        if(metadata.segmentBitShift >= Long.SIZE || metadata.segmentBitShift < 0) {
+        if (metadata.segmentBitShift >= Long.SIZE || metadata.segmentBitShift < 0) {
             //just a numeric validation, values near 64 and 0 are still nonsense
             throw new IllegalArgumentException("segmentBitShift must be between 0 and " + Long.SIZE);
         }
@@ -98,7 +99,7 @@ public class LogAppender<T> implements Log<T> {
         logger.info("Creating contiguous LogAppender");
 
         LogFileUtils.createRoot(builder.directory);
-        Metadata metadata = new Metadata(builder.segmentSize, builder.segmentBitShift, builder.rollFrequency, builder.mmap);
+        Metadata metadata = new Metadata(builder.segmentSize, builder.segmentBitShift, builder.rollFrequency, builder.mmap, builder.asyncFlush);
         LogFileUtils.tryCreateMetadata(builder.directory, metadata);
         LogAppender<T> appender = new LogAppender<>(builder.directory, builder.serializer, metadata, State.empty());
         appender.initSegment();
@@ -232,7 +233,7 @@ public class LogAppender<T> implements Log<T> {
     private Log<T> roll() {
         try {
             logger.info("Rolling appender");
-            currentSegment.flush();
+            flush();
 
             File newSegmentFile = LogFileUtils.newSegmentFile(directory, maxSegments, this.segments.size());
             Storage storage = createStorage(newSegmentFile, metadata.segmentSize);
@@ -370,11 +371,27 @@ public class LogAppender<T> implements Log<T> {
 
     @Override
     public void flush() throws IOException {
-        currentSegment.flush();
+        if (metadata.asyncFlush) {
+            executor.execute(() -> {
+                try {
+                    currentSegment.flush();
+                } catch (IOException e) {
+                    throw RuntimeIOException.of(e);
+                }
+            });
+
+        } else {
+            currentSegment.flush();
+        }
+
     }
 
     public List<String> segments() {
         return segments.stream().map(Log::name).collect(Collectors.toList());
+    }
+
+    public long entries() {
+        return this.state.entryCount;
     }
 
     private class RollingSegmentReader extends Scanner<T> {

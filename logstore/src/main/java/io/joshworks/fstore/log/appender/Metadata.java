@@ -10,16 +10,18 @@ public class Metadata {
     final int segmentBitShift;
     final long rollFrequency;
     final boolean mmap;
+    final boolean asyncFlush;
 
-    public Metadata(int segmentSize, int segmentBitShift, long rollFrequency, boolean mmap) {
+    public Metadata(int segmentSize, int segmentBitShift, long rollFrequency, boolean mmap, boolean asyncFlush) {
         this.segmentSize = segmentSize;
         this.segmentBitShift = segmentBitShift;
         this.rollFrequency = rollFrequency;
         this.mmap = mmap;
+        this.asyncFlush = asyncFlush;
     }
 
     public static <T> Metadata readFrom(Builder<T> builder) {
-        return new Metadata(builder.segmentSize, builder.segmentBitShift, builder.rollFrequency, builder.mmap);
+        return new Metadata(builder.segmentSize, builder.segmentBitShift, builder.rollFrequency, builder.mmap, builder.asyncFlush);
     }
 
     public static Metadata readFrom(DataInput in) throws IOException {
@@ -27,9 +29,9 @@ public class Metadata {
         int segmentBitShift = in.readInt();
         long rollFrequency = in.readLong();
         boolean mmap = in.readBoolean();
+        boolean asyncFlush = in.readBoolean();
 
-        return new Metadata(segmentSize, segmentBitShift, rollFrequency, mmap);
-
+        return new Metadata(segmentSize, segmentBitShift, rollFrequency, mmap, asyncFlush);
     }
 
     public void writeTo(DataOutput out) throws IOException {
@@ -37,6 +39,7 @@ public class Metadata {
         out.writeInt(segmentBitShift);
         out.writeLong(rollFrequency);
         out.writeBoolean(mmap);
+        out.writeBoolean(asyncFlush);
     }
 
 

@@ -19,6 +19,7 @@ public final class Builder<T> {
     int segmentSize = 1073741824;
     boolean mmap;
     long rollFrequency = -1; //never
+    boolean asyncFlush;
 
     public Builder(File directory, Serializer<T> serializer) {
         Objects.requireNonNull(directory, "directory cannot be null");
@@ -45,4 +46,10 @@ public final class Builder<T> {
         this.mmap = true;
         return this;
     }
+
+    public Builder<T> asyncFlush() {
+        this.asyncFlush = true;
+        return this;
+    }
+
 }
