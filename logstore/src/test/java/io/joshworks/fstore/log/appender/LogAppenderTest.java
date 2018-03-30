@@ -221,6 +221,47 @@ public abstract class LogAppenderTest {
     }
 
     @Test
+    public void name() {
+
+//        System.out.println(Long.toBinaryString(22L));
+//        System.out.println("------------");
+//        System.out.println(Long.toBinaryString(4194297L));
+//        System.out.println(Long.toBinaryString(4194297L >> 22L));
+//        System.out.println("------------");
+//        System.out.println(Long.toBinaryString(4194306L));
+//        System.out.println(Long.toBinaryString(4194306L >> 22L));
+
+//        printLong(22L);
+//        System.out.println("------------");
+//        printLong(4194297L);
+//        printLong(4194297L >> 22L);
+//        System.out.println("------------");
+//        printLong(4194306L);
+//        printLong(4194306L >> 22L);
+
+
+//        System.out.println(Long.toBinaryString(3L << 62));
+//        System.out.println(Long.toBinaryString(-1L));
+//        System.out.println(Long.toBinaryString(1L));
+//        System.out.println(Long.toBinaryString(3L << Long.numberOfLeadingZeros(3L)));
+//        System.out.println(3L << Long.numberOfLeadingZeros(3L));
+        System.out.println(Long.toBinaryString(22L));
+        System.out.println("------------");
+        System.out.println(Long.toBinaryString(4194297L));
+        System.out.println(Long.toBinaryString(4194297L >> 22L));
+        System.out.println("------------");
+        System.out.println(Long.toBinaryString(4194306L));
+        System.out.println(Long.toBinaryString(4194306L >> 22L));
+    }
+
+    private void printLong(long val) {
+        for(int i = 0; i < Long.numberOfLeadingZeros(val); i++) {
+            System.out.print('0');
+        }
+        System.out.println(Long.toBinaryString(val));
+    }
+
+    @Test
     public void reopen_brokenEntry() throws IOException {
         File testDirectory = Files.createTempDirectory(".fstoreTest2").toFile();
         try {
@@ -271,11 +312,19 @@ public abstract class LogAppenderTest {
 
     @Test
     public void segmentBitShift() {
-
         for (int i = 0; i < appender.maxSegments; i++) {
+            appender.segments.add(null);
             long position = appender.toSegmentedPosition(i, 0);
-            assertTrue("Failed on " + i, position >= 0);
+            long foundSegment = appender.getSegment(position);
+            assertEquals("Failed on segIdx " + i + " - position: " + position + " - foundSegment: " + foundSegment, i, foundSegment);
         }
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void toSegmentedPosition_invalid() {
+        appender.segments.add(null);
+        long invalidAddress = appender.maxSegments + 1;
+        appender.toSegmentedPosition(invalidAddress, 0);
 
     }
 }

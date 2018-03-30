@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DiskStorage;
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.MMapStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Log;
@@ -28,6 +29,15 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+/**
+ * Position address schema
+ *
+ * 64bits
+ *
+ * Simple segment
+ * [SEGMENT_IDX] [POSITION_ON_SEGMENT]
+ *
+ */
 public class LogAppender<T> implements Log<T> {
 
     private static final Logger logger = LoggerFactory.getLogger(LogAppender.class);
@@ -39,6 +49,7 @@ public class LogAppender<T> implements Log<T> {
     private final State state;
 
     final long maxSegments;
+    final long maxAddressPerSegment;
 
     final List<Log<T>> segments = new LinkedList<>();
     Log<T> currentSegment;
@@ -52,7 +63,17 @@ public class LogAppender<T> implements Log<T> {
         this.mmap = metadata.mmap;
         this.state = state;
         this.metadata = metadata;
-        this.maxSegments = (long) Math.pow(2, metadata.segmentBitShift);
+        this.maxSegments = (long) Math.pow(2, Long.SIZE - metadata.segmentBitShift);
+        this.maxAddressPerSegment = (long) Math.pow(2,  metadata.segmentBitShift);
+
+        if(metadata.segmentBitShift >= Long.SIZE || metadata.segmentBitShift < 0) {
+            //just a numeric validation, values near 64 and 0 are still nonsense
+            throw new IllegalArgumentException("segmentBitShift must be between 0 and " + Long.SIZE);
+        }
+
+        logger.info("SEGMENT BIT SHIFT: {}", metadata.segmentBitShift);
+        logger.info("MAX SEGMENTS: {} ({} bits)", maxSegments, Long.SIZE - metadata.segmentBitShift);
+        logger.info("MAX ADDRESS PER SEGMENT: {} ({} bits)", maxAddressPerSegment, metadata.segmentBitShift);
 
         this.scheduler.scheduleAtFixedRate(() -> LogFileUtils.writeState(directory, state), 5, 1, TimeUnit.SECONDS);
     }
@@ -97,11 +118,11 @@ public class LogAppender<T> implements Log<T> {
         return appender;
     }
 
-    private static <T> CompressedBlockLogAppender<T> createBlockLog(BlockSegmentBuilder<T> blockBuilder) {
+    private static <T> BlockCompressedLogAppender<T> createBlockLog(BlockSegmentBuilder<T> blockBuilder) {
         LogFileUtils.createRoot(blockBuilder.base.directory);
         BlockAppenderMetadata metadata = BlockAppenderMetadata.of(blockBuilder);
         LogFileUtils.writeMetadata(blockBuilder.base.directory, metadata);
-        CompressedBlockLogAppender<T> appender = new CompressedBlockLogAppender<>(
+        BlockCompressedLogAppender<T> appender = new BlockCompressedLogAppender<>(
                 blockBuilder.base.directory,
                 blockBuilder.base.serializer,
                 metadata, State.empty(),
@@ -139,7 +160,7 @@ public class LogAppender<T> implements Log<T> {
         BlockAppenderMetadata metadata = LogFileUtils.readBlockMetadata(directory);
         State state = LogFileUtils.readState(directory);
 
-        CompressedBlockLogAppender<T> appender = new CompressedBlockLogAppender<>(directory, serializer, metadata, state, codec);
+        BlockCompressedLogAppender<T> appender = new BlockCompressedLogAppender<>(directory, serializer, metadata, state, codec);
         appender.loadSegments(directory, serializer, state);
         appender.loadCurrentSegment();
         return appender;
@@ -228,7 +249,7 @@ public class LogAppender<T> implements Log<T> {
     }
 
     int getSegment(long position) {
-        long segmentIdx = (position >> metadata.segmentBitShift);
+        long segmentIdx = (position >>> metadata.segmentBitShift);
         if (segmentIdx > maxSegments) {
             throw new IllegalArgumentException("Invalid segment, value cannot be greater than " + maxSegments);
         }
@@ -239,13 +260,13 @@ public class LogAppender<T> implements Log<T> {
     }
 
     long toSegmentedPosition(long segmentIdx, long position) {
-        if (segmentIdx < 0) {
-            throw new IllegalArgumentException("Segment index cannot less than zero");
+        if (segmentIdx < 0) {//segments will always start at 1
+            throw new IllegalArgumentException("Segment index must be greater than zero");
         }
         if (segmentIdx > maxSegments) {
             throw new IllegalArgumentException("Segment index cannot be greater than " + maxSegments);
         }
-        return segmentIdx << metadata.segmentBitShift | position; //segments will always start at 1
+        return (segmentIdx << metadata.segmentBitShift) | position;
     }
 
     long getPositionOnSegment(long position) {
@@ -304,7 +325,7 @@ public class LogAppender<T> implements Log<T> {
 
     @Override
     public T get(long position) {
-        int segmentIdx = getSegment(position); POSSIBLY HERE
+        int segmentIdx = getSegment(position);
         if (segmentIdx < 0) {
             return null;
         }
@@ -340,7 +361,7 @@ public class LogAppender<T> implements Log<T> {
     public void close() throws IOException {
         scheduler.shutdown();
         for (Log<T> segment : segments) {
-            segment.close();
+            IOUtils.closeQuietly(segment);
         }
         state.position = currentSegment.position();
         LogFileUtils.writeState(directory, state);

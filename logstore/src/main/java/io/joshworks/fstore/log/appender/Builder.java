@@ -8,10 +8,13 @@ import java.util.Objects;
 
 public final class Builder<T> {
 
+    //How many bits a segment index can hold
+    private static final int SEGMENT_BITS = 18;
+
     final File directory;
     final Serializer<T> serializer;
 
-    int segmentBitShift = 22;
+    int segmentBitShift = Long.SIZE - SEGMENT_BITS;
     int segmentSize = 1073741824;
     boolean mmap;
     long rollFrequency = -1; //never

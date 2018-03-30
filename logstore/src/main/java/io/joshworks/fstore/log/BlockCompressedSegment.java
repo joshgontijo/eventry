@@ -41,11 +41,11 @@ public class BlockCompressedSegment<T> implements Log<T> {
 
     private final int entryIdxBitShift;
 
-    private final int maxBlockSize;
-    private final long maxBlockAddress;
-    private final long maxEntriesPerBlock;
+    final int maxBlockSize;
+    final long maxBlockAddress;
+    final long maxEntriesPerBlock;
 
-    private long nextBlockPosition; //updated on every block flush
+    private long blockStartPosition; //updated on every block flush
     private Block currentBlock;
     private long size;
 
@@ -74,7 +74,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
 
         try {
             BlockCompressedSegment<T> appender = new BlockCompressedSegment<>(storage, serializer, codec, maxBlockSize, maxBlockAddress, entryIdxBitShift, position);
-            appender.nextBlockPosition = position;
+            appender.blockStartPosition = position;
             return appender;
         } catch (CorruptedLogException e) {
             IOUtils.closeQuietly(storage);
@@ -98,7 +98,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
 
     @Override
     public long position() {
-        return nextBlockPosition;
+        return blockStartPosition;
     }
 
     @Override
@@ -150,12 +150,11 @@ public class BlockCompressedSegment<T> implements Log<T> {
     public long append(T data) {
         if (currentBlock.size >= maxBlockSize || currentBlock.data.size() >= maxEntriesPerBlock) {
             flush();
-            currentBlock = new Block(maxBlockSize, nextBlockPosition);//with updated nextBlockPosition
         }
         ByteBuffer dataBytes = serializer.toBytes(data);
         dataBytes.flip();
 
-        long pos = toBlockPosition(nextBlockPosition, currentBlock.data.size());
+        long pos = toBlockPosition(blockStartPosition, currentBlock.data.size());
         currentBlock.add(dataBytes);
         size += dataBytes.limit();
         return pos;
@@ -192,7 +191,9 @@ public class BlockCompressedSegment<T> implements Log<T> {
         if(currentBlock.data.isEmpty()) {
             return;
         }
-        nextBlockPosition = currentBlock.writeTo(storage, codec, nextBlockPosition);
+        long nextBlockPosition = currentBlock.writeTo(storage, codec, blockStartPosition);
+        currentBlock = new Block(maxBlockSize, nextBlockPosition);//with updated blockStartPosition
+        this.blockStartPosition = nextBlockPosition;
     }
 
     //NOT THREAD SAFE
