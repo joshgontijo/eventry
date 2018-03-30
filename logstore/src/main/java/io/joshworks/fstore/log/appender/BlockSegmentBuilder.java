@@ -6,7 +6,7 @@ public final class BlockSegmentBuilder<T> {
 
     final Builder<T> base;
     final Codec codec;
-    int entryIdxBitShift = 16;
+    int entryIdxBitShift = 12;
     int maxBlockSize = 65536; //64kb
 
     public BlockSegmentBuilder(Builder<T> base, Codec codec) {

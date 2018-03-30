@@ -6,7 +6,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.reader.HeaderLengthDataReader;
+import io.joshworks.fstore.log.reader.FixedBufferDataReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,8 +47,8 @@ public class LogSegment<T> implements Log<T> {
     private LogSegment(Storage storage, Serializer<T> serializer) {
         this.serializer = serializer;
         this.storage = storage;
-//        this.reader = new FixedBufferDataReader(storage, false, 1); //TODO externalize, TODO for validation, should be always 1
-        this.reader = new HeaderLengthDataReader(storage, 1); //TODO externalize, TODO for validation, should be always 1
+        this.reader = new FixedBufferDataReader(storage, false, 1); //TODO externalize, TODO for validation, should be always 1
+//        this.reader = new HeaderLengthDataReader(storage, 1); //TODO externalize, TODO for validation, should be always 1
 //        this.reader = new GrowingBufferDataReader(storage, 1024, true, 1); //TODO externalize, TODO for validation, should be always 1
     }
 

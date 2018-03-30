@@ -148,7 +148,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
 
     @Override
     public long append(T data) {
-        if (currentBlock.size >= maxBlockSize || currentBlock.data.size() >= maxEntriesPerBlock) {
+        if (currentBlock.size >= maxBlockSize || currentBlock.entries() >= maxEntriesPerBlock) {
             flush();
         }
         ByteBuffer dataBytes = serializer.toBytes(data);
