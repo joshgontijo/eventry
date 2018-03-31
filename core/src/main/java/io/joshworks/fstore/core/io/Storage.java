@@ -9,12 +9,14 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 
 public abstract class Storage implements Flushable, Closeable {
 
     protected final RandomAccessFile raf;
     protected final FileChannel channel;
     protected final String name;
+    protected final FileLock lock;
     protected long size;
 
     private static final long DEFAULT_LENGTH = 10485760L;//10mb
@@ -28,11 +30,12 @@ public abstract class Storage implements Flushable, Closeable {
         try {
             this.name = target.getName();
             this.raf.setLength(length);
+            this.channel = raf.getChannel();
+            this.lock = this.channel.lock();
         } catch (IOException e) {
             IOUtils.closeQuietly(raf);
             throw RuntimeIOException.of(e);
         }
-        this.channel = raf.getChannel();
     }
 
     public abstract int write(long position, ByteBuffer data);
@@ -52,6 +55,7 @@ public abstract class Storage implements Flushable, Closeable {
     @Override
     public void close() throws IOException {
         flush();
+        lock.release();
         IOUtils.closeQuietly(channel);
         IOUtils.closeQuietly(raf);
     }

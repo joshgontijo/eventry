@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -55,6 +56,7 @@ public class LogAppender<T> implements Log<T> {
     final List<Log<T>> segments = new LinkedList<>();
     Log<T> currentSegment;
     private long lastRollTime = System.currentTimeMillis();
+    private AtomicBoolean closed = new AtomicBoolean();
 
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
@@ -78,10 +80,11 @@ public class LogAppender<T> implements Log<T> {
         logger.info("MAX ADDRESS PER SEGMENT: {} ({} bits)", maxAddressPerSegment, metadata.segmentBitShift);
 
         this.scheduler.scheduleAtFixedRate(() -> LogFileUtils.writeState(directory, state), 5, 1, TimeUnit.SECONDS);
+
+        Runtime.getRuntime().addShutdownHook(new Thread(this::close));
     }
 
     public static <T> LogAppender<T> simpleLog(Builder<T> builder) {
-
         if (!LogFileUtils.metadataExists(builder.directory)) {
             return createSimpleLog(builder);
         }
@@ -121,6 +124,8 @@ public class LogAppender<T> implements Log<T> {
     }
 
     private static <T> BlockCompressedLogAppender<T> createBlockLog(BlockSegmentBuilder<T> blockBuilder) {
+        logger.info("Creating block compressed LogAppender");
+
         LogFileUtils.createRoot(blockBuilder.base.directory);
         BlockAppenderMetadata metadata = BlockAppenderMetadata.of(blockBuilder);
         LogFileUtils.writeMetadata(blockBuilder.base.directory, metadata);
@@ -360,17 +365,25 @@ public class LogAppender<T> implements Log<T> {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
+        if(!closed.compareAndSet(false, true)) {
+            return;
+        }
+        logger.info("Closing log appender {}", directory.getName());
         scheduler.shutdown();
         for (Log<T> segment : segments) {
+            logger.info("Closing segment {}", segment.name());
             IOUtils.closeQuietly(segment);
         }
         state.position = currentSegment.position();
+
+        logger.info("Writing state {}", state);
         LogFileUtils.writeState(directory, state);
     }
 
     @Override
     public void flush() throws IOException {
+        logger.info("{} Flushing", metadata.asyncFlush ? "Async" : "Sync");
         if (metadata.asyncFlush) {
             executor.execute(() -> {
                 try {

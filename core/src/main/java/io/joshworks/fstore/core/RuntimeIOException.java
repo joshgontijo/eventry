@@ -14,6 +14,6 @@ public class RuntimeIOException extends RuntimeException {
 
     public static RuntimeException of(IOException ioex) {
         ioex.printStackTrace();
-        return new RuntimeIOException(ioex.getMessage());
+        return new RuntimeIOException(ioex.getMessage(), ioex);
     }
 }

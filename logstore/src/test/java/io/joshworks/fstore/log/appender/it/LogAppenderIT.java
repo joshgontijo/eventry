@@ -15,11 +15,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
@@ -34,13 +29,9 @@ public abstract class LogAppenderIT {
     private static String directoryPath;
 
 
-    private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
-    private ScheduledFuture<?> scheduledFuture;
-
-
     @BeforeClass
     public static void init() {
-        System.setProperty("fstore.dir", "J:\\FSTORE");
+        System.setProperty("fstore.dir", "J:\\FSTORE2");
 
         String fromProps = System.getProperty("fstore.dir");
         String fromEnv = System.getenv("FSTORE_DIR");
@@ -59,12 +50,9 @@ public abstract class LogAppenderIT {
             Utils.tryDelete(testDirectory);
         }
 
-        Builder<String> builder = new Builder<>(testDirectory, new StringSerializer()).asyncFlush();
+        Builder<String> builder = new Builder<>(testDirectory, new StringSerializer());
 
         appender = appender(builder);
-
-
-
     }
 
     @After
@@ -74,35 +62,14 @@ public abstract class LogAppenderIT {
     }
 
     @Test
-    public void insert_scan_1M_singleChar() throws IOException {
-        int items = 1000000;
-        String value = "A";
-        appendN(value, items);
-        appender.flush();
-        scanAllAssertingSameValue(value);
-    }
-
-    @Test
     public void insert_get_1M() throws IOException {
         int items = 1000000;
         String value = "A";
 
-        List<Long> positions = new ArrayList<>(items);
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < items; i++) {
-            positions.add(appender.append(value));
-        }
-        System.out.println("APPENDER_WRITE - " + appender.entries() + " IN " + (System.currentTimeMillis() - start) + "ms");
+        appendN(value, items);
         appender.flush();
 
-        long read = 0;
-
-        for(long pos : positions) {
-            String found = appender.get(pos);
-            assertEquals(value, found);
-            read++;
-        }
-        System.out.println("APPENDER_READ -  READ " + read + " IN "+  (System.currentTimeMillis() - start) + "ms");
+        scanAllAssertingSameValue(value);
     }
 
     @Test
@@ -110,7 +77,7 @@ public abstract class LogAppenderIT {
         int items = 1000000;
         String value = stringOfByteLength(2048);
         appendN(value, items);
-        appender.flush();
+
         scanAllAssertingSameValue(value);
     }
 
@@ -205,7 +172,6 @@ public abstract class LogAppenderIT {
         while (scanner.hasNext()) {
             if(System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
                 avg = (avg + read) / 2;
-                totalRead += read;
                 System.out.println("TOTAL READ: " + totalRead + " - LAST SECOND: " + read + " - AVG: " + avg);
                 read = 0;
                 lastUpdate = System.currentTimeMillis();
@@ -213,8 +179,10 @@ public abstract class LogAppenderIT {
             String found = scanner.next();
             assertEquals(expected, found);
             read++;
+            totalRead++;
         }
+
+        assertEquals(appender.entries(), totalRead);
         System.out.println("APPENDER_READ -  READ " + read + " ENTRIES IN "+  (System.currentTimeMillis() - start) + "ms");
     }
-
 }

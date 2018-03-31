@@ -20,7 +20,7 @@ public class MMapStorage extends Storage {
         super(file);
         this.mode = mode;
         try {
-            this.mbb = raf.getChannel().map(mode, 0, raf.length());
+            this.mbb = channel.map(mode, 0, raf.length());
         } catch (IOException e) {
             IOUtils.closeQuietly(raf);
             throw RuntimeIOException.of(e);
@@ -31,7 +31,6 @@ public class MMapStorage extends Storage {
         super(file, length);
         this.mode = mode;
         this.mbb = map(raf);
-
     }
 
     @Override
@@ -53,7 +52,7 @@ public class MMapStorage extends Storage {
         mbb.position((int) position);
         ByteBuffer slice = mbb.slice();
         int prevPos = data.position();
-        slice.limit(data.remaining());
+        slice.limit(Math.min(data.remaining(), slice.remaining()));
         data.put(slice.asReadOnlyBuffer());
         return data.position() - prevPos;
     }
@@ -77,6 +76,9 @@ public class MMapStorage extends Storage {
         }
     }
 
+    //TODO - HOW TO HANDLE FILES WITH MORE THAN Integer.MAX_VALUE ?
+    //TODO - SIZE VALIDATION
+    //TODO - CHECK MEMORY CONSTRAINTS WHEN OPENING MULTIPLE SEGMENTS, IT CAN BLOW OFF THE MEMORY CAPACITY
     private MappedByteBuffer map(RandomAccessFile raf) {
         try {
             return raf.getChannel().map(mode, 0, raf.length());
@@ -99,9 +101,8 @@ public class MMapStorage extends Storage {
     }
 
     @Override
-    public void flush() throws IOException {
+    public void flush() {
         if(mbb != null)
             mbb.force();
-        super.flush();
     }
 }

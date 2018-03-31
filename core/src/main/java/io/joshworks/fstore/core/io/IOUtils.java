@@ -122,7 +122,7 @@ public final class IOUtils {
                 closeable.close();
             }
         } catch (Exception e) {
-            logger.warn("Error while closing resource", e);
+            logger.error("Error while closing resource", e);
         }
     }
 }
