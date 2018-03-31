@@ -78,6 +78,8 @@ public abstract class LogAppenderIT {
         String value = stringOfByteLength(2048);
         appendN(value, items);
 
+        appender.flush();
+
         scanAllAssertingSameValue(value);
     }
 

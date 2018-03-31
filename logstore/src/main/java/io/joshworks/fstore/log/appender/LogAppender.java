@@ -250,7 +250,7 @@ public class LogAppender<T> implements Log<T> {
 
             this.lastRollTime = System.currentTimeMillis();
             return newSegment;
-        } catch (IOException e) {
+        } catch (Exception e) {
             throw new RuntimeIOException("Could not close segment file", e);
         }
     }
@@ -366,7 +366,7 @@ public class LogAppender<T> implements Log<T> {
 
     @Override
     public void close() {
-        if(!closed.compareAndSet(false, true)) {
+        if (!closed.compareAndSet(false, true)) {
             return;
         }
         logger.info("Closing log appender {}", directory.getName());
@@ -382,23 +382,23 @@ public class LogAppender<T> implements Log<T> {
     }
 
     @Override
-    public void flush() throws IOException {
-        logger.info("{} Flushing", metadata.asyncFlush ? "Async" : "Sync");
-        if (metadata.asyncFlush) {
-            executor.execute(() -> {
-                try {
-                    long start = System.currentTimeMillis();
-                    currentSegment.flush();
-                    logger.info("Flush took {}ms", System.currentTimeMillis() - start);
-                } catch (IOException e) {
-                    throw RuntimeIOException.of(e);
-                }
-            });
+    public void flush() {
+        logger.info("Flushing");
+        if (metadata.asyncFlush)
+            executor.execute(this::flush2);
+        else
+            this.flush2();
 
-        } else {
+
+    }
+
+    private void flush2() {
+        try {
             long start = System.currentTimeMillis();
             currentSegment.flush();
             logger.info("Flush took {}ms", System.currentTimeMillis() - start);
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
         }
 
     }
