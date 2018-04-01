@@ -81,7 +81,10 @@ public class LogAppender<T> implements Log<T> {
 
         this.scheduler.scheduleAtFixedRate(() -> LogFileUtils.writeState(directory, state), 5, 1, TimeUnit.SECONDS);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(this::close));
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            this.flushInternal();
+            this.close();
+        }));
     }
 
     public static <T> LogAppender<T> simpleLog(Builder<T> builder) {
@@ -385,14 +388,13 @@ public class LogAppender<T> implements Log<T> {
     public void flush() {
         logger.info("Flushing");
         if (metadata.asyncFlush)
-            executor.execute(this::flush2);
+            executor.execute(this::flushInternal);
         else
-            this.flush2();
-
+            this.flushInternal();
 
     }
 
-    private void flush2() {
+    private void flushInternal() {
         try {
             long start = System.currentTimeMillis();
             currentSegment.flush();

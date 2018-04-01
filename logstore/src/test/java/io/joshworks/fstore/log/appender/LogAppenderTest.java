@@ -36,11 +36,13 @@ public abstract class LogAppenderTest {
 
     @Before
     public void setUp() throws IOException {
-        testDirectory = Files.createTempDirectory(".fstoreTest").toFile();
-        testDirectory.deleteOnExit();
+        String dir = ".fstoreTest";
+        testDirectory = new File(dir);
         if (testDirectory.exists()) {
             Utils.tryDelete(testDirectory);
         }
+        testDirectory = Files.createTempDirectory(dir).toFile();
+        testDirectory.deleteOnExit();
 
         Builder<String> builder = new Builder<>(testDirectory, new StringSerializer())
                 .segmentSize(SEGMENT_SIZE);

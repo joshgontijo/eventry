@@ -44,11 +44,12 @@ public abstract class LogAppenderIT {
 
     @Before
     public void setUp() throws IOException {
-        testDirectory = Files.createDirectory(Paths.get(directoryPath)).toFile();
-        testDirectory.deleteOnExit();
+        testDirectory = new File(directoryPath);
         if (testDirectory.exists()) {
             Utils.tryDelete(testDirectory);
         }
+        testDirectory = Files.createDirectory(Paths.get(directoryPath)).toFile();
+        testDirectory.deleteOnExit();
 
         Builder<String> builder = new Builder<>(testDirectory, new StringSerializer());
 
@@ -62,7 +63,7 @@ public abstract class LogAppenderIT {
     }
 
     @Test
-    public void insert_get_1M() throws IOException {
+    public void insert_get_1M() {
         int items = 1000000;
         String value = "A";
 
@@ -73,7 +74,7 @@ public abstract class LogAppenderIT {
     }
 
     @Test
-    public void insert_scan_1M_2kb_entries() throws IOException {
+    public void insert_scan_1M_2kb_entries() {
         int items = 1000000;
         String value = stringOfByteLength(2048);
         appendN(value, items);
@@ -84,7 +85,7 @@ public abstract class LogAppenderIT {
     }
 
     @Test
-    public void insert_1_segments_of_1GB_with_2kb_entries() throws IOException {
+    public void insert_1_segments_of_1GB_with_2kb_entries() {
         String value = stringOfByteLength(2048);
 
         fillNSegments(value, 1);
@@ -94,7 +95,7 @@ public abstract class LogAppenderIT {
     }
 
     @Test
-    public void insert_10_segments_of_1GB_with_2kb_entries() throws IOException {
+    public void insert_10_segments_of_1GB_with_2kb_entries() {
         String value = stringOfByteLength(2048);
 
         fillNSegments(value, 10);
@@ -104,7 +105,7 @@ public abstract class LogAppenderIT {
     }
 
     @Test
-    public void insert_100_segments_of_1GB_with_2kb_entries() throws IOException {
+    public void insert_100_segments_of_1GB_with_2kb_entries() {
         String value = stringOfByteLength(2048);
 
         fillNSegments(value, 100);
