@@ -4,7 +4,6 @@ import io.joshworks.fstore.index.btrees.storage.BlockStore;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.text.MessageFormat;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -15,7 +14,7 @@ import static io.joshworks.fstore.index.btrees.util.FileHelper.saveTestData;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-public class BPlusTreeRandomTest {
+public class BPlusTreeRandomIT {
 
 
     /**
@@ -26,7 +25,7 @@ public class BPlusTreeRandomTest {
 
         for (long numKeys = 1; numKeys < Integer.MAX_VALUE; numKeys+= 100000) {
             for (long order = 3; order < 1000; order+= 10) {
-                System.out.println(MessageFormat.format("Testing... order: {0}, numKeys: {1}", order, numKeys));
+//                System.out.println(MessageFormat.format("Testing... order: {0}, numKeys: {1}", order, numKeys));
                 BPlusTree<Integer, String> btree = BPlusTree.of(new BlockStore<>(0), (int)order);
                 LinkedList<Integer> data = generateUniqueUnorderedData(numKeys);
                 insert(btree, new LinkedList<>(data), false);

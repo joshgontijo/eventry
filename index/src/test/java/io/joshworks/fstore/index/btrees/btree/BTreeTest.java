@@ -7,8 +7,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static io.joshworks.fstore.index.btrees.btree.BTreeRandomTest.insert;
-import static io.joshworks.fstore.index.btrees.btree.BTreeRandomTest.remove;
+import static io.joshworks.fstore.index.btrees.btree.BTreeRandomIT.insert;
+import static io.joshworks.fstore.index.btrees.btree.BTreeRandomIT.remove;
 import static io.joshworks.fstore.index.btrees.util.FileHelper.all;
 import static io.joshworks.fstore.index.btrees.util.FileHelper.latest;
 import static io.joshworks.fstore.index.btrees.util.FileHelper.loadTestData;

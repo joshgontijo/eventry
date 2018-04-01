@@ -82,7 +82,9 @@ public class MockFileChannel extends FileChannel {
 
     @Override
     public int read(ByteBuffer dst, long position) throws IOException {
-        return 0;
+        byte[] data = received.toByteArray();
+        dst.put(data, (int)position, (int) (data.length - position));
+        return dst.limit();
     }
 
     @Override

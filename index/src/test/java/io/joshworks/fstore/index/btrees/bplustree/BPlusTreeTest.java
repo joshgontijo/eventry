@@ -7,8 +7,8 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static io.joshworks.fstore.index.btrees.bplustree.BPlusTreeRandomTest.insert;
-import static io.joshworks.fstore.index.btrees.bplustree.BPlusTreeRandomTest.remove;
+import static io.joshworks.fstore.index.btrees.bplustree.BPlusTreeRandomIT.insert;
+import static io.joshworks.fstore.index.btrees.bplustree.BPlusTreeRandomIT.remove;
 import static io.joshworks.fstore.index.btrees.util.FileHelper.all;
 import static io.joshworks.fstore.index.btrees.util.FileHelper.loadTestData;
 import static org.junit.Assert.assertEquals;
