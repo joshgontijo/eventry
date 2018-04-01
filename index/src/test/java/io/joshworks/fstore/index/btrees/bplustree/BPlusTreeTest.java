@@ -291,13 +291,18 @@ public class BPlusTreeTest {
     @Test
     public void validateEmpty() {
         BPlusTree<Integer, String> btree = BPlusTree.of(store, 3);
+        assertTrue(btree.isEmpty());
+        btree.put(1, "a");
+        assertFalse(btree.isEmpty());
     }
 
     @Test
     public void insert_duplicate() {
         BPlusTree<Integer, String> btree = BPlusTree.of(store, 3);
-        assertTrue(btree.put(1, "a"));
-        assertFalse(btree.put(1, "a"));
+        assertNull(btree.put(1, "a"));
+        assertEquals("a", btree.put(1, "b"));
+
+        assertEquals("b", btree.get(1));
     }
 
 //    /**

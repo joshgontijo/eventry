@@ -1,11 +1,18 @@
 package io.joshworks.fstore.index.btrees.bplustree.util;
 
-public class Result {
+public class Result<V> {
 
     public static final int NO_NEW_ROOT = -1;
-    public final int newRootId;
+    public int newRootId = NO_NEW_ROOT;
 
-    Result(int newRootId) {
+    protected V foundValue;
+
+    public Result newRootId(final int newRootId) {
         this.newRootId = newRootId;
+        return this;
+    }
+
+    public V foundValue() {
+        return foundValue;
     }
 }

@@ -1,7 +1,8 @@
 package io.joshworks.fstore.index.btrees.bplustree;
 
 
-import io.joshworks.fstore.index.btrees.Entry;
+import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.index.Entry;
 import io.joshworks.fstore.index.btrees.Tree;
 import io.joshworks.fstore.index.btrees.bplustree.util.DeleteResult;
 import io.joshworks.fstore.index.btrees.bplustree.util.InsertResult;
@@ -50,21 +51,36 @@ public class BPlusTree<K extends Comparable<K>, V> implements Tree<K, V> {
     }
 
 
+    /**
+     *
+     * Adds a new entry to the index, replacing if the key already exist
+     *
+     * @param key The key to be inserted
+     * @param value The value to be inserted
+     * @throws IllegalArgumentException If the key is null
+     * @return The previous value associated with this key
+     */
     @Override
-    public boolean put(K key, V value) {
+    public V put(K key, V value) {
+        if(key == null) {
+            throw new IllegalArgumentException("Key must be provided");
+        }
         Node<K, V> root = store.readBlock(rootId);
-        InsertResult insertResult = root.insertValue(key, value, root);
+        InsertResult<V> insertResult = root.insertValue(key, value, root);
         if (insertResult.newRootId != Result.NO_NEW_ROOT) {
             rootId = insertResult.newRootId;
             height++;
         }
-        if (insertResult.inserted)
+        if (insertResult.foundValue() == null)
             size++;
-        return insertResult.inserted;
+        return insertResult.foundValue();
     }
 
     @Override
     public V get(K key) {
+        if(key == null) {
+            throw new IllegalArgumentException("Key must be provided");
+        }
         Node<K, V> root = store.readBlock(rootId);
         return root.getValue(key);
     }
@@ -85,17 +101,10 @@ public class BPlusTree<K extends Comparable<K>, V> implements Tree<K, V> {
         return TreeIterator.iterator(store, rootId);
     }
 
-    public Iterator<Entry<K, V>> range(K startInclusive, K endExclusive) {
-        return TreeIterator.rangeIterator(store, rootId, startInclusive, endExclusive);
+    public Iterator<Entry<K, V>> iterator(Range<K> range) {
+        return TreeIterator.iterator(store, rootId, range);
     }
 
-    public Iterator<Entry<K, V>> limit(int skip, int limit) {
-        return TreeIterator.limitIterator(store, rootId, skip, limit);
-    }
-
-    public Iterator<Entry<K, V>> limit(int skip, int limit, K startInclusive) {
-        return TreeIterator.limitIterator(store, rootId, skip, limit, startInclusive, null);
-    }
 
     @Override
     public int height() {
@@ -115,9 +124,9 @@ public class BPlusTree<K extends Comparable<K>, V> implements Tree<K, V> {
             rootId = deleteResult.newRootId;
             height--;
         }
-        if (deleteResult.deleted != null)
+        if (deleteResult.foundValue() != null)
             size--;
-        return deleteResult.deleted;
+        return deleteResult.foundValue();
     }
 
 

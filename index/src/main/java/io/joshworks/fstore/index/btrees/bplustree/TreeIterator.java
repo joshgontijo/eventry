@@ -1,6 +1,7 @@
 package io.joshworks.fstore.index.btrees.bplustree;
 
-import io.joshworks.fstore.index.btrees.Entry;
+import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.index.Entry;
 import io.joshworks.fstore.index.btrees.storage.BlockStore;
 
 import java.util.Collections;
@@ -9,65 +10,44 @@ import java.util.List;
 
 public class TreeIterator<K extends Comparable<K>, V> implements Iterator<Entry<K, V>> {
 
-    protected static final int NO_LIMIT = -1;
-    protected static final int SKIP_NONE = 0;
-
     protected final BlockStore<Node<K, V>> store;
-    private final int limit;
 
     //state
     private LeafNode<K, V> currentLeaf;
     protected List<Entry<K, V>> leafEntries;
     protected int positionInLeaf;// using list instead iterator so RangeIterator can read ahead
-    private int proccessedCount;
-    private final K startInclusive;
-    private final K endExclusive;
+    private int processedCount;
+    private final Range<K> range;
 
-    protected TreeIterator(
-            BlockStore<Node<K, V>> store,
-            int rootId,
-            int skip,
-            int limit,
-            K startInclusive,
-            K endExclusive) {
+    protected TreeIterator(BlockStore<Node<K, V>> store, int rootId, Range<K> range) {
         this.store = store;
-        this.limit = limit;
-        this.startInclusive = startInclusive;
-        this.endExclusive = endExclusive;
+        this.range = range;
 
         this.currentLeaf = startLeaf(rootId);
         this.leafEntries = currentLeaf.entries();
-        this.positionInLeaf = initialLeafPosition(currentLeaf.entries());
+        this.positionInLeaf = initialLeafPosition();
 
-        for (int i = 0; i < skip; i++) {
+        for (int i = 0; i < range.skip(); i++) {
             positionInLeaf++;
             if (positionInLeaf >= leafEntries.size())
                 loadNextLeaf();
         }
     }
 
-    protected int initialLeafPosition(List<Entry<K, V>> entries) {
-        if (startInclusive != null) {
-            int keyIndex = Collections.binarySearch(leafEntries, Entry.of(startInclusive, null)); //entry is key only comparable, so it's ok
+    protected int initialLeafPosition() {
+        if (range.startInclusive() != null) {
+            int keyIndex = Collections.binarySearch(leafEntries, Entry.of(range.startInclusive(), null)); //entry is key only comparable, so it's ok
             return keyIndex < 0 ? 0 : keyIndex; //initial position with offset within the initial leaf
         }
         return 0;
     }
 
     public static <K extends Comparable<K>, V> TreeIterator<K, V> iterator(BlockStore<Node<K, V>> store, int rootId) {
-        return new TreeIterator<>(store, rootId, SKIP_NONE, NO_LIMIT, null, null);
+        return iterator(store, rootId, new Range<>());
     }
 
-    public static <K extends Comparable<K>, V> TreeIterator<K, V> rangeIterator(BlockStore<Node<K, V>> store, int rootId, K startInclusive, K endExclusive) {
-        return new TreeIterator<>(store, rootId, SKIP_NONE, NO_LIMIT, startInclusive, endExclusive);
-    }
-
-    public static <K extends Comparable<K>, V> TreeIterator<K, V> limitIterator(BlockStore<Node<K, V>> store, int rootId, int skip, int limit) {
-        return new TreeIterator<>(store, rootId, skip, limit, null, null);
-    }
-
-    public static <K extends Comparable<K>, V> TreeIterator<K, V> limitIterator(BlockStore<Node<K, V>> store, int rootId, int skip, int limit, K startInclusive, K endExclusive) {
-        return new TreeIterator<>(store, rootId, skip, limit, startInclusive, endExclusive);
+    public static <K extends Comparable<K>, V> TreeIterator<K, V> iterator(BlockStore<Node<K, V>> store, int rootId, Range<K> range) {
+        return new TreeIterator<>(store, rootId, range);
     }
 
     @Override
@@ -75,7 +55,7 @@ public class TreeIterator<K extends Comparable<K>, V> implements Iterator<Entry<
         if (currentLeaf == null) {
             return false;
         }
-        if (limit > 0 && proccessedCount >= limit) {
+        if (range.limit() > 0 && processedCount >= range.limit()) {
             return false;
         }
         if (positionInLeaf < leafEntries.size()) {
@@ -86,7 +66,7 @@ public class TreeIterator<K extends Comparable<K>, V> implements Iterator<Entry<
         }
         boolean leafLoaded = loadNextLeaf();
         boolean b = leafLoaded && !leafEntries.isEmpty();
-        return b && (endExclusive == null || leafEntries.get(positionInLeaf).key.compareTo(endExclusive) < 0);
+        return b && (range.endExclusive() == null || leafEntries.get(positionInLeaf).key.compareTo(range.endExclusive()) < 0);
     }
 
     @Override
@@ -96,7 +76,7 @@ public class TreeIterator<K extends Comparable<K>, V> implements Iterator<Entry<
                 throw new IllegalStateException("Premature finalization, could not read node");
             }
         }
-        proccessedCount++;
+        processedCount++;
         return leafEntries.get(positionInLeaf++);
     }
 
@@ -110,7 +90,7 @@ public class TreeIterator<K extends Comparable<K>, V> implements Iterator<Entry<
             return false;
         }
         Node<K, V> next = store.readBlock(currentLeaf.next());
-        if (next == null || !(next instanceof LeafNode)) {
+        if (!(next instanceof LeafNode)) {
             throw new IllegalStateException("Corrupted index");
         }
 
@@ -122,9 +102,9 @@ public class TreeIterator<K extends Comparable<K>, V> implements Iterator<Entry<
 
     private LeafNode<K, V> startLeaf(int rootId) {
         Node<K, V> node = store.readBlock(rootId);
-        if (startInclusive != null) {
+        if (range.startInclusive() != null) {
             while (node instanceof InternalNode) {
-                node = ((InternalNode<K, V>) node).getChild(startInclusive);
+                node = ((InternalNode<K, V>) node).getChild(range.startInclusive());
                 if (node == null) {
                     throw new IllegalStateException("Corrupted index");
                 }

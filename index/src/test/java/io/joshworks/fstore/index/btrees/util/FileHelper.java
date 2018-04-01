@@ -8,6 +8,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -66,12 +67,20 @@ public class FileHelper {
     }
 
     public static String latest() {
-        return String.valueOf(filesAsTimestamps().max().orElseThrow(() -> new IllegalStateException("No files were found"))) + EXT;
+        OptionalLong max = filesAsTimestamps().max();
+        if(!max.isPresent()) {
+            return null; //no file was found, test should ignore
+        }
+        return String.valueOf(filesAsTimestamps().max()) + EXT;
     }
 
     private static LongStream filesAsTimestamps() {
         File file = new File(FILE_DIR);
-        return Stream.of(file.list()).mapToLong(f -> Long.valueOf(f.split("\\.")[0]));
+        String[] files = file.list();
+        if(files == null) {
+            return LongStream.empty();
+        }
+        return Stream.of(files).mapToLong(f -> Long.valueOf(f.split("\\.")[0]));
     }
 
     private static String toFileName(long timestamp) {

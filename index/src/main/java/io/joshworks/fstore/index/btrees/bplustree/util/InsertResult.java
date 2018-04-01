@@ -1,19 +1,17 @@
 package io.joshworks.fstore.index.btrees.bplustree.util;
 
-public class InsertResult extends Result {
+public class InsertResult<V> extends Result<V> {
 
-    public final boolean inserted; //TODO add if was duplicated
 
-    private InsertResult(int newRootId, boolean inserted) {
-        super(newRootId);
-        this.inserted = inserted;
+
+    public InsertResult previousValue(final V previousValue) {
+        super.foundValue = previousValue;
+        return this;
     }
 
-    public static InsertResult of(int newRootId, boolean inserted) {
-        return new InsertResult(newRootId, inserted);
-    }
-
-    public static InsertResult noSplit() {
-        return new InsertResult(Result.NO_NEW_ROOT, true);
+    @Override
+    public InsertResult newRootId(int newRootId) {
+        super.newRootId(newRootId);
+        return this;
     }
 }

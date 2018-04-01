@@ -1,7 +1,7 @@
 package io.joshworks.fstore.index.btrees.bplustree;
 
 
-import io.joshworks.fstore.index.btrees.Entry;
+import io.joshworks.fstore.index.Entry;
 import io.joshworks.fstore.index.btrees.bplustree.util.DeleteResult;
 import io.joshworks.fstore.index.btrees.bplustree.util.InsertResult;
 import io.joshworks.fstore.index.btrees.storage.BlockStore;
@@ -36,25 +36,32 @@ public class LeafNode<K extends Comparable<K>, V> extends Node<K, V> {
     @Override
     DeleteResult<V> deleteValue(K key, Node<K, V> root) {
         int loc = Collections.binarySearch(keys, key);
+        DeleteResult<V> deleteResult = new DeleteResult<>();
         if (loc >= 0) {
             keys.remove(loc);
             V removed = values.remove(loc);
-            return DeleteResult.of(removed);
+            deleteResult.deleted(removed);
         }
-        return DeleteResult.notDeleted();
+        return deleteResult;
     }
 
     @Override
     InsertResult insertValue(K key, V value, Node<K, V> root) {
         int loc = Collections.binarySearch(keys, key);
         int valueIndex = loc >= 0 ? loc : -loc - 1;
+
+        InsertResult<V> insertResult = new InsertResult<>();
+
         //TODO check duplicated values
         if (loc >= 0) {
+            V v = values.get(valueIndex);
+            insertResult.previousValue(v);
             values.set(valueIndex, value);
         } else {
             keys.add(valueIndex, key);
             values.add(valueIndex, value);
         }
+
         if (root.isOverflow()) {
             Node<K, V> sibling = split();
             InternalNode<K, V> newRoot = Node.allocateInternal(store, order);
@@ -63,9 +70,9 @@ public class LeafNode<K extends Comparable<K>, V> extends Node<K, V> {
             newRoot.children.add(sibling.id());
             //root = newRoot;
             int id = store.placeBlock(newRoot);
-            return InsertResult.of(id, true);
+            return insertResult.newRootId(id);
         }
-        return InsertResult.noSplit();
+        return insertResult;
     }
 
 

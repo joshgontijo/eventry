@@ -1,7 +1,7 @@
 package io.joshworks.fstore.index.btrees.bplustree;
 
 
-import io.joshworks.fstore.index.btrees.Entry;
+import io.joshworks.fstore.index.Entry;
 import io.joshworks.fstore.index.btrees.bplustree.util.DeleteResult;
 import io.joshworks.fstore.index.btrees.bplustree.util.InsertResult;
 import io.joshworks.fstore.index.btrees.storage.Block;
@@ -36,7 +36,7 @@ public abstract class Node<K extends Comparable<K>, V> implements Block {
 
     abstract DeleteResult<V> deleteValue(K key, Node<K, V> root);
 
-    abstract InsertResult insertValue(K key, V value, Node<K, V> root);
+    abstract InsertResult<V> insertValue(K key, V value, Node<K, V> root);
 
     abstract void merge(Node<K, V> sibling);
 

@@ -1,7 +1,7 @@
 package io.joshworks.fstore.index.btrees.bplustree;
 
 
-import io.joshworks.fstore.index.btrees.Entry;
+import io.joshworks.fstore.index.Entry;
 import io.joshworks.fstore.index.btrees.bplustree.util.DeleteResult;
 import io.joshworks.fstore.index.btrees.bplustree.util.InsertResult;
 import io.joshworks.fstore.index.btrees.storage.BlockStore;
@@ -40,7 +40,7 @@ public class InternalNode<K extends Comparable<K>, V> extends Node<K, V> {
                 insertChild(sibling.getFirstEntry().key, sibling);
             }
             if (root.keyNumber() == 0)
-                result = DeleteResult.of(left.id(), result.deleted);
+                result.newRootId(left.id());
 //                root = left;
         }
         return result;
@@ -48,7 +48,7 @@ public class InternalNode<K extends Comparable<K>, V> extends Node<K, V> {
     }
 
     @Override
-    InsertResult insertValue(K key, V value, Node<K, V> root) {
+    InsertResult<V> insertValue(K key, V value, Node<K, V> root) {
         Node<K, V> child = getChild(key);
         InsertResult insertResult = child.insertValue(key, value, root);
 
@@ -64,7 +64,8 @@ public class InternalNode<K extends Comparable<K>, V> extends Node<K, V> {
             newRoot.children.add(sibling.id());
 //            root = newRoot;
             int id = store.placeBlock(newRoot);
-            insertResult = InsertResult.of(id, insertResult.inserted);
+            insertResult.newRootId(id);
+            insertResult = new InsertResult().newRootId(id);
         }
         return insertResult;
     }

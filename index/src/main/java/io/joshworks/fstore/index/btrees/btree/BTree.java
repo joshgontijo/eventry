@@ -1,6 +1,6 @@
 package io.joshworks.fstore.index.btrees.btree;
 
-import io.joshworks.fstore.index.btrees.Entry;
+import io.joshworks.fstore.index.Entry;
 import io.joshworks.fstore.index.btrees.Tree;
 import io.joshworks.fstore.index.btrees.storage.BlockStore;
 
@@ -44,11 +44,11 @@ public class BTree<K extends Comparable<K>, V> implements Tree<K, V> {
     }
 
     @Override
-    public boolean put(K key, V value) {
-        boolean inserted = this.insert(Entry.of(key, value));
-        if(inserted)
+    public V put(K key, V value) {
+        V old = this.insert(Entry.of(key, value));
+        if(old == null)
             size++;
-        return inserted;
+        return old;
     }
 
     @Override
@@ -289,7 +289,7 @@ public class BTree<K extends Comparable<K>, V> implements Tree<K, V> {
         return search(childId, key);
     }
 
-    private boolean insert(Entry<K, V> entry) {
+    private V insert(Entry<K, V> entry) {
         Node<K, V> r = store.readBlock(rootId);
         if (r.isFull()) {
             Node<K, V> s = Node.allocate(order, store);
@@ -298,8 +298,8 @@ public class BTree<K extends Comparable<K>, V> implements Tree<K, V> {
 
             s.children[0] = r.id();
             splitChild(s, 0, r);
-            boolean inserted = insertNonFull(s, entry);
-            if (inserted) {
+            V inserted = insertNonFull(s, entry);
+            if (inserted == null) { //if not null, the value was simply replaced, no restructure happened
                 height++;
                 s.height = height;
 
@@ -311,13 +311,13 @@ public class BTree<K extends Comparable<K>, V> implements Tree<K, V> {
         return insertNonFull(r, entry);
     }
 
-    private boolean insertNonFull(Node<K, V> x, Entry<K, V> entry) {
+    private V insertNonFull(Node<K, V> x, Entry<K, V> entry) {
         int i = Search.binarySearch(x, entry.key);
-        if (x.leaf) {
 
-            if( i < 0) { //Entry already exist
-                //TODO current behaviour is false, for updates this needs to append to a list create values for this entry
-                return false;
+        if (x.leaf) {
+            if(i < 0) { //Entry already exist, replace it
+                i = -(i + 1);
+                return x.replaceEntry(entry, i).value;
             }
             if(i >= x.n) { // no need to shift entries
                 x.addEntry(entry);
@@ -328,8 +328,7 @@ public class BTree<K extends Comparable<K>, V> implements Tree<K, V> {
             }
 
             store.writeBlock(x.id(), x);
-            return true;
-
+            return null;
 
         } else {
 

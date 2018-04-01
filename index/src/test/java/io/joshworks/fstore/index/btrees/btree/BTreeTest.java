@@ -13,10 +13,8 @@ import static io.joshworks.fstore.index.btrees.util.FileHelper.all;
 import static io.joshworks.fstore.index.btrees.util.FileHelper.latest;
 import static io.joshworks.fstore.index.btrees.util.FileHelper.loadTestData;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
 
 public class BTreeTest {
 
@@ -310,8 +308,8 @@ public class BTreeTest {
     @Test
     public void insert_duplicate() {
         BTree<Integer, String> btree = BTree.create(store, 3);
-        assertTrue(btree.put(1, "a"));
-        assertFalse(btree.put(1, "a"));
+        assertNull(btree.put(1, "a"));
+        assertEquals("a", btree.put(1, "a"));
     }
 
     /**
@@ -333,6 +331,10 @@ public class BTreeTest {
     }
 
     private void testFromFile(String fileName) throws IOException {
+        if(fileName == null) {
+            System.out.println("No previous regression failed test file found...");
+            return;
+        }
         try {
             System.out.println(":: Running test on " + fileName + " ::");
             TestData testData = loadTestData(fileName);

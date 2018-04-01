@@ -1,8 +1,6 @@
 package io.joshworks.fstore.index;
 
-import java.util.Map;
-
-public interface Index<K extends Comparable<K>, V> extends Iterable<Map.Entry<K, V>> {
+public interface Index<K extends Comparable<K>, V> extends Iterable<Entry<K, V>> {
 
     V get(K key);
 

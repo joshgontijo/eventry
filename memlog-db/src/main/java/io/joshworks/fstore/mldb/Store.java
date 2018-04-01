@@ -1,8 +1,10 @@
 package io.joshworks.fstore.mldb;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.index.Index;
-import io.joshworks.fstore.index.MemIndex;
+import io.joshworks.fstore.index.Entry;
+import io.joshworks.fstore.index.HeapTreeIndex;
+import io.joshworks.fstore.index.Range;
+import io.joshworks.fstore.index.SortedIndex;
 import io.joshworks.fstore.log.Scanner;
 import io.joshworks.fstore.log.appender.Builder;
 import io.joshworks.fstore.log.appender.LogAppender;
@@ -11,20 +13,19 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.Map;
 
 public class Store<K extends Comparable<K>, V> implements Closeable {
 
-    private final Index<K, Long> index;
+    private final SortedIndex<K, Long> index;
     private final LogAppender<LogEntry<K, V>> log;
 
-    private Store(Index<K, Long> index, LogAppender<LogEntry<K, V>> log) {
+    private Store(SortedIndex<K, Long> index, LogAppender<LogEntry<K, V>> log) {
         this.index = index;
         this.log = log;
     }
 
     public static <K extends Comparable<K>, V> Store<K, V> open(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
-        Store<K, V> kvStore = new Store<>(new MemIndex<>(), LogAppender.simpleLog(new Builder<>(directory, LogEntry.serializer(keySerializer, valueSerializer))));
+        Store<K, V> kvStore = new Store<>(new HeapTreeIndex<>(), LogAppender.simpleLog(new Builder<>(directory, LogEntry.serializer(keySerializer, valueSerializer))));
         kvStore.reindex();
         return kvStore;
     }
@@ -62,8 +63,12 @@ public class Store<K extends Comparable<K>, V> implements Closeable {
 
 
     public Iterator<V> iterator() {
+        return iterator(new Range<>());
+    }
+
+    public Iterator<V> iterator(Range<K> range) {
         return new Iterator<V>() {
-            private Iterator<Map.Entry<K, Long>> indexIterator = index.iterator();
+            private Iterator<Entry<K, Long>> indexIterator = index.iterator(range);
 
             @Override
             public boolean hasNext() {
@@ -72,8 +77,8 @@ public class Store<K extends Comparable<K>, V> implements Closeable {
 
             @Override
             public V next() {
-                Map.Entry<K, Long> next = indexIterator.next();
-                return get(next.getKey());
+                Entry<K, Long> next = indexIterator.next();
+                return get(next.key);
             }
         };
     }

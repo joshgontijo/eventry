@@ -1,7 +1,7 @@
 /**
  * 
  */
-package io.joshworks.fstore.index.btrees.out.bptree2;
+package io.joshworks.fstore.index.btrees._out.bptree2;
 
 import java.util.Comparator;
 

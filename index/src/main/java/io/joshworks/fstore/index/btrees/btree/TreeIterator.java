@@ -1,7 +1,7 @@
 package io.joshworks.fstore.index.btrees.btree;
 
 
-import io.joshworks.fstore.index.btrees.Entry;
+import io.joshworks.fstore.index.Entry;
 import io.joshworks.fstore.index.btrees.storage.BlockStore;
 
 import java.util.Iterator;

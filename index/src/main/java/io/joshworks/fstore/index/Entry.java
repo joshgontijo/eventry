@@ -1,4 +1,4 @@
-package io.joshworks.fstore.index.btrees;
+package io.joshworks.fstore.index;
 
 public class Entry<K extends Comparable<K>, V> implements Comparable<Entry<K, V>> {
     public final K key;

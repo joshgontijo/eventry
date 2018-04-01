@@ -1,6 +1,7 @@
 package io.joshworks.fstore.index.btrees.btree;
 
 import io.joshworks.fstore.index.btrees.storage.BlockStore;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -21,6 +22,7 @@ public class BTreeRandomIT {
      * Runs with different parameters until failure, when it fails, saves the values used for later replication
      */
     @Test
+    @Ignore
     public void until_failure_uniqueInsert_randomDelete() throws IOException {
 
         for (long numKeys = 1; numKeys < Integer.MAX_VALUE; numKeys+= 100000) {
@@ -39,9 +41,9 @@ public class BTreeRandomIT {
     static void insert(BTree<Integer, String> btree, LinkedList<Integer> data, boolean isReplay) throws IOException {
         for (Integer val : data) {
             try {
-                boolean inserted = btree.put(val, String.valueOf(val));
+                String old = btree.put(val, String.valueOf(val));
 
-                if (!inserted) { //Unique values insertion only
+                if (old != null) { //Unique values insertion only
                     if (!isReplay)
                         saveTestData(btree.order, data, val);
                     fail("Element " + val + " wasn't inserted");
