@@ -24,11 +24,11 @@ public abstract class Node<K extends Comparable<K>, V> implements Block {
         this.keys = new ArrayList<>(order - 1);
     }
 
-    public static <K extends Comparable<K>, V> InternalNode<K, V> allocateInternal(BlockStore<Node<K, V>> store, int order) {
+    static <K extends Comparable<K>, V> InternalNode<K, V> allocateInternal(BlockStore<Node<K, V>> store, int order) {
         return new InternalNode<>(store, order);
     }
 
-    public static <K extends Comparable<K>, V> LeafNode<K, V> allocateLeaf(BlockStore<Node<K, V>> store, int order) {
+    static <K extends Comparable<K>, V> LeafNode<K, V> allocateLeaf(BlockStore<Node<K, V>> store, int order) {
         return new LeafNode<>(store, order);
     }
 

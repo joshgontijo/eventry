@@ -46,7 +46,7 @@ public class LeafNode<K extends Comparable<K>, V> extends Node<K, V> {
     }
 
     @Override
-    InsertResult insertValue(K key, V value, Node<K, V> root) {
+    InsertResult<V> insertValue(K key, V value, Node<K, V> root) {
         int loc = Collections.binarySearch(keys, key);
         int valueIndex = loc >= 0 ? loc : -loc - 1;
 

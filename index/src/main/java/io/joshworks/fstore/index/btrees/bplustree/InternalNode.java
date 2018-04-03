@@ -33,6 +33,9 @@ public class InternalNode<K extends Comparable<K>, V> extends Node<K, V> {
             Node<K, V> childLeftSibling = getChildLeftSibling(key);
             Node<K, V> left = childLeftSibling != null ? childLeftSibling : child;
             Node<K, V> right = childLeftSibling != null ? child : getChildRightSibling(key);
+            if(right == null)
+                throw new IllegalStateException("No right child available");
+
             left.merge(right);
             deleteChild(right.getFirstEntry().key);
             if (left.isOverflow()) {
@@ -50,7 +53,7 @@ public class InternalNode<K extends Comparable<K>, V> extends Node<K, V> {
     @Override
     InsertResult<V> insertValue(K key, V value, Node<K, V> root) {
         Node<K, V> child = getChild(key);
-        InsertResult insertResult = child.insertValue(key, value, root);
+        InsertResult<V> insertResult = child.insertValue(key, value, root);
 
         if (child.isOverflow()) {
             Node<K, V> sibling = child.split();
@@ -65,7 +68,6 @@ public class InternalNode<K extends Comparable<K>, V> extends Node<K, V> {
 //            root = newRoot;
             int id = store.placeBlock(newRoot);
             insertResult.newRootId(id);
-            insertResult = new InsertResult().newRootId(id);
         }
         return insertResult;
     }

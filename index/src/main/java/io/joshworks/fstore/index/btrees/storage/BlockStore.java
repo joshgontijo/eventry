@@ -20,9 +20,8 @@ public class BlockStore<T extends Block> {
 
 	/**
 	 * Initialise a BlockStore with block size b
-	 * @param size the block size
 	 */
-	public BlockStore(long size) {
+	public BlockStore() {
 		blocks = new ArrayList<>();
 		free = new ArrayList<>();
 	}
