@@ -10,6 +10,6 @@ public class WithMMapStorage extends LogSegmentTest {
 
     @Override
     Storage getStorage(File file) {
-        return Utils.withPrinter(new MMapStorage(file, FileChannel.MapMode.READ_WRITE), file);
+        return new MMapStorage(file, FileChannel.MapMode.READ_WRITE);
     }
 }

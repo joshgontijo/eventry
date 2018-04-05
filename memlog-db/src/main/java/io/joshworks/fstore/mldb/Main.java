@@ -4,6 +4,7 @@ import io.joshworks.fstore.serializer.StandardSerializer;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Iterator;
 
 public class Main {
 
@@ -25,21 +26,29 @@ public class Main {
 //        System.out.println("READ_KEY_ORDER: " + (System.currentTimeMillis() - start) + "ms");
 
 
-        for (int i = 0; i < 10; i++) {
-        Store<Integer, User> store = Store.open(new File("memStore"), StandardSerializer.of(Integer.class), User.userSerializer());
-            store.put(1, new User("John", 10));
-            store.put(2, new User("Billy", 20));
-            store.put(3, new User("Josh", 30));
+//        long start = System.currentTimeMillis();
+//        try (Store<Integer, Integer> store = Store.open(new File("memStore"), StandardSerializer.of(Integer.class), StandardSerializer.of(Integer.class))) {
+//            for (int i = 0; i < 1000000; i++) {
+//                store.put(i, 1);
+//            }
+//        }
+//
+//        System.out.println("WRITE: " + (System.currentTimeMillis() - start));
 
+        long start = System.currentTimeMillis();
+        try (Store<Integer, Integer> store = Store.open(new File("memStore"), StandardSerializer.of(Integer.class), StandardSerializer.of(Integer.class))) {
+            Iterator<Integer> iterator = store.iterator();
 
-            store.delete(2);
+            int idx = 0;
+            while (iterator.hasNext()) {
+                Integer next = iterator.next();
 
-            store.close();
-
-            store = Store.open(new File("memStore"), StandardSerializer.of(Integer.class), User.userSerializer());
-            store.iterator().forEachRemaining(System.out::println);
+                System.out.println("KEY: " + idx++);
+            }
 
         }
+        System.out.println("READ: " + (System.currentTimeMillis() - start));
+
 
 
     }
