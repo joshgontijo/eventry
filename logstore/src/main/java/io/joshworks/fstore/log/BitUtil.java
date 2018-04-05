@@ -7,7 +7,7 @@ public class BitUtil {
     }
 
     public static long maxValueForBits(int numBits) {
-        return (long) Math.pow(2, numBits);
+        return (long) Math.pow(2, numBits) - 1;
     }
 
 }

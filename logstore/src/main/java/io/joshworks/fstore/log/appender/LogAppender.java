@@ -280,8 +280,24 @@ public class LogAppender<T> implements Log<T> {
     }
 
     long getPositionOnSegment(long position) {
-        long mask = (1 << metadata.segmentBitShift) - 1;
-        return (int) (position & mask);
+        long mask = (1L << metadata.segmentBitShift) - 1;
+        return (position & mask);
+    }
+
+    public static void main(String[] args) {
+        System.out.println(Integer.toBinaryString(16380));
+        System.out.println(Integer.toBinaryString(16400));
+        System.out.println(Long.toBinaryString((1L << 46)));
+        System.out.println(Long.toBinaryString((1L << 46) - 1));
+        long mask = ((1L << 46) - 1);
+        System.out.println(Long.toBinaryString(mask));
+        System.out.println(Long.toBinaryString(16380 & mask));
+        System.out.println(Long.toBinaryString(16400 & mask));
+        System.out.println(Long.toBinaryString(((1L << 46) - 1) & 16380));
+
+
+
+
     }
 
     private boolean shouldRoll(Log<T> currentSegment) {

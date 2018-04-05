@@ -257,7 +257,7 @@ public abstract class LogAppenderTest {
     }
 
     private void printLong(long val) {
-        for(int i = 0; i < Long.numberOfLeadingZeros(val); i++) {
+        for (int i = 0; i < Long.numberOfLeadingZeros(val); i++) {
             System.out.print('0');
         }
         System.out.println(Long.toBinaryString(val));
@@ -328,5 +328,21 @@ public abstract class LogAppenderTest {
         long invalidAddress = appender.maxSegments + 1;
         appender.toSegmentedPosition(invalidAddress, 0);
 
+    }
+
+    @Test
+    public void getPositionOnSegment() {
+
+        long value = 1;
+        long position = appender.getPositionOnSegment(1);
+        assertEquals("Failed on position: " + position, value, position);
+
+        value = appender.maxAddressPerSegment / 2;
+        position = appender.getPositionOnSegment(value);
+        assertEquals("Failed on position: " + position, value, position);
+
+        value = appender.maxAddressPerSegment;
+        position = appender.getPositionOnSegment(value);
+        assertEquals("Failed on position: " + position, value, position);
     }
 }

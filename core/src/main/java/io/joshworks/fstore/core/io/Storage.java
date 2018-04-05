@@ -1,7 +1,5 @@
 package io.joshworks.fstore.core.io;
 
-import io.joshworks.fstore.core.RuntimeIOException;
-
 import java.io.Closeable;
 import java.io.File;
 import java.io.Flushable;
@@ -13,10 +11,10 @@ import java.nio.channels.FileLock;
 
 public abstract class Storage implements Flushable, Closeable {
 
-    protected final RandomAccessFile raf;
-    protected final FileChannel channel;
-    protected final String name;
-    protected final FileLock lock;
+    protected RandomAccessFile raf;
+    protected FileChannel channel;
+    protected String name;
+    protected FileLock lock;
     protected long size;
 
     private static final long DEFAULT_LENGTH = 10485760L;//10mb
@@ -32,9 +30,11 @@ public abstract class Storage implements Flushable, Closeable {
             this.raf.setLength(length);
             this.channel = raf.getChannel();
             this.lock = this.channel.lock();
-        } catch (IOException e) {
+        } catch (Exception e) {
             IOUtils.closeQuietly(raf);
-            throw RuntimeIOException.of(e);
+            IOUtils.closeQuietly(channel);
+            IOUtils.releaseLock(lock);
+            throw new RuntimeException("Failed to open storage of " + target.getName(), e);
         }
     }
 
@@ -55,7 +55,7 @@ public abstract class Storage implements Flushable, Closeable {
     @Override
     public void close() throws IOException {
         flush();
-        lock.release();
+        IOUtils.releaseLock(lock);
         IOUtils.closeQuietly(channel);
         IOUtils.closeQuietly(raf);
     }

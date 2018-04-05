@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 
 
 public final class IOUtils {
@@ -120,6 +121,16 @@ public final class IOUtils {
         try {
             if (closeable != null) {
                 closeable.close();
+            }
+        } catch (Exception e) {
+            logger.error("Error while closing resource", e);
+        }
+    }
+
+    public static void releaseLock(FileLock lock) {
+        try {
+            if (lock != null) {
+                lock.release();
             }
         } catch (Exception e) {
             logger.error("Error while closing resource", e);

@@ -13,7 +13,10 @@ public class RuntimeIOException extends RuntimeException {
     }
 
     public static RuntimeException of(IOException ioex) {
-        ioex.printStackTrace();
-        return new RuntimeIOException(ioex.getMessage(), ioex);
+        return of(ioex.getMessage(), ioex);
+    }
+
+    public static RuntimeException of(String message, IOException ioex) {
+        return new RuntimeIOException(message, ioex);
     }
 }

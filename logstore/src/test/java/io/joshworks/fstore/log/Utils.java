@@ -1,10 +1,7 @@
 package io.joshworks.fstore.log;
 
-import io.joshworks.fstore.core.io.Storage;
-
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -49,14 +46,6 @@ public class Utils {
         Files.delete(directory.toPath());
     }
 
-    public static Storage withPrinter(Storage storage, File target) {
-        return new PrintStorage(storage, target);
-    }
-
-    public static Storage withPrinter(Storage storage, File target, long length) {
-        return new PrintStorage(storage, target, length);
-    }
-
     public static void sleep(long millis) {
         try {
             Thread.sleep(millis);
@@ -65,65 +54,6 @@ public class Utils {
         }
     }
 
-    private static class PrintStorage extends Storage {
-
-        private final Storage storage;
-
-        public PrintStorage(Storage storage, File target) {
-            super(target);
-            this.storage = storage;
-        }
-
-        public PrintStorage(Storage storage, File target, long length) {
-            super(target, length);
-            this.storage = storage;
-        }
-
-        @Override
-        public int write(long position, ByteBuffer data) {
-
-            byte[] d = new byte[data.remaining()];
-            data.mark();
-            data.get(d);
-            data.reset();
-
-//            System.out.println(position + " -> " + Arrays.toString(d));
-
-            return storage.write(position, data);
-        }
-
-        @Override
-        public int read(long position, ByteBuffer data) {
-            int read = storage.read(position, data);
-
-            int pos = data.position();
-            data.position(0);
-            byte[] d = new byte[data.remaining()];
-            data.get(d);
-            data.position(pos);
-
-//            System.err.println(position + " -> " + Arrays.toString(d));
-
-            return read;
-        }
-
-        @Override
-        public long size() {
-            return storage.size();
-        }
-
-        @Override
-        public void close() throws IOException {
-            storage.close();
-            super.close();
-        }
-
-        @Override
-        public void flush() throws IOException {
-            storage.flush();
-            super.flush();
-        }
-    }
 
 
 //    private static void deleteDirectory(File dir) throws IOException {

@@ -30,7 +30,7 @@ public abstract class LogSegmentTest {
 
     @Before
     public void setUp() throws IOException {
-        testFile = Files.createTempFile(UUID.randomUUID().toString().substring(0, 8), ".ldb");
+        testFile = Files.createTempFile(UUID.randomUUID().toString().substring(0, 8), ".dat");
         storage = getStorage(testFile.toFile());
         appender = LogSegment.create(storage, new StringSerializer());
     }

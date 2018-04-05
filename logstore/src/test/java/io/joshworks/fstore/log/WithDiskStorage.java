@@ -9,6 +9,6 @@ public class WithDiskStorage extends LogSegmentTest {
 
     @Override
     Storage getStorage(File file) {
-        return Utils.withPrinter(new DiskStorage(file), file);
+        return new DiskStorage(file);
     }
 }
