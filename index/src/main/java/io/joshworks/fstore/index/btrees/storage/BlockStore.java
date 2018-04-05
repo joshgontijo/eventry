@@ -21,7 +21,7 @@ public class BlockStore<T extends Block> {
 	/**
 	 * Initialise a BlockStore with block size b
 	 */
-	public BlockStore(int a) {
+	public BlockStore() {
 		blocks = new ArrayList<>();
 		free = new ArrayList<>();
 	}
