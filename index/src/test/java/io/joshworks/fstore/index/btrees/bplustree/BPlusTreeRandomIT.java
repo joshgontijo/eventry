@@ -28,7 +28,7 @@ public class BPlusTreeRandomIT {
         for (long numKeys = 1; numKeys < Integer.MAX_VALUE; numKeys+= 100000) {
             for (long order = 3; order < 1000; order+= 10) {
 //                System.out.println(MessageFormat.format("Testing... order: {0}, numKeys: {1}", order, numKeys));
-                BPlusTree<Integer, String> btree = BPlusTree.of(new BlockStore<>(0), (int)order);
+                BPlusTree<Integer, String> btree = BPlusTree.of(new BlockStore<>(), (int)order);
                 LinkedList<Integer> data = generateUniqueUnorderedData(numKeys);
                 insert(btree, new LinkedList<>(data), false);
 

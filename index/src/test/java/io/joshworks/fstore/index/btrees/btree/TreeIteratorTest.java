@@ -17,7 +17,7 @@ public class TreeIteratorTest {
 
     @Before
     public void setUp() {
-        store = new BlockStore<>(0);
+        store = new BlockStore<>();
     }
 
     @Test

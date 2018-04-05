@@ -23,7 +23,7 @@ public class BPlusTreeTest {
 
     @Before
     public void setUp() {
-        store = new BlockStore<>(0);
+        store = new BlockStore<>();
     }
 
     @Test
@@ -327,7 +327,7 @@ public class BPlusTreeTest {
         try {
             System.out.println(":: Running test on " + fileName + " ::");
             TestData testData = loadTestData(fileName);
-            BPlusTree<Integer, String> btree = BPlusTree.of(new BlockStore<>(0), testData.order);
+            BPlusTree<Integer, String> btree = BPlusTree.of(new BlockStore<>(), testData.order);
 
             insert(btree, testData.data, true);
             remove(btree, testData.data, true);
