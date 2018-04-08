@@ -19,13 +19,11 @@ import java.util.stream.StreamSupport;
 
 public class LogSegment<T> implements Log<T> {
 
+    private static final Logger logger = LoggerFactory.getLogger(LogSegment.class);
+
     private final Serializer<T> serializer;
     private final Storage storage;
     private final DataReader reader;
-    private long position;
-
-    private static final Logger logger = LoggerFactory.getLogger(LogSegment.class);
-    private long size;
 
     public static <T> LogSegment<T> create(Storage storage, Serializer<T> serializer) {
         return new LogSegment<>(storage, serializer);
@@ -53,12 +51,12 @@ public class LogSegment<T> implements Log<T> {
     }
 
     private void position(long position) {
-        this.position = position;
+        this.storage.position(position);
     }
 
     @Override
     public long position() {
-        return position;
+        return this.storage.position();
     }
 
     @Override
@@ -81,17 +79,16 @@ public class LogSegment<T> implements Log<T> {
 
     @Override
     public long size() {
-        return size;
+        return storage.position();
     }
 
     @Override
     public long append(T data) {
         ByteBuffer bytes = serializer.toBytes(data);
 
-        long recordPosition = position;
-        this.position = Log.write(storage, bytes, position);
+        long recordPosition = position();
+        Log.write(storage, bytes);
 
-        size += bytes.limit();
         return recordPosition;
     }
 

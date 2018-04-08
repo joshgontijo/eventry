@@ -34,13 +34,11 @@ public class MMapStorage extends Storage {
     }
 
     @Override
-    public int write(long position, ByteBuffer data) {
+    public int write(ByteBuffer data) {
         ensureNonEmpty(data);
-        checkBoundaries(position);
 
-        ensureCapacity(position, data);
+        ensureCapacity(data);
         int written = data.remaining();
-        mbb.position((int) position);
         mbb.put(data);
         return written;
     }
@@ -57,15 +55,22 @@ public class MMapStorage extends Storage {
         return data.position() - prevPos;
     }
 
+    @Override
+    public void position(long position) {
+        checkBoundaries(position);
+        mbb.position((int) position);
+    }
+
     private void checkBoundaries(long position) {
         if(position > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("position must less than " + Integer.MAX_VALUE);
+            //TODO remap ?
+            throw new UnsupportedOperationException("NOT IMPLEMENTED YET");
         }
     }
 
-    private void ensureCapacity(long position, ByteBuffer data) {
+    private void ensureCapacity(ByteBuffer data) {
         try {
-            if (position + data.remaining() > mbb.capacity()) {
+            if (mbb.position() + data.remaining() > mbb.capacity()) {
                 //TODO better approach to expand, 10% or enough to fit data ?
                 raf.setLength(raf.length() + data.remaining());
                 this.mbb = map(raf);
@@ -90,6 +95,11 @@ public class MMapStorage extends Storage {
             }
             throw RuntimeIOException.of(e);
         }
+    }
+
+    @Override
+    public long position() {
+        return mbb.position();
     }
 
     @Override

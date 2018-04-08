@@ -40,14 +40,14 @@ public abstract class StorageTest {
     @Test
     public void write_size() {
         ByteBuffer bb = ByteBuffer.wrap(TEST_DATA.getBytes(StandardCharsets.UTF_8));
-        int written = storage.write(0, bb);
+        int written = storage.write(bb);
         assertEquals(TEST_DATA.length(), written);
     }
 
     @Test
     public void write_read() {
         ByteBuffer bb = ByteBuffer.wrap(TEST_DATA.getBytes(StandardCharsets.UTF_8));
-        int write = storage.write(0, bb);
+        int write = storage.write(bb);
 
         ByteBuffer result = ByteBuffer.allocate(bb.capacity());
         int read = storage.read(0, result);
@@ -66,7 +66,7 @@ public abstract class StorageTest {
         String longString = sb.toString();
 
         ByteBuffer bb = ByteBuffer.wrap(longString.getBytes(StandardCharsets.UTF_8));
-        int write = storage.write(0, bb);
+        int write = storage.write(bb);
 
         ByteBuffer result = ByteBuffer.allocate(bb.capacity());
         int read = storage.read(0, result);

@@ -100,7 +100,7 @@ public abstract class LogAppenderTest {
     }
 
     @Test
-    public void reader() throws IOException {
+    public void reader() {
 
         StringBuilder sb = new StringBuilder();
         while (sb.length() <= SEGMENT_SIZE) {
@@ -139,7 +139,7 @@ public abstract class LogAppenderTest {
     }
 
     @Test
-    public void get() throws IOException {
+    public void get() {
         long pos1 = appender.append("1");
         long pos2 = appender.append("2");
 
@@ -150,7 +150,7 @@ public abstract class LogAppenderTest {
     }
 
     @Test
-    public void position() throws IOException {
+    public void position() {
 
         assertEquals(0, appender.position());
 
@@ -175,7 +175,7 @@ public abstract class LogAppenderTest {
     }
 
     @Test
-    public void reader_position() throws IOException {
+    public void reader_position() {
 
         StringBuilder sb = new StringBuilder();
         while (sb.length() <= SEGMENT_SIZE) {
@@ -291,7 +291,7 @@ public abstract class LogAppenderTest {
                 broken.putInt(444); //expected length
                 broken.putInt(123); // broken checksum
                 broken.putChar('A'); // broken data
-                storage.write(lastPosition, broken);
+                storage.write(broken);
             }
 
             try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)))) {

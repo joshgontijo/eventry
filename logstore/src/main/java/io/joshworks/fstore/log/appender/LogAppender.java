@@ -284,22 +284,6 @@ public class LogAppender<T> implements Log<T> {
         return (position & mask);
     }
 
-    public static void main(String[] args) {
-        System.out.println(Integer.toBinaryString(16380));
-        System.out.println(Integer.toBinaryString(16400));
-        System.out.println(Long.toBinaryString((1L << 46)));
-        System.out.println(Long.toBinaryString((1L << 46) - 1));
-        long mask = ((1L << 46) - 1);
-        System.out.println(Long.toBinaryString(mask));
-        System.out.println(Long.toBinaryString(16380 & mask));
-        System.out.println(Long.toBinaryString(16400 & mask));
-        System.out.println(Long.toBinaryString(((1L << 46) - 1) & 16380));
-
-
-
-
-    }
-
     private boolean shouldRoll(Log<T> currentSegment) {
         if (currentSegment.size() > metadata.segmentSize) {
             return true;
@@ -390,11 +374,14 @@ public class LogAppender<T> implements Log<T> {
         }
         logger.info("Closing log appender {}", directory.getName());
         scheduler.shutdown();
+
+        IOUtils.flush(currentSegment);
+        state.position = currentSegment.position();
+
         for (Log<T> segment : segments) {
             logger.info("Closing segment {}", segment.name());
             IOUtils.closeQuietly(segment);
         }
-        state.position = currentSegment.position();
 
         logger.info("Writing state {}", state);
         LogFileUtils.writeState(directory, state);
@@ -418,7 +405,6 @@ public class LogAppender<T> implements Log<T> {
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
-
     }
 
     public List<String> segments() {

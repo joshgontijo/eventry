@@ -12,7 +12,7 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     Logger logger = LoggerFactory.getLogger(Log.class);
 
-    int HEADER_SIZE = Integer.BYTES + Integer.BYTES; //length + crc32
+    int HEADER_SIZE = Integer.BYTES * 2; //length + crc32
 
     String name();
 
@@ -30,15 +30,14 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     long size();
 
-    static long write(Storage storage, ByteBuffer bytes, long position) {
+    static long write(Storage storage, ByteBuffer bytes) {
         ByteBuffer bb = ByteBuffer.allocate(HEADER_SIZE + bytes.remaining());
         bb.putInt(bytes.remaining());
         bb.putInt(Checksum.crc32(bytes));
         bb.put(bytes);
 
         bb.flip();
-        int written = storage.write(position, bb);
-        return position + written;
+        return storage.write(bb);
     }
 
     static <T> long checkIntegrity(long lastKnownPosition, Log<T> log) {

@@ -20,9 +20,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public final class LogFileUtils {
-    private LogFileUtils() {
-
-    }
 
     private static final Logger logger = LoggerFactory.getLogger(LogFileUtils.class);
 
@@ -30,6 +27,10 @@ public final class LogFileUtils {
     private static final String STATE_FILE = "state.dat";
     private static final String SEGMENT_EXTENSION = ".dat";
     private static final String SEGMENT_PREFIX = "segment_";
+
+    private LogFileUtils() {
+
+    }
 
     public static void createRoot(File directory) {
         checkCreatePreConditions(directory);
@@ -56,7 +57,7 @@ public final class LogFileUtils {
 
     private static String segmentName(long maxSegmentSize, int segmentIdx) {
         long totalLength = (long) (Math.log10(maxSegmentSize) + 1);
-        String format =  SEGMENT_PREFIX+ "%0" + (totalLength) + "d" + SEGMENT_EXTENSION;
+        String format = SEGMENT_PREFIX + "%0" + (totalLength) + "d" + SEGMENT_EXTENSION;
         return String.format(format, segmentIdx);
     }
 
@@ -140,9 +141,7 @@ public final class LogFileUtils {
         if (directory.exists() && !directory.isDirectory()) {
             throw new IllegalArgumentException("Destination must be a directory");
         }
-//        if (directory.exists()) {
-//            throw new IllegalArgumentException("Directory " + directory.getPath() + " already exist");
-//        }
+
         if (LogFileUtils.metadataExists(directory)) {
             throw new IllegalStateException("Metadata file found, use open instead");
         }
@@ -158,6 +157,17 @@ public final class LogFileUtils {
         if (!LogFileUtils.metadataExists(directory)) {
             throw new IllegalStateException("Metadata file not found, use create instead");
         }
+    }
+
+    public static void purge(File directory) throws IOException {
+        String[] files = directory.list();
+        if (files != null) {
+            for (String s : files) {
+                logger.info("Deleting '{}'", s);
+                Files.delete(new File(directory, s).toPath());
+            }
+        }
+        Files.delete(directory.toPath());
     }
 
     public static boolean metadataExists(File directory) {

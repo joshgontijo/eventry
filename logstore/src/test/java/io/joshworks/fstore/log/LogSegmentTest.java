@@ -1,6 +1,5 @@
 package io.joshworks.fstore.log;
 
-import io.joshworks.fstore.core.io.DiskStorage;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.serializer.StringSerializer;
@@ -21,23 +20,29 @@ import static org.junit.Assert.assertTrue;
 
 public abstract class LogSegmentTest {
 
-    private LogSegment<String> appender;
+    private Log<String> appender;
     private Path testFile;
-    private Storage storage;
-
 
     abstract Storage getStorage(File file);
+
+    private Log<String> create() {
+        Storage storage = getStorage(testFile.toFile());
+        return LogSegment.create(storage, new StringSerializer());
+    }
+
+    private Log<String> open(long pos) {
+        Storage storage = getStorage(testFile.toFile());
+        return LogSegment.open(storage, new StringSerializer(), pos);
+    }
 
     @Before
     public void setUp() throws IOException {
         testFile = Files.createTempFile(UUID.randomUUID().toString().substring(0, 8), ".dat");
-        storage = getStorage(testFile.toFile());
-        appender = LogSegment.create(storage, new StringSerializer());
+        appender = create();
     }
 
     @After
     public void cleanup() {
-        IOUtils.closeQuietly(storage);
         IOUtils.closeQuietly(appender);
         Utils.tryDelete(testFile.toFile());
     }
@@ -47,18 +52,18 @@ public abstract class LogSegmentTest {
         String data = "hello";
         appender.append(data);
 
-        assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
+        assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (header) + data length
     }
 
     @Test
-    public void writePosition_reopen() {
+    public void writePosition_reopen() throws IOException {
         String data = "hello";
         appender.append(data);
 
         long position = appender.position();
         appender.close();
 
-        appender = LogSegment.open(storage, new StringSerializer(), position);
+        appender = open(position);
 
         assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (heading) + data length
     }
@@ -75,7 +80,7 @@ public abstract class LogSegmentTest {
     }
     
     @Test
-    public void reader_reopen() {
+    public void reader_reopen() throws IOException {
         String data = "hello";
         appender.append(data);
 
@@ -86,8 +91,7 @@ public abstract class LogSegmentTest {
         long position = appender.position();
         appender.close();
 
-        storage = new DiskStorage(testFile.toFile());
-        appender = LogSegment.open(storage, new StringSerializer(), position);
+        appender = open(position);
 
         scanner = appender.scanner();
         assertTrue(scanner.hasNext());
@@ -128,7 +132,7 @@ public abstract class LogSegmentTest {
     }
 
     @Test
-    public void get() {
+    public void get() throws IOException {
         List<Long> positions = new ArrayList<>();
 
         int items = 10;
@@ -144,7 +148,7 @@ public abstract class LogSegmentTest {
     }
 
     @Test
-    public void getWithLength() {
+    public void getWithLength() throws IOException {
         List<Long> positions = new ArrayList<>();
         List<String> values = new ArrayList<>();
 
@@ -164,26 +168,26 @@ public abstract class LogSegmentTest {
     }
 
     @Test
-    public void scanner_0() {
+    public void scanner_0() throws IOException {
         testScanner(0);
     }
 
     @Test
-    public void scanner_1() {
+    public void scanner_1() throws IOException {
         testScanner(1);
     }
 
     @Test
-    public void scanner_10() {
+    public void scanner_10() throws IOException {
         testScanner(10);
     }
 
     @Test
-    public void scanner_1000() {
+    public void scanner_1000() throws IOException {
         testScanner(1000);
     }
 
-    private void testScanner(int items) {
+    private void testScanner(int items) throws IOException {
         List<String> values = new ArrayList<>();
         for (int i = 0; i < items; i++) {
             String value = UUID.randomUUID().toString();
@@ -199,4 +203,19 @@ public abstract class LogSegmentTest {
         }
         assertEquals(items, i);
     }
+
+    @Test
+    public void size() throws IOException {
+        appender.append("a");
+        appender.append("b");
+
+        assertEquals((Log.HEADER_SIZE + 1) * 2, appender.size());
+
+        long lastPos = appender.position();
+        appender.close();
+
+        appender = open(lastPos);
+        assertEquals((Log.HEADER_SIZE + 1) * 2, appender.size());
+    }
+
 }

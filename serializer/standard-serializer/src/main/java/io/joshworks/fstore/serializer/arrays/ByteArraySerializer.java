@@ -1,28 +1,24 @@
 package io.joshworks.fstore.serializer.arrays;
 
+import io.joshworks.fstore.core.Serializer;
+
 import java.nio.ByteBuffer;
 
-public class ByteArraySerializer extends ArraySerializer<byte[]> {
+public class ByteArraySerializer implements Serializer<byte[]> {
 
     @Override
     public ByteBuffer toBytes(byte[] data) {
-        ByteBuffer bb = allocate(data.length);
-        bb.put(data);
-        bb.clear();
-        return bb;
+        return ByteBuffer.wrap(data);
     }
 
     @Override
     public byte[] fromBytes(ByteBuffer data) {
-        int size = getSize(data);
-        byte[] array = new byte[size];
-        data.get(array);
-        return array;
-    }
-
-    @Override
-    int byteSize() {
-        return Byte.BYTES;
+        if(data.isDirect()) {
+            byte[] b = new byte[data.remaining()];
+            data.get(b);
+            return b;
+        }
+        return data.array();
     }
 
 }

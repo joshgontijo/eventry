@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.Flushable;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -117,6 +118,16 @@ public final class IOUtils {
         }
     }
 
+    public static void flush(Flushable flushable) {
+        try {
+            if (flushable != null) {
+                flushable.flush();
+            }
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
+    }
+
     public static void closeQuietly(Closeable closeable) {
         try {
             if (closeable != null) {
@@ -132,8 +143,8 @@ public final class IOUtils {
             if (lock != null) {
                 lock.release();
             }
-        } catch (Exception e) {
-            logger.error("Error while closing resource", e);
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
         }
     }
 }

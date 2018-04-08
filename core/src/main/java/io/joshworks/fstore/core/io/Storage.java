@@ -1,5 +1,7 @@
 package io.joshworks.fstore.core.io;
 
+import io.joshworks.fstore.core.RuntimeIOException;
+
 import java.io.Closeable;
 import java.io.File;
 import java.io.Flushable;
@@ -13,7 +15,7 @@ public abstract class Storage implements Flushable, Closeable {
 
     protected RandomAccessFile raf;
     protected FileChannel channel;
-    protected String name;
+    protected File file;
     protected FileLock lock;
     protected long size;
 
@@ -23,10 +25,11 @@ public abstract class Storage implements Flushable, Closeable {
         this(target, DEFAULT_LENGTH);
     }
 
+    //TODO revisit opening a file when using length (i.e. what if the size was greater than current length)
     public Storage(File target, long length) {
         this.raf = IOUtils.readWriteRandomAccessFile(target);
         try {
-            this.name = target.getName();
+            this.file = target;
             this.raf.setLength(length);
             this.channel = raf.getChannel();
             this.lock = this.channel.lock();
@@ -38,7 +41,7 @@ public abstract class Storage implements Flushable, Closeable {
         }
     }
 
-    public abstract int write(long position, ByteBuffer data);
+    public abstract int write(ByteBuffer data);
 
     public abstract int read(long position, ByteBuffer data);
 
@@ -50,6 +53,24 @@ public abstract class Storage implements Flushable, Closeable {
 
     public long size() {
         return size;
+    }
+
+    public void position(long position) {
+        try {
+            channel.position(position);
+            this.size = position;
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
+    }
+
+    //TODO ATOMIC LONG ?
+    public long position() {
+        try {
+            return channel.position();
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
     }
 
     @Override
@@ -67,7 +88,7 @@ public abstract class Storage implements Flushable, Closeable {
     }
 
     public String name() {
-        return name;
+        return file.getName();
     }
 
 }

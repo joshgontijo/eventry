@@ -26,16 +26,16 @@ public class Main {
 //        System.out.println("READ_KEY_ORDER: " + (System.currentTimeMillis() - start) + "ms");
 
 
-//        long start = System.currentTimeMillis();
-//        try (Store<Integer, Integer> store = Store.open(new File("memStore"), StandardSerializer.of(Integer.class), StandardSerializer.of(Integer.class))) {
-//            for (int i = 0; i < 1000000; i++) {
-//                store.put(i, 1);
-//            }
-//        }
-//
-//        System.out.println("WRITE: " + (System.currentTimeMillis() - start));
-
         long start = System.currentTimeMillis();
+        try (Store<Integer, Integer> store = Store.open(new File("memStore"), StandardSerializer.of(Integer.class), StandardSerializer.of(Integer.class))) {
+            for (int i = 0; i < 1000000; i++) {
+                store.put(i, 1);
+            }
+        }
+
+        System.out.println("WRITE: " + (System.currentTimeMillis() - start));
+
+        start = System.currentTimeMillis();
         try (Store<Integer, Integer> store = Store.open(new File("memStore"), StandardSerializer.of(Integer.class), StandardSerializer.of(Integer.class))) {
             Iterator<Integer> iterator = store.iterator();
 
@@ -43,7 +43,7 @@ public class Main {
             while (iterator.hasNext()) {
                 Integer next = iterator.next();
 
-                System.out.println("KEY: " + idx++);
+//                System.out.println("KEY: " + idx++);
             }
 
         }

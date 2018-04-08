@@ -25,11 +25,10 @@ import java.util.stream.StreamSupport;
 
 /**
  * A Log segment that is compressed when flushed to disk. Data is kept in memory until blockSize threshold, or flush()
- *
+ * <p>
  * Address format
- *
+ * <p>
  * [BLOCK_ADDRESS] [ENTRY_IDX_ON_BLOCK]
- *
  */
 public class BlockCompressedSegment<T> implements Log<T> {
 
@@ -45,7 +44,6 @@ public class BlockCompressedSegment<T> implements Log<T> {
     final long maxBlockAddress;
     final long maxEntriesPerBlock;
 
-    private long blockStartPosition; //updated on every block flush
     private Block currentBlock;
     private long size;
 
@@ -74,7 +72,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
 
         try {
             BlockCompressedSegment<T> appender = new BlockCompressedSegment<>(storage, serializer, codec, maxBlockSize, maxBlockAddress, entryIdxBitShift, position);
-            appender.blockStartPosition = position;
+            appender.position(position);
             return appender;
         } catch (CorruptedLogException e) {
             IOUtils.closeQuietly(storage);
@@ -98,7 +96,11 @@ public class BlockCompressedSegment<T> implements Log<T> {
 
     @Override
     public long position() {
-        return blockStartPosition;
+        return storage.position();
+    }
+
+    private void position(long position) {
+        storage.position(position);
     }
 
     @Override
@@ -154,7 +156,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
         ByteBuffer dataBytes = serializer.toBytes(data);
         dataBytes.flip();
 
-        long pos = toBlockPosition(blockStartPosition, currentBlock.data.size());
+        long pos = toBlockPosition(storage.position(), currentBlock.data.size());
         currentBlock.add(dataBytes);
         size += dataBytes.limit();
         return pos;
@@ -188,12 +190,11 @@ public class BlockCompressedSegment<T> implements Log<T> {
 
     @Override
     public void flush() {
-        if(currentBlock.data.isEmpty()) {
+        if (currentBlock.data.isEmpty()) {
             return;
         }
-        long nextBlockPosition = currentBlock.writeTo(storage, codec, blockStartPosition);
+        long nextBlockPosition = currentBlock.writeTo(storage, codec);
         currentBlock = new Block(maxBlockSize, nextBlockPosition);//with updated blockStartPosition
-        this.blockStartPosition = nextBlockPosition;
     }
 
     //NOT THREAD SAFE
@@ -309,7 +310,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
             data.add(buffer);
         }
 
-        long writeTo(Storage storage, Codec compressor, long position) {
+        long writeTo(Storage storage, Codec compressor) {
             if (maxSize == READ_ONLY) {
                 throw new IllegalStateException("Block is not writable");
             }
@@ -325,7 +326,7 @@ public class BlockCompressedSegment<T> implements Log<T> {
             withLength.flip();
             ByteBuffer compressed = compressor.compress(withLength);
 
-            return Log.write(storage, compressed, position);
+            return Log.write(storage, compressed);
         }
 
         private ByteBuffer get(int index) {

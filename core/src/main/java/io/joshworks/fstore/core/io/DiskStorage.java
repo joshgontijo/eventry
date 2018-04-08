@@ -21,12 +21,12 @@ public class DiskStorage extends Storage {
      * Using channel.write(buffer, position) will result in a pwrite() sys call
      */
     @Override
-    public int write(long position, ByteBuffer data) {
+    public int write(ByteBuffer data) {
         ensureNonEmpty(data);
         try {
             int written = 0;
             while (data.hasRemaining()) {
-                written += channel.write(data, position + written);
+                written += channel.write(data);
             }
             size += written;
             return written;

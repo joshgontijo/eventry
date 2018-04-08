@@ -90,7 +90,6 @@ public class Store<K extends Comparable<K>, V> implements Closeable {
 
         long position = scanner.position();
         for (LogEntry<K, V> entry : scanner) {
-//            System.out.println("KEY: " + entry.key + " (" + position + ") --> " + entry.value + " -> OP: " + entry.op);
             if (entry.op == LogEntry.OP_DELETE)
                 index.delete(entry.key);
             else
