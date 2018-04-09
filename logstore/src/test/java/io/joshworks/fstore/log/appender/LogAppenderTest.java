@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -28,7 +29,7 @@ public abstract class LogAppenderTest {
 
     private LogAppender<String> appender;
 
-    private static final int SEGMENT_SIZE = 1024 * 10;//10kb
+    private static final int SEGMENT_SIZE = 1024 * 64;//64kb
 
     protected abstract LogAppender<String> appender(Builder<String> builder);
 
@@ -223,44 +224,31 @@ public abstract class LogAppenderTest {
     }
 
     @Test
-    public void name() {
+    public void entries() {
+        appender.append("a");
+        appender.append("b");
 
-//        System.out.println(Long.toBinaryString(22L));
-//        System.out.println("------------");
-//        System.out.println(Long.toBinaryString(4194297L));
-//        System.out.println(Long.toBinaryString(4194297L >> 22L));
-//        System.out.println("------------");
-//        System.out.println(Long.toBinaryString(4194306L));
-//        System.out.println(Long.toBinaryString(4194306L >> 22L));
+        assertEquals(2, appender.entries());
 
-//        printLong(22L);
-//        System.out.println("------------");
-//        printLong(4194297L);
-//        printLong(4194297L >> 22L);
-//        System.out.println("------------");
-//        printLong(4194306L);
-//        printLong(4194306L >> 22L);
+        appender.close();
 
-
-//        System.out.println(Long.toBinaryString(3L << 62));
-//        System.out.println(Long.toBinaryString(-1L));
-//        System.out.println(Long.toBinaryString(1L));
-//        System.out.println(Long.toBinaryString(3L << Long.numberOfLeadingZeros(3L)));
-//        System.out.println(3L << Long.numberOfLeadingZeros(3L));
-        System.out.println(Long.toBinaryString(22L));
-        System.out.println("------------");
-        System.out.println(Long.toBinaryString(4194297L));
-        System.out.println(Long.toBinaryString(4194297L >> 22L));
-        System.out.println("------------");
-        System.out.println(Long.toBinaryString(4194306L));
-        System.out.println(Long.toBinaryString(4194306L >> 22L));
+        appender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)));
+        assertEquals(2, appender.entries());
+        assertEquals(2, appender.stream().count());
     }
 
-    private void printLong(long val) {
-        for (int i = 0; i < Long.numberOfLeadingZeros(val); i++) {
-            System.out.print('0');
-        }
-        System.out.println(Long.toBinaryString(val));
+    @Test
+    public void when_reopened_use_metadata_instead_builder_params() {
+        appender.append("a");
+        appender.append("b");
+
+        assertEquals(2, appender.entries());
+
+        appender.close();
+
+        appender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)));
+        assertEquals(2, appender.entries());
+        assertEquals(2, appender.stream().count());
     }
 
     @Test
@@ -273,7 +261,6 @@ public abstract class LogAppenderTest {
             }
 
             String segmentName;
-            long lastPosition;
             try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)))) {
                 testAppender.append("1");
                 testAppender.append("2");
@@ -281,7 +268,7 @@ public abstract class LogAppenderTest {
 
                 //get last segment (in this case there will be always one)
                 segmentName = testAppender.segments().get(testAppender.segments().size() - 1);
-                lastPosition = testAppender.currentSegment.position();
+                testAppender.currentSegment.position();
             }
 
             //write broken data
@@ -344,5 +331,38 @@ public abstract class LogAppenderTest {
         value = appender.maxAddressPerSegment;
         position = appender.getPositionOnSegment(value);
         assertEquals("Failed on position: " + position, value, position);
+    }
+
+    @Test
+    public void clear() throws IOException {
+        File dir = Files.createTempDirectory(".fstoreTest2").toFile();
+
+        try (LogAppender<String> appender = appender(new Builder<>(dir, new StringSerializer()))) {
+
+            for (int i = 0; i < 1000; i++) {
+                appender.append("A");
+            }
+
+            appender.flush();
+
+            appender.clear();
+
+            assertEquals(0, appender.position());
+            assertEquals(1, appender.segments.size());
+
+            long pos = appender.append("NEW-ENTRY");
+
+            appender.flush();
+
+            assertEquals(0, pos);
+            assertEquals(1, appender.entries());
+
+            Stream<String> stream = appender.stream();
+            assertEquals(1, stream.count());
+
+
+        } finally {
+            Utils.tryDelete(dir);
+        }
     }
 }

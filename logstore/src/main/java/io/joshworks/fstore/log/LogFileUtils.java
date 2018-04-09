@@ -72,6 +72,20 @@ public final class LogFileUtils {
         }
     }
 
+    public static void deleteSegment(File directory, String segmentName) {
+        File segment = new File(directory, segmentName);
+        if (!Files.exists(segment.toPath())) {
+            throw new IllegalStateException("Segment " + segmentName + " doesn't exist");
+        }
+        try {
+            if (!Files.deleteIfExists(segment.toPath())) {
+                throw new RuntimeIOException("Could not delete file " + segmentName);
+            }
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
+    }
+
     public static void tryCreateMetadata(File directory, Metadata metadata) {
         try {
             LogFileUtils.writeMetadata(directory, metadata);

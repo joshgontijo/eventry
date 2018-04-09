@@ -25,7 +25,7 @@ public class StandardSerializer {
         serializers.put(Boolean.class, new BooleanSerializer());
         serializers.put(Character.class, new CharacterSerializer());
         serializers.put(Byte.class, new ByteSerializer());
-        serializers.put(String.class, new VStringSerializer());
+        serializers.put(String.class, new StringSerializer());
 
         serializers.put(Integer.TYPE, new IntegerSerializer());
         serializers.put(Double.TYPE, new DoubleSerializer());

@@ -35,9 +35,7 @@ import java.util.stream.StreamSupport;
 /**
  * Position address schema
  * <p>
- * 64bits
- * <p>
- * Simple segment
+ * |------------ 64bits -------------|
  * [SEGMENT_IDX] [POSITION_ON_SEGMENT]
  */
 public class LogAppender<T> implements Log<T> {
@@ -196,7 +194,6 @@ public class LogAppender<T> implements Log<T> {
         LogFileUtils.writeState(directory, state);
     }
 
-
     protected void loadSegments(final File directory, final Serializer<T> serializer, final State state) {
         List<File> segmentFiles = LogFileUtils.loadSegments(directory);
 
@@ -291,6 +288,27 @@ public class LogAppender<T> implements Log<T> {
         long now = System.currentTimeMillis();
         boolean expired = metadata.rollFrequency > 0 && now - lastRollTime > metadata.rollFrequency;
         return expired && currentSegment.size() > 0;
+    }
+
+    public void clear() {
+        state.position = 0;
+        state.entryCount = 0;
+        state.segments.clear();
+        state.segments.add(currentSegment.name());
+
+        Iterator<Log<T>> iterator = segments.iterator();
+
+        try {
+            while (iterator.hasNext()) {
+                Log<T> log = iterator.next();
+                log.close();
+                iterator.remove();
+                LogFileUtils.deleteSegment(directory, log.name());
+            }
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
+        initSegment();
     }
 
     @Override

@@ -32,6 +32,10 @@ public class BlockCompressedLogAppender<T> extends LogAppender<T> {
         this.maxBlockSize = metadata.maxBlockSize;
         this.segmentBitShift = metadata.base.segmentBitShift;
 
+        if(metadata.maxBlockSize > metadata.base.segmentSize) {
+            throw new IllegalArgumentException("maxBlockSize ("+metadata.maxBlockSize+") cannot be greater than segmentSize (" + metadata.base.segmentSize + ")");
+        }
+
         if (metadata.entryIdxBitShift >= metadata.base.segmentBitShift || metadata.entryIdxBitShift < 0) {
             //just a numeric validation, values near 'segmentBitShift' and 0 are still nonsense
             throw new IllegalArgumentException("entryIdxBitShift must be between 0 and " + (metadata.base.segmentBitShift - 1) + " (segmentBitShift)");

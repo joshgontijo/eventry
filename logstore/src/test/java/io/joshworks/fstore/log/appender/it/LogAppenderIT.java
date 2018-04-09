@@ -5,6 +5,7 @@ import io.joshworks.fstore.log.Scanner;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.Builder;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.serializer.StandardSerializer;
 import io.joshworks.fstore.serializer.StringSerializer;
 import org.junit.After;
 import org.junit.Before;
@@ -113,6 +114,30 @@ public abstract class LogAppenderIT {
         scanAllAssertingSameValue(value);
     }
 
+    @Test
+    public void reopen() {
+
+        appender.close();
+        int iterations = 1000;
+
+        Long lastPosition = null;
+        for (int i = 0; i < iterations; i++) {
+            try (LogAppender<String> appender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)))) {
+                if (lastPosition != null) {
+                    assertEquals(lastPosition, Long.valueOf(appender.position()));
+                }
+                assertEquals(i, appender.entries());
+                appender.append("A");
+                lastPosition = appender.position();
+            }
+        }
+
+        try (LogAppender<String> appender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)))) {
+            assertEquals(iterations, appender.stream().count());
+            assertEquals(iterations, appender.entries());
+        }
+    }
+
     private static String stringOfByteLength(int length) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < length / Character.BYTES; i++)
@@ -128,7 +153,7 @@ public abstract class LogAppenderIT {
         long written = 0;
 
         for (int i = 0; i < num; i++) {
-            if(System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
+            if (System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
                 avg = (avg + written) / 2;
                 System.out.println("TOTAL WRITTEN: " + appender.entries() + " - LAST SECOND: " + written + " - AVG: " + avg);
                 written = 0;
@@ -148,8 +173,8 @@ public abstract class LogAppenderIT {
         long lastUpdate = System.currentTimeMillis();
         long written = 0;
 
-        while(appender.segments().size() < numSegments) {
-            if(System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
+        while (appender.segments().size() < numSegments) {
+            if (System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
                 avg = (avg + written) / 2;
                 System.out.println("TOTAL WRITTEN: " + appender.entries() + " - LAST SECOND: " + written + " - AVG: " + avg);
                 written = 0;
@@ -173,7 +198,7 @@ public abstract class LogAppenderIT {
         long totalRead = 0;
 
         while (scanner.hasNext()) {
-            if(System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
+            if (System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
                 avg = (avg + read) / 2;
                 System.out.println("TOTAL READ: " + totalRead + " - LAST SECOND: " + read + " - AVG: " + avg);
                 read = 0;
@@ -186,6 +211,6 @@ public abstract class LogAppenderIT {
         }
 
         assertEquals(appender.entries(), totalRead);
-        System.out.println("APPENDER_READ -  READ " + read + " ENTRIES IN "+  (System.currentTimeMillis() - start) + "ms");
+        System.out.println("APPENDER_READ -  READ " + read + " ENTRIES IN " + (System.currentTimeMillis() - start) + "ms");
     }
 }
