@@ -2,7 +2,7 @@ package io.joshworks.fstore.serializer.arrays;
 
 import java.nio.ByteBuffer;
 
-public class FloatArraySerializer extends ArraySerializer<float[]> {
+public class FloatArraySerializer extends FixedObjectSizeArraySerializer<float[]> {
 
     @Override
     public ByteBuffer toBytes(float[] data) {

@@ -2,7 +2,7 @@ package io.joshworks.fstore.serializer.arrays;
 
 import java.nio.ByteBuffer;
 
-public class BooleanArraySerializer extends ArraySerializer<boolean[]> {
+public class BooleanArraySerializer extends FixedObjectSizeArraySerializer<boolean[]> {
 
     @Override
     public ByteBuffer toBytes(boolean[] data) {
