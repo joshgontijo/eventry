@@ -1,6 +1,7 @@
 package io.joshworks.fstore.index.btrees.bplustree;
 
 
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.index.Entry;
 import io.joshworks.fstore.index.btrees.bplustree.util.DeleteResult;
 import io.joshworks.fstore.index.btrees.bplustree.util.InsertResult;
@@ -15,8 +16,13 @@ public class InternalNode<K extends Comparable<K>, V> extends Node<K, V> {
     final List<Integer> children;
 
     protected InternalNode(BlockStore<Node<K, V>> store, int order) {
-        super(store, order);
+        super(store, order, Node.INTERNAL_NODE);
         this.children = new ArrayList<>(order);
+    }
+
+    @Override
+    protected Serializer<Node<K, V>> serializer(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
+        return null;
     }
 
     @Override

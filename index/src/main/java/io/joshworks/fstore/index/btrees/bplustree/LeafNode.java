@@ -1,6 +1,7 @@
 package io.joshworks.fstore.index.btrees.bplustree;
 
 
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.index.Entry;
 import io.joshworks.fstore.index.btrees.bplustree.util.DeleteResult;
 import io.joshworks.fstore.index.btrees.bplustree.util.InsertResult;
@@ -18,13 +19,18 @@ public class LeafNode<K extends Comparable<K>, V> extends Node<K, V> {
 
 
     protected LeafNode(BlockStore<Node<K, V>> store, int order) {
-        super(store, order);
+        super(store, order, Node.LEAF_NODE);
         //It's actually order - 1, but to avoid resizing on overflow we leave with one more
         this.values = new ArrayList<>(order);
     }
 
     public int next() {
         return next;
+    }
+
+    @Override
+    protected Serializer<Node<K, V>> serializer(Serializer<K> keySerializer, Serializer<V> valueSerializer) {
+        return null;
     }
 
     @Override
