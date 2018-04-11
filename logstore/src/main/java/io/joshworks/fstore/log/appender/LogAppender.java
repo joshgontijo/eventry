@@ -28,6 +28,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -235,10 +236,34 @@ public class LogAppender<T> implements Log<T> {
         return LogSegment.open(storage, serializer, position);
     }
 
+
+    private final List<Consumer<Log<T>>> beforeRollListeners = new LinkedList<>();
+    private final List<Consumer<Log<T>>> afterRollListeners = new LinkedList<>();
+    private final List<Runnable> beforeCloseListeners = new LinkedList<>();
+    private final List<Runnable> afterCloseListeners = new LinkedList<>();
+
+    public void beforeRoll(Consumer<Log<T>> listener) {
+        beforeRollListeners.add(listener);
+    }
+
+    public void afterRoll(Consumer<Log<T>> listener) {
+        afterRollListeners.add(listener);
+    }
+
+    public void beforeClose(Runnable listener) {
+        beforeCloseListeners.add(listener);
+    }
+
+    public void afterClose(Runnable listener) {
+        afterCloseListeners.add(listener);
+    }
+
     private Log<T> roll() {
         try {
             logger.info("Rolling appender");
             flush();
+
+            invokeRollListeners(beforeRollListeners);
 
             File newSegmentFile = LogFileUtils.newSegmentFile(directory, maxSegments, this.segments.size());
             Storage storage = createStorage(newSegmentFile, metadata.segmentSize);
@@ -249,10 +274,33 @@ public class LogAppender<T> implements Log<T> {
             LogFileUtils.writeState(directory, state);
 
             this.lastRollTime = System.currentTimeMillis();
+
+            invokeRollListeners(afterRollListeners);
+
             return newSegment;
         } catch (Exception e) {
             throw new RuntimeIOException("Could not close segment file", e);
         }
+    }
+
+    private void invokeRollListeners(List<Consumer<Log<T>>> listeners) {
+        listeners.forEach(c -> {
+            try {
+                c.accept(currentSegment);
+            }catch (Exception e) {
+                logger.error("Log roll listener error", e);
+            }
+        });
+    }
+
+    private void invokeCloseListeners(List<Runnable> listeners) {
+        listeners.forEach(c -> {
+            try {
+                c.run();
+            }catch (Exception e) {
+                logger.error("After roll event listener error", e);
+            }
+        });
     }
 
     int getSegment(long position) {
@@ -393,6 +441,8 @@ public class LogAppender<T> implements Log<T> {
         logger.info("Closing log appender {}", directory.getName());
         scheduler.shutdown();
 
+        invokeCloseListeners(beforeCloseListeners);
+
         IOUtils.flush(currentSegment);
         state.position = currentSegment.position();
 
@@ -403,6 +453,8 @@ public class LogAppender<T> implements Log<T> {
 
         logger.info("Writing state {}", state);
         LogFileUtils.writeState(directory, state);
+
+        invokeCloseListeners(afterCloseListeners);
     }
 
     @Override

@@ -16,6 +16,18 @@
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>logstore</artifactId>
         </dependency>
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>index</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>snappy</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

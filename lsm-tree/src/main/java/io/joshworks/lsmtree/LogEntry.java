@@ -4,33 +4,28 @@ import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 
-public class LogEntry<K, V> {
+class LogEntry<K, V> {
 
-    public static final int OP_DELETE = 1;
-    public static final int OP_ADD = 0;
-
-    final int op;
-    final long timestamp;
     final K key;
     final V value;
+    final long timestamp;
 
-    private LogEntry(int op, long timestamp, K key, V value) {
-        this.op = op;
-        this.timestamp = timestamp;
+    private LogEntry(K key, V value, long timestamp) {
         this.key = key;
         this.value = value;
-    }
-
-    public static <K, V> LogEntry<K, V> delete(K key) {
-        return new LogEntry<>(OP_DELETE, System.currentTimeMillis(), key, null);
-    }
-
-    public static <K, V> LogEntry<K, V> add(K key, V value) {
-        return new LogEntry<>(OP_ADD, System.currentTimeMillis(), key, value);
+        this.timestamp = timestamp;
     }
 
     public static <K, V> Serializer<LogEntry<K, V>> serializer(final Serializer<K> keySerializer, final Serializer<V> valueSerializer) {
         return new EntrySerializer<>(keySerializer, valueSerializer);
+    }
+
+    public static <K, V> LogEntry<K, V> create(K key, V value) {
+        return new LogEntry<>(key, value, System.currentTimeMillis());
+    }
+
+    public static <K, V> LogEntry<K, V> of(K key, V value, long timestamp) {
+        return new LogEntry<>(key, value, timestamp);
     }
 
     private static final class EntrySerializer<K, V> implements Serializer<LogEntry<K, V>> {
@@ -46,28 +41,22 @@ public class LogEntry<K, V> {
         @Override
         public ByteBuffer toBytes(LogEntry<K, V> entry) {
             ByteBuffer keyDataBuffer = keySerializer.toBytes(entry.key);
-            if(entry.op == LogEntry.OP_DELETE) {
-                ByteBuffer withOp = ByteBuffer.allocate(Integer.BYTES + keyDataBuffer.limit());
-                return (ByteBuffer) withOp.putInt(entry.op).put(keyDataBuffer).flip();
-            }
             ByteBuffer valueDataBuffer = valueSerializer.toBytes(entry.value);
-            ByteBuffer withOp = ByteBuffer.allocate(Integer.BYTES + Long.BYTES + keyDataBuffer.limit() + valueDataBuffer.limit());
-            return (ByteBuffer) withOp.putInt(entry.op).put(keyDataBuffer).put(valueDataBuffer).flip();
+
+            ByteBuffer finalBuffer = ByteBuffer.allocate(keyDataBuffer.limit() + valueDataBuffer.limit() + Long.BYTES);
+            finalBuffer.put(keyDataBuffer);
+            finalBuffer.put(valueDataBuffer);
+            finalBuffer.putLong(entry.timestamp);
+
+            return (ByteBuffer) finalBuffer.flip();
         }
 
         @Override
         public LogEntry<K, V> fromBytes(ByteBuffer buffer) {
-            int op = buffer.getInt();
-            if (op != OP_ADD && op != OP_DELETE) {
-                throw new RuntimeException("Invalid OP");
-            }
-            long timestamp = buffer.getLong();
             K key = keySerializer.fromBytes(buffer);
-            if(op == OP_DELETE) {
-                return new LogEntry<>(OP_DELETE, timestamp, key, null);
-            }
             V value = valueSerializer.fromBytes(buffer);
-            return new LogEntry<>(OP_DELETE, timestamp, key, value);
+            long timestamp = buffer.getLong();
+            return new LogEntry<>(key, value, timestamp);
         }
     }
 
