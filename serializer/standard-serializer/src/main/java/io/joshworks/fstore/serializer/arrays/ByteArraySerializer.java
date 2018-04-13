@@ -13,12 +13,9 @@ public class ByteArraySerializer implements Serializer<byte[]> {
 
     @Override
     public byte[] fromBytes(ByteBuffer data) {
-        if(data.isDirect()) {
-            byte[] b = new byte[data.remaining()];
-            data.get(b);
-            return b;
-        }
-        return data.array();
+        byte[] b = new byte[data.remaining()];
+        data.get(b);
+        return b;
     }
 
 }
