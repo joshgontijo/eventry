@@ -122,7 +122,7 @@ public abstract class LogAppenderIT {
 
         Long lastPosition = null;
         for (int i = 0; i < iterations; i++) {
-            try (LogAppender<String> appender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)))) {
+            try (LogAppender<String> appender = appender(new Builder<>(testDirectory, StandardSerializer.STRING))) {
                 if (lastPosition != null) {
                     assertEquals(lastPosition, Long.valueOf(appender.position()));
                 }
@@ -132,7 +132,7 @@ public abstract class LogAppenderIT {
             }
         }
 
-        try (LogAppender<String> appender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)))) {
+        try (LogAppender<String> appender = appender(new Builder<>(testDirectory, StandardSerializer.STRING))) {
             assertEquals(iterations, appender.stream().count());
             assertEquals(iterations, appender.entries());
         }

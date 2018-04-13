@@ -27,7 +27,7 @@ public class Main {
 
 
         long start = System.currentTimeMillis();
-        try (Store<Integer, Integer> store = Store.open(new File("memStore"), StandardSerializer.of(Integer.class), StandardSerializer.of(Integer.class))) {
+        try (Store<Integer, Integer> store = Store.open(new File("memStore"), StandardSerializer.INTEGER, StandardSerializer.INTEGER)) {
             for (int i = 0; i < 1000000; i++) {
                 store.put(i, 1);
             }
@@ -36,7 +36,7 @@ public class Main {
         System.out.println("WRITE: " + (System.currentTimeMillis() - start));
 
         start = System.currentTimeMillis();
-        try (Store<Integer, Integer> store = Store.open(new File("memStore"), StandardSerializer.of(Integer.class), StandardSerializer.of(Integer.class))) {
+        try (Store<Integer, Integer> store = Store.open(new File("memStore"), StandardSerializer.INTEGER, StandardSerializer.INTEGER)) {
             Iterator<Integer> iterator = store.iterator();
 
             int idx = 0;

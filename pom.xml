@@ -17,6 +17,7 @@
         <module>index</module>
         <module>memlog-db</module>
         <module>lsm-tree</module>
+        <module>event-store</module>
     </modules>
 
     <properties>

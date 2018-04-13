@@ -77,7 +77,7 @@ public abstract class LogAppenderTest {
                 Utils.tryDelete(testDirectory);
             }
 
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)).rollInterval(Duration.ofSeconds(2)))) {
+            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.STRING).rollInterval(Duration.ofSeconds(2)))) {
                 testAppender.append("1");
 
                 Utils.sleep(2100);
@@ -86,7 +86,7 @@ public abstract class LogAppenderTest {
                 testAppender.append("3");
             }
 
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)))) {
+            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.STRING))) {
 
                 assertEquals(2, testAppender.segments.size());
 
@@ -203,15 +203,15 @@ public abstract class LogAppenderTest {
                 Utils.tryDelete(testDirectory);
             }
 
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)))) {
+            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.STRING))) {
                 testAppender.append("1");
                 testAppender.append("2");
                 testAppender.append("3");
             }
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)))) {
+            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.STRING))) {
                 testAppender.append("4");
             }
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)))) {
+            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.STRING))) {
                 Set<String> values = testAppender.stream().collect(Collectors.toSet());
                 assertTrue(values.contains("1"));
                 assertTrue(values.contains("2"));
@@ -232,7 +232,7 @@ public abstract class LogAppenderTest {
 
         appender.close();
 
-        appender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)));
+        appender = appender(new Builder<>(testDirectory, StandardSerializer.STRING));
         assertEquals(2, appender.entries());
         assertEquals(2, appender.stream().count());
     }
@@ -246,7 +246,7 @@ public abstract class LogAppenderTest {
 
         appender.close();
 
-        appender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)));
+        appender = appender(new Builder<>(testDirectory, StandardSerializer.STRING));
         assertEquals(2, appender.entries());
         assertEquals(2, appender.stream().count());
     }
@@ -261,7 +261,7 @@ public abstract class LogAppenderTest {
             }
 
             String segmentName;
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)))) {
+            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.STRING))) {
                 testAppender.append("1");
                 testAppender.append("2");
                 testAppender.append("3");
@@ -281,11 +281,11 @@ public abstract class LogAppenderTest {
                 storage.write(broken);
             }
 
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)))) {
+            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.STRING))) {
                 testAppender.append("4");
             }
 
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.of(String.class)))) {
+            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, StandardSerializer.STRING))) {
                 Set<String> values = testAppender.stream().collect(Collectors.toSet());
                 assertTrue(values.contains("1"));
                 assertTrue(values.contains("2"));

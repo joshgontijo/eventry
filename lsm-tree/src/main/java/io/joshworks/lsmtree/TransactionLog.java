@@ -34,7 +34,7 @@ public class TransactionLog<K, V> implements Closeable {
 
     //mark a rolling to
     public void mark() {
-        appender.roll();
+//        appender.roll();
     }
 
     public long size() {

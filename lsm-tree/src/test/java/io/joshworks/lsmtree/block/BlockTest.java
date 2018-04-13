@@ -9,7 +9,7 @@ public class BlockTest {
 
     @Test
     public void add() {
-        Block<String> block = new Block<>(StandardSerializer.of(String.class), 4);
+        Block<String> block = new Block<>(StandardSerializer.STRING, 4);
 
         assertFalse(block.add("a"));
         assertFalse(block.add("a"));
@@ -22,7 +22,7 @@ public class BlockTest {
 
     @Test
     public void first() {
-        Block<String> block = new Block<>(StandardSerializer.of(String.class), 4);
+        Block<String> block = new Block<>(StandardSerializer.STRING, 4);
         block.add("a");
         block.add("b");
 
@@ -31,7 +31,7 @@ public class BlockTest {
 
     @Test
     public void size() {
-        Block<String> block = new Block<>(StandardSerializer.of(String.class), 4);
+        Block<String> block = new Block<>(StandardSerializer.STRING, 4);
         block.add("aa");
         block.add("bb");
 
@@ -40,7 +40,7 @@ public class BlockTest {
 
     @Test
     public void entries() {
-        Block<String> block = new Block<>(StandardSerializer.of(String.class), 4);
+        Block<String> block = new Block<>(StandardSerializer.STRING, 4);
         block.add("aa");
         block.add("bb");
 
