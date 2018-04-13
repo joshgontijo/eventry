@@ -5,8 +5,8 @@ import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.io.Closeable;
 import java.io.File;
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.SortedMap;
@@ -14,7 +14,10 @@ import java.util.TreeMap;
 
 public class EventStore implements Closeable {
 
-    private final SortedMap<Long, Long> index = new TreeMap<>();
+    private final SortedMap<IndexKey, Long> index = new TreeMap<>();
+
+    //ES: LRU map with reading the last version from the index
+    private final HashMap<Integer, Integer> streamVersion = new HashMap<>();
     private final LogAppender<Event> log;
 
     private EventStore(LogAppender<Event> log) {
@@ -27,30 +30,15 @@ public class EventStore implements Closeable {
     }
 
 
-    public static void main(String[] args) {
-        EventStore store = EventStore.open(new File("event-db"));
-        store.put("yolo", new Event("yolo", "yolo1"));
-        store.put("yolo", new Event("yolo", "yolo2"));
-        store.put("josh", new Event("yolo", "josh1"));
-        store.put("josh", new Event("yolo", "josh2"));
-
-        List<Event> yolos = store.get("yolo");
-        System.out.println(Arrays.toString(yolos.toArray(new Event[yolos.size()])));
-
-        List<Event> joshs = store.get("josh");
-        System.out.println(Arrays.toString(joshs.toArray(new Event[joshs.size()])));
-
-        store.close();
-
+    public List<Event> get(String stream) {
+        return get(stream, 0);
     }
 
+    public List<Event> get(String stream, int versionInclusive) {
+        int streamHash = stream.hashCode();
+        IndexKey start = new IndexKey(streamHash, versionInclusive, 0);
 
-    public List<Event> get(String stream) {
-        long streamHash = stream.hashCode();
-        long start =  streamHash << 32;
-
-        long mask = (1L << 32) - 1L;
-        long end = (start | mask);
+        IndexKey end = new IndexKey(streamHash, Integer.MAX_VALUE, 0);
 
         Collection<Long> addresses = index.tailMap(start).headMap(end).values();
 
@@ -65,13 +53,17 @@ public class EventStore implements Closeable {
 
     public void put(String stream, Event event) {
         long position = log.append(event);
-        long streamHash = stream.hashCode();
+        int streamHash = stream.hashCode();
+
+        int version = streamVersion.compute(streamHash, (k, v) -> v == null ? 0 : ++v);
+
+        //if not available in memory
+        int streamSize = index.tailMap(new IndexKey(streamHash, 0, 0)).headMap(new IndexKey(streamHash, Integer.MAX_VALUE, 0)).size();//tODO should position be used here as well, is it possible ?
 
 
-        long address = (streamHash << 32) | position;
-        System.out.println(streamHash + " --> " + address);
+        IndexKey indexKey = new IndexKey(streamHash, version, position);
 
-        index.put(address, position);
+        index.put(indexKey, position);
     }
 
     @Override
@@ -79,4 +71,6 @@ public class EventStore implements Closeable {
         index.clear();
         log.close();
     }
+
+
 }

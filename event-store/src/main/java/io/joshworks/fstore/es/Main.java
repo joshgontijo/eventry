@@ -1,59 +1,54 @@
-//package io.joshworks.fstore.es;
-//
-//import io.joshworks.fstore.serializer.StandardSerializer;
-//
-//import java.io.File;
-//import java.io.IOException;
-//import java.util.Iterator;
-//
-//@SuppressWarnings("Duplicates")
-//public class Main {
-//
-//    public static void main(String[] args) throws IOException {
-////        Store<String, User> store = Store.create(new File("memStore"), User.userSerializer(), User::getId);
-////
-////        long start = System.currentTimeMillis();
-////        for (int i = 0; i < 1000000; i++) {
-////            store.put(User.with(String.valueOf(i)));
-////        }
-////        System.out.println("INSERT: " + (System.currentTimeMillis() - start) + "ms");
-////
-////        Iterator<User> iterator = store.iterator();
-////        start = System.currentTimeMillis();
-////        while(iterator.hasNext()) {
-////            User next = iterator.next();
-////
-////        }
-////        System.out.println("READ_KEY_ORDER: " + (System.currentTimeMillis() - start) + "ms");
-//
-//
-//        long start = System.currentTimeMillis();
-//        try (EventStore<Integer, Integer> eventStore = EventStore.open(new File("memStore"), StandardSerializer.INTEGER, StandardSerializer.INTEGER)) {
-//            for (int i = 0; i < 1000000; i++) {
-//                eventStore.put(i, 1);
-//            }
-//        }
-//
-//        System.out.println("WRITE: " + (System.currentTimeMillis() - start));
-//
-//        start = System.currentTimeMillis();
-//        try (EventStore<Integer, Integer> eventStore = EventStore.open(new File("memStore"), StandardSerializer.INTEGER, StandardSerializer.INTEGER)) {
-//            Iterator<Integer> iterator = eventStore.iterator();
-//
-//            int idx = 0;
-//            while (iterator.hasNext()) {
-//                Integer next = iterator.next();
-//
-////                System.out.println("KEY: " + idx++);
-//            }
-//
-//        }
-//        System.out.println("READ: " + (System.currentTimeMillis() - start));
-//
-//
-//
-//    }
-//
-//
-//}
-//
+package io.joshworks.fstore.es;
+
+import javax.script.Invocable;
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
+import java.io.File;
+import java.util.Arrays;
+import java.util.List;
+
+public class Main {
+
+    public static void main(String[] args) throws ScriptException, NoSuchMethodException {
+        EventStore store = EventStore.open(new File("event-db"));
+        store.put("yolo", new Event("AA", "yolo1"));
+        store.put("yolo", new Event("BB", "yolo2"));
+        store.put("josh", new Event("CC", "josh1"));
+        store.put("josh", new Event("DD", "josh2"));
+
+        List<Event> yolos = store.get("yolo");
+        System.out.println(Arrays.toString(yolos.toArray(new Event[yolos.size()])));
+
+        List<Event> joshs = store.get("josh");
+        System.out.println(Arrays.toString(joshs.toArray(new Event[joshs.size()])));
+
+        List<Event> joshsAfter0 = store.get("josh", 1);
+        System.out.println(Arrays.toString(joshsAfter0.toArray(new Event[joshsAfter0.size()])));
+
+
+
+
+        ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");
+        engine.eval("var eventHandler = function(event) {" +
+                "    print(event);" +
+                "    return event.type" +
+                "};");
+
+
+
+        Event item = store.get("josh", 1).get(0);
+
+        Invocable invocable = (Invocable) engine;
+
+        Object result = invocable.invokeFunction("eventHandler", item);
+        System.out.println(result);
+        System.out.println(result.getClass());
+
+
+        store.close();
+
+
+    }
+
+}
