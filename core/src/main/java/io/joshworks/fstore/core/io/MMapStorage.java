@@ -36,8 +36,8 @@ public class MMapStorage extends Storage {
     @Override
     public int write(ByteBuffer data) {
         ensureNonEmpty(data);
-
         ensureCapacity(data);
+
         int written = data.remaining();
         mbb.put(data);
         return written;
@@ -47,12 +47,12 @@ public class MMapStorage extends Storage {
     public int read(long position, ByteBuffer data) {
         checkBoundaries(position);
 
-        mbb.position((int) position);
-        ByteBuffer slice = mbb.slice();
-        int prevPos = data.position();
-        slice.limit(Math.min(data.remaining(), slice.remaining()));
-        data.put(slice.asReadOnlyBuffer());
-        return data.position() - prevPos;
+        ByteBuffer readOnly = mbb.asReadOnlyBuffer();
+        readOnly.position((int) position);
+        int size = Math.min(data.remaining(), readOnly.remaining());
+        readOnly.limit(size);
+        data.put(readOnly);
+        return size;
     }
 
     @Override
