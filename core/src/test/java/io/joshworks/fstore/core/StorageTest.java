@@ -37,15 +37,20 @@ public abstract class StorageTest {
         tryRemoveFile();
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void when_witting_empty_data_throw_exception() {
+        storage.write(ByteBuffer.allocate(0));
+    }
+
     @Test
-    public void write_size() {
+    public void when_data_is_written_return_th_written_length() {
         ByteBuffer bb = ByteBuffer.wrap(TEST_DATA.getBytes(StandardCharsets.UTF_8));
         int written = storage.write(bb);
         assertEquals(TEST_DATA.length(), written);
     }
 
     @Test
-    public void write_read() {
+    public void when_data_is_read_it_must_be_the_same_that_was_written() {
         ByteBuffer bb = ByteBuffer.wrap(TEST_DATA.getBytes(StandardCharsets.UTF_8));
         int write = storage.write(bb);
 
@@ -57,7 +62,7 @@ public abstract class StorageTest {
     }
 
     @Test
-    public void write_large() {
+    public void when_() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 10000; i++) {
             sb.append(UUID.randomUUID().toString());
