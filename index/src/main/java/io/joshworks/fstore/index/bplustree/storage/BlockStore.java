@@ -1,16 +1,16 @@
 package io.joshworks.fstore.index.bplustree.storage;
 
 
-import io.joshworks.fstore.index.bplustree.BPlusTree;
+import io.joshworks.fstore.index.bplustree.Node;
 
-public interface BlockStore {
+public interface BlockStore<K extends Comparable<K>, V> {
     void clear();
 
-    int placeBlock(BPlusTree.Node block);
+    int placeBlock(Node<K, V> block);
 
     void freeBlock(int i);
 
-    BPlusTree.Node readBlock(int blockId);
+    Node<K, V> readBlock(int blockId);
 
-    void writeBlock(int blockId, BPlusTree.Node block);
+    void writeBlock(Node<K, V> block);
 }

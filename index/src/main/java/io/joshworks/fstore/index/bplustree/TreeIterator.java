@@ -10,16 +10,16 @@ import java.util.List;
 
 public class TreeIterator<K extends Comparable<K>, V> implements Iterator<Entry<K, V>> {
 
-    protected final BlockStore store;
+    protected final BlockStore<K, V> store;
 
     //state
-    private BPlusTree.LeafNode currentLeaf;
+    private LeafNode<K, V> currentLeaf;
     protected List<Entry<K, V>> leafEntries;
     protected int positionInLeaf;// using list instead iterator so RangeIterator can read ahead
     private int processedCount;
     private final Range<K> range;
 
-    protected TreeIterator(BlockStore store, int rootId, Range<K> range) {
+    protected TreeIterator(BlockStore<K, V> store, int rootId, Range<K> range) {
         this.store = store;
         this.range = range;
 
@@ -42,11 +42,11 @@ public class TreeIterator<K extends Comparable<K>, V> implements Iterator<Entry<
         return 0;
     }
 
-    public static <K extends Comparable<K>, V> TreeIterator<K, V> iterator(BlockStore store, int rootId) {
-        return iterator(store, rootId, new Range<K>());
+    public static <K extends Comparable<K>, V> TreeIterator<K, V> iterator(BlockStore<K, V> store, int rootId) {
+        return iterator(store, rootId, new Range<>());
     }
 
-    public static <K extends Comparable<K>, V> TreeIterator<K, V> iterator(BlockStore store, int rootId, Range<K> range) {
+    public static <K extends Comparable<K>, V> TreeIterator<K, V> iterator(BlockStore<K, V> store, int rootId, Range<K> range) {
         return new TreeIterator<>(store, rootId, range);
     }
 
@@ -89,36 +89,36 @@ public class TreeIterator<K extends Comparable<K>, V> implements Iterator<Entry<
         if (currentLeaf.next() < 0) {
             return false;
         }
-        BPlusTree.Node next = store.readBlock(currentLeaf.next());
-        if (next.type == BPlusTree.Node.INTERNAL_NODE) {
+        Node<K, V> next = store.readBlock(currentLeaf.next());
+        if (!(next instanceof LeafNode)) {
             throw new IllegalStateException("Corrupted index");
         }
 
-        currentLeaf = (BPlusTree.LeafNode) next;
-        leafEntries = ((BPlusTree.LeafNode) next).entries();
+        currentLeaf = (LeafNode<K, V>) next;
+        leafEntries = ((LeafNode<K, V>) next).entries();
         positionInLeaf = 0;
         return true;
     }
 
-    private BPlusTree.LeafNode startLeaf(int rootId) {
-        BPlusTree.Node node = store.readBlock(rootId);
+    private LeafNode<K, V> startLeaf(int rootId) {
+        Node<K, V> node = store.readBlock(rootId);
         if (range.startInclusive() != null) {
-            while (node.type == BPlusTree.Node.INTERNAL_NODE) {
-                node = ((BPlusTree.InternalNode) node).getChild(range.startInclusive());
+            while (node instanceof InternalNode) {
+                node = ((InternalNode<K, V>) node).getChild(range.startInclusive());
                 if (node == null) {
                     throw new IllegalStateException("Corrupted index");
                 }
             }
-            return (BPlusTree.LeafNode) node;
+            return (LeafNode<K, V>) node;
         }
 
-        while (node.type == BPlusTree.Node.INTERNAL_NODE) {
-            int childId = (int) ((BPlusTree.InternalNode) node).children.get(0);
+        while (node instanceof InternalNode) {
+            int childId = ((InternalNode<K, V>) node).children.get(0);
             if (childId < 0) {
                 throw new IllegalStateException("Corrupted index");
             }
             node = store.readBlock(childId);
         }
-        return (BPlusTree.LeafNode) node;
+        return (LeafNode<K, V>) node;
     }
 }
