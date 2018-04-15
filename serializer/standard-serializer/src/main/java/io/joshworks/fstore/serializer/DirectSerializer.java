@@ -12,6 +12,11 @@ public class DirectSerializer implements Serializer<ByteBuffer> {
     }
 
     @Override
+    public void writeTo(ByteBuffer data, ByteBuffer dest) {
+        dest.put(data);
+    }
+
+    @Override
     public ByteBuffer fromBytes(ByteBuffer buffer) {
         return buffer;
     }

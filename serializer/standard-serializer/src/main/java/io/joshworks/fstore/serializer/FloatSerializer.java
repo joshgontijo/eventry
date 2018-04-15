@@ -12,6 +12,11 @@ public class FloatSerializer implements Serializer<Float> {
     }
 
     @Override
+    public void writeTo(Float data, ByteBuffer dest) {
+        dest.putFloat(data);
+    }
+
+    @Override
     public Float fromBytes(ByteBuffer data) {
         return data.getFloat();
     }

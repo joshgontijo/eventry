@@ -11,6 +11,11 @@ public class CharacterSerializer implements Serializer<Character> {
     }
 
     @Override
+    public void writeTo(Character data, ByteBuffer dest) {
+        dest.putChar(data);
+    }
+
+    @Override
     public Character fromBytes(ByteBuffer data) {
         return data.getChar();
     }

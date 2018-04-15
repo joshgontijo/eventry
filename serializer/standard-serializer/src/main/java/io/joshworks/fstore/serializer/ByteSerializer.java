@@ -12,6 +12,11 @@ public class ByteSerializer implements Serializer<Byte> {
     }
 
     @Override
+    public void writeTo(Byte data, ByteBuffer dest) {
+        dest.put(data);
+    }
+
+    @Override
     public Byte fromBytes(ByteBuffer data) {
         return data.get();
     }

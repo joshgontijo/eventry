@@ -13,6 +13,12 @@ public class FloatArraySerializer extends FixedObjectSizeArraySerializer<float[]
     }
 
     @Override
+    public void writeTo(float[] data, ByteBuffer dest) {
+        dest.putInt(data.length);
+        dest.asFloatBuffer().put(data);
+    }
+
+    @Override
     public float[] fromBytes(ByteBuffer data) {
         int size = getSize(data);
         float[] array = new float[size];

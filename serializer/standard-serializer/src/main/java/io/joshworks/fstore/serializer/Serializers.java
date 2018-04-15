@@ -11,14 +11,13 @@ import io.joshworks.fstore.serializer.arrays.ShortArraySerializer;
 
 import java.nio.ByteBuffer;
 
-public class StandardSerializer {
+public class Serializers {
 
-    private StandardSerializer() {
+    private Serializers() {
 
     }
     //No serializer
-    public static final Serializer<ByteBuffer> BYTE_BUFFER_ = new DirectSerializer();
-    public static final Serializer<byte[]> BYTE_ARRAY = new ByteArraySerializer();
+    public static final Serializer<ByteBuffer> BYTE_BUFFER = new DirectSerializer();
 
     public static final Serializer<String> VSTRING = new VStringSerializer();
 
@@ -32,6 +31,7 @@ public class StandardSerializer {
     public static final Serializer<Character> CHAR = new CharacterSerializer();
     public static final Serializer<Byte> BYTE = new ByteSerializer();
 
+    public static final Serializer<byte[]> BYTE_ARRAY = new ByteArraySerializer();
     public static final Serializer<int[]> INTEGER_ARRAY = new IntegerArraySerializer();
     public static final Serializer<long[]> LONG_ARRAY = new LongArraySerializer();
     public static final Serializer<double[]> DOUBLE_ARRAY = new DoubleArraySerializer();

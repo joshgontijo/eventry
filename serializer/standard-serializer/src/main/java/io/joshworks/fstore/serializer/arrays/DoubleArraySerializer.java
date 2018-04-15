@@ -13,6 +13,12 @@ public class DoubleArraySerializer extends FixedObjectSizeArraySerializer<double
     }
 
     @Override
+    public void writeTo(double[] data, ByteBuffer dest) {
+        dest.putInt(data.length);
+        dest.asDoubleBuffer().put(data);
+    }
+
+    @Override
     public double[] fromBytes(ByteBuffer data) {
         int size = getSize(data);
         double[] array = new double[size];

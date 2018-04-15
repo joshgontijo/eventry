@@ -13,6 +13,12 @@ public class ShortArraySerializer extends FixedObjectSizeArraySerializer<short[]
     }
 
     @Override
+    public void writeTo(short[] data, ByteBuffer dest) {
+        dest.putInt(data.length);
+        dest.asShortBuffer().put(data);
+    }
+
+    @Override
     public short[] fromBytes(ByteBuffer data) {
         int size = getSize(data);
         short[] array = new short[size];

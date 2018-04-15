@@ -14,6 +14,12 @@ public class VStringSerializer implements Serializer<String> {
         return (ByteBuffer) bb.putInt(bytes.length).put(bytes).flip();
     }
 
+    @Override
+    public void writeTo(String data, ByteBuffer dest) {
+        byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
+        dest.putInt(bytes.length).put(bytes);
+    }
+
 //    @Override
 //    public String fromBytes(ByteBuffer buffer) {
 //        int length = buffer.getInt();

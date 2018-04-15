@@ -7,12 +7,18 @@ public class BooleanArraySerializer extends FixedObjectSizeArraySerializer<boole
     @Override
     public ByteBuffer toBytes(boolean[] data) {
         ByteBuffer bb = allocate(data.length);
-        //TODO improve this
         for (boolean aData : data) {
             bb.put((byte) (aData ? 1 : 0));
         }
-        bb.clear();
-        return bb;
+        return (ByteBuffer) bb.flip();
+    }
+
+    @Override
+    public void writeTo(boolean[] data, ByteBuffer dest) {
+        dest.putInt(data.length);
+        for (boolean aData : data) {
+            dest.put((byte) (aData ? 1 : 0));
+        }
     }
 
     @Override

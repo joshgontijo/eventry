@@ -12,6 +12,12 @@ public class ByteBufferCopy implements Serializer<ByteBuffer> {
     }
 
     @Override
+    public void writeTo(ByteBuffer data, ByteBuffer dest) {
+        ByteBuffer copy = copy(data);
+        dest.put(copy);
+    }
+
+    @Override
     public ByteBuffer fromBytes(ByteBuffer buffer) {
         return copy(buffer);
     }

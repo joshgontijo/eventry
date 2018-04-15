@@ -13,6 +13,12 @@ public class IntegerArraySerializer extends FixedObjectSizeArraySerializer<int[]
     }
 
     @Override
+    public void writeTo(int[] data, ByteBuffer dest) {
+        dest.putInt(data.length);
+        dest.asIntBuffer().put(data);
+    }
+
+    @Override
     public int[] fromBytes(ByteBuffer data) {
         int size = getSize(data);
         int[] array = new int[size];

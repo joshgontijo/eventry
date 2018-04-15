@@ -8,8 +8,14 @@ public class BooleanSerializer implements Serializer<Boolean> {
 
     @Override
     public ByteBuffer toBytes(Boolean data) {
-        //wasting a lot of space here
-        return (ByteBuffer) ByteBuffer.allocate(1).put((byte) (data ? 1 : 0)).flip();
+        ByteBuffer buffer = ByteBuffer.allocate(1);
+        writeTo(data, buffer);
+        return (ByteBuffer) buffer.flip();
+    }
+
+    @Override
+    public void writeTo(Boolean data, ByteBuffer dest) {
+        dest.put((byte) (data ? 1 : 0));
     }
 
     @Override

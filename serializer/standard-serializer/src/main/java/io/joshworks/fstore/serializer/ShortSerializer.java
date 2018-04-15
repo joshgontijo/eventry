@@ -11,6 +11,11 @@ public class ShortSerializer implements Serializer<Short> {
     }
 
     @Override
+    public void writeTo(Short data, ByteBuffer dest) {
+        dest.putShort(data);
+    }
+
+    @Override
     public Short fromBytes(ByteBuffer data) {
         return data.getShort();
     }

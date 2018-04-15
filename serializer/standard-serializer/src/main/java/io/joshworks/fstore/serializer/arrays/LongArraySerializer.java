@@ -13,6 +13,12 @@ public class LongArraySerializer extends FixedObjectSizeArraySerializer<long[]> 
     }
 
     @Override
+    public void writeTo(long[] data, ByteBuffer dest) {
+        dest.putInt(data.length);
+        dest.asLongBuffer().put(data);
+    }
+
+    @Override
     public long[] fromBytes(ByteBuffer data) {
         int size = getSize(data);
         long[] array = new long[size];
