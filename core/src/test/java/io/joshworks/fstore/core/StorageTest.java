@@ -12,6 +12,8 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
@@ -62,7 +64,36 @@ public abstract class StorageTest {
     }
 
     @Test
-    public void when_() {
+    public void when_10000_entries_are_written_it_should_read_all_of_them() {
+        int entrySize = 36; //uuid byte size
+
+        int items = 10000;
+        Set<String> inserted = new HashSet<>();
+        for (int i = 0; i < items; i++) {
+            String val = UUID.randomUUID().toString();
+            inserted.add(val);
+            storage.write(ByteBuffer.wrap(val.getBytes(StandardCharsets.UTF_8)));
+        }
+
+        long offset = 0;
+        int itemsRead = 0;
+        for (int i = 0; i < items; i++) {
+            ByteBuffer bb = ByteBuffer.allocate(entrySize);
+            int read = storage.read(offset, bb);
+            assertEquals(entrySize, read);
+
+            bb.flip();
+            String found = new String(bb.array(), StandardCharsets.UTF_8);
+            assertTrue("Not found: [" + found + "] at offset " + offset + ", item number: " + itemsRead, inserted.contains(found));
+            itemsRead++;
+            offset += entrySize;
+        }
+
+        assertEquals(items, itemsRead);
+    }
+
+    @Test
+    public void when_writing_large_entry_it_should_read_the_same_value() {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 10000; i++) {
             sb.append(UUID.randomUUID().toString());
@@ -79,12 +110,6 @@ public abstract class StorageTest {
         assertEquals(write, read);
         assertTrue(Arrays.equals(bb.array(), result.array()));
     }
-
-    @Test
-    public void ensureCapacity() {
-
-    }
-
 
     //terrible work around for waiting the mapped buffer to release file lock
     private void tryRemoveFile() {

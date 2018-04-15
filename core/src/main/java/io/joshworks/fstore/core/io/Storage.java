@@ -19,16 +19,32 @@ public abstract class Storage implements Flushable, Closeable {
     protected FileLock lock;
     protected long size;
 
-    private static final long DEFAULT_LENGTH = 10485760L;//10mb
-
     public Storage(File target) {
-        this(target, DEFAULT_LENGTH);
+        this.raf = IOUtils.readWriteRandomAccessFile(target);
+        try {
+            this.file = target;
+//            long length = raf.length();
+//            if(length == 0) {
+//                throw new IllegalStateException("File length is zero, file expansion can be costly");
+//            }
+            this.channel = raf.getChannel();
+            this.lock = this.channel.lock();
+        } catch (Exception e) {
+            IOUtils.closeQuietly(raf);
+            IOUtils.closeQuietly(channel);
+            IOUtils.releaseLock(lock);
+            throw new RuntimeException("Failed to open storage of " + target.getName(), e);
+        }
     }
 
     //TODO revisit opening a file when using length (i.e. what if the size was greater than current length)
     public Storage(File target, long length) {
         this.raf = IOUtils.readWriteRandomAccessFile(target);
         try {
+            if (target.length() > length) {
+                throw new IllegalStateException("File length (" + target.length() + ") is greater than the specified length (" + length + ")");
+            }
+
             this.file = target;
             this.raf.setLength(length);
             this.channel = raf.getChannel();

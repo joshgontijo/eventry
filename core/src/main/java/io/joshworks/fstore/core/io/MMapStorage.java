@@ -19,12 +19,7 @@ public class MMapStorage extends Storage {
     public MMapStorage(File file, FileChannel.MapMode mode) {
         super(file);
         this.mode = mode;
-        try {
-            this.mbb = channel.map(mode, 0, raf.length());
-        } catch (IOException e) {
-            IOUtils.closeQuietly(raf);
-            throw RuntimeIOException.of(e);
-        }
+        this.mbb = map(raf);
     }
 
     public MMapStorage(File file, long length, FileChannel.MapMode mode) {
@@ -48,11 +43,15 @@ public class MMapStorage extends Storage {
         checkBoundaries(position);
 
         ByteBuffer readOnly = mbb.asReadOnlyBuffer();
-        readOnly.position((int) position);
-        int size = Math.min(data.remaining(), readOnly.remaining());
-        readOnly.limit(size);
+        int entrySize = data.remaining();
+
+        readOnly.limit((int) position + entrySize).position((int) position);
+        if(entrySize > readOnly.remaining()) {
+            throw new IllegalStateException("Not available data. Expected " + entrySize + ", got " + readOnly.remaining());
+        }
+
         data.put(readOnly);
-        return size;
+        return entrySize;
     }
 
     @Override
@@ -62,7 +61,7 @@ public class MMapStorage extends Storage {
     }
 
     private void checkBoundaries(long position) {
-        if(position > Integer.MAX_VALUE) {
+        if (position > Integer.MAX_VALUE) {
             //TODO remap ?
             throw new UnsupportedOperationException("NOT IMPLEMENTED YET");
         }
@@ -71,14 +70,22 @@ public class MMapStorage extends Storage {
     private void ensureCapacity(ByteBuffer data) {
         try {
             if (mbb.position() + data.remaining() > mbb.capacity()) {
-                //TODO better approach to expand, 10% or enough to fit data ?
-                raf.setLength(raf.length() + data.remaining());
-                this.mbb = map(raf);
+                //TODO better approach to expand, 10%, 100% or enough to fit data ?
+                this.mbb = grow(raf.length() + data.remaining());
             }
 
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
+    }
+
+    private MappedByteBuffer grow(long newSize) throws IOException {
+        raf.setLength(newSize);
+        int prevPos = this.mbb.position();
+        this.mbb.force();
+        MappedByteBuffer newMbb = map(raf);
+        newMbb.position(prevPos);
+        return newMbb;
     }
 
     //TODO - HOW TO HANDLE FILES WITH MORE THAN Integer.MAX_VALUE ?
@@ -112,7 +119,7 @@ public class MMapStorage extends Storage {
 
     @Override
     public void flush() {
-        if(mbb != null)
+        if (mbb != null)
             mbb.force();
     }
 }
