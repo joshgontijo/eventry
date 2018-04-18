@@ -28,6 +28,11 @@ public class JsonSerializer<T> implements Serializer<T> {
     }
 
     @Override
+    public void writeTo(T data, ByteBuffer dest) {
+        stringSerializer.writeTo(gson.toJson(data), dest);
+    }
+
+    @Override
     public T fromBytes(ByteBuffer data) {
         return gson.fromJson(stringSerializer.fromBytes(data), type);
     }

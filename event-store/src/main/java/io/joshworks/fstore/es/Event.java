@@ -4,18 +4,19 @@ public class Event {
 
     public final String type;
     public final String data;
+    public final long timestamp;
 
-    public Event(String type, String data) {
+    public Event(String type, String data, long timestamp) {
         this.type = type;
         this.data = data;
+        this.timestamp = timestamp;
     }
 
     @Override
     public String toString() {
-        final StringBuffer sb = new StringBuffer("Event{");
-        sb.append("type='").append(type).append('\'');
-        sb.append(", data='").append(data).append('\'');
-        sb.append('}');
-        return sb.toString();
+        return "Event{" + "type='" + type + '\'' +
+                ", data='" + data + '\'' +
+                ", timestamp=" + timestamp +
+                '}';
     }
 }

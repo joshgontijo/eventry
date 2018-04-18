@@ -5,7 +5,7 @@ import io.joshworks.fstore.log.Scanner;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.Builder;
 import io.joshworks.fstore.log.appender.LogAppender;
-import io.joshworks.fstore.serializer.StandardSerializer;
+import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.serializer.StringSerializer;
 import org.junit.After;
 import org.junit.Before;
@@ -122,7 +122,7 @@ public abstract class LogAppenderIT {
 
         Long lastPosition = null;
         for (int i = 0; i < iterations; i++) {
-            try (LogAppender<String> appender = appender(new Builder<>(testDirectory, StandardSerializer.STRING))) {
+            try (LogAppender<String> appender = appender(new Builder<>(testDirectory, Serializers.STRING))) {
                 if (lastPosition != null) {
                     assertEquals(lastPosition, Long.valueOf(appender.position()));
                 }
@@ -132,7 +132,7 @@ public abstract class LogAppenderIT {
             }
         }
 
-        try (LogAppender<String> appender = appender(new Builder<>(testDirectory, StandardSerializer.STRING))) {
+        try (LogAppender<String> appender = appender(new Builder<>(testDirectory, Serializers.STRING))) {
             assertEquals(iterations, appender.stream().count());
             assertEquals(iterations, appender.entries());
         }

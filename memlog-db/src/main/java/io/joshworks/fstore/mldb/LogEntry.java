@@ -53,6 +53,17 @@ public class LogEntry<K, V> {
         }
 
         @Override
+        public void writeTo(LogEntry<K, V> data, ByteBuffer dest) {
+            ByteBuffer keyDataBuffer = keySerializer.toBytes(data.key);
+            dest.putInt(data.op).put(keyDataBuffer);
+            if(data.op == LogEntry.OP_DELETE) {
+                return;
+            }
+            ByteBuffer valueDataBuffer = valueSerializer.toBytes(data.value);
+            dest.put(valueDataBuffer);
+        }
+
+        @Override
         public LogEntry<K, V> fromBytes(ByteBuffer buffer) {
             int op = buffer.getInt();
             if (op != OP_ADD && op != OP_DELETE) {

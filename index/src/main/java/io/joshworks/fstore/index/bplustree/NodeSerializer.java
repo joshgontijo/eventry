@@ -2,7 +2,7 @@ package io.joshworks.fstore.index.bplustree;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.index.bplustree.storage.BlockStore;
-import io.joshworks.fstore.serializer.StandardSerializer;
+import io.joshworks.fstore.serializer.Serializers;
 
 import java.nio.ByteBuffer;
 
@@ -33,6 +33,18 @@ public class NodeSerializer<K extends Comparable<K>, V> implements Serializer<No
     }
 
     @Override
+    public void writeTo(Node<K, V> data, ByteBuffer dest) {
+        switch (data.type) {
+            case Node.INTERNAL_NODE:
+                internalNodeSerializer.writeTo((InternalNode<K, V>) data, dest);
+            case Node.LEAF_NODE:
+                leafNodeSerializer.writeTo((LeafNode<K, V>) data, dest);
+            default:
+                throw new RuntimeException("Invalid node type " + data.type);
+        }
+    }
+
+    @Override
     public Node<K, V> fromBytes(ByteBuffer buffer) {
         int type = buffer.getInt();
         switch (type) {
@@ -49,7 +61,7 @@ public class NodeSerializer<K extends Comparable<K>, V> implements Serializer<No
 
         private final int blockSize;
         private final Serializer<K> keySerializer;
-        private final Serializer<Integer> pointerSerializer = StandardSerializer.INTEGER;
+        private final Serializer<Integer> pointerSerializer = Serializers.INTEGER;
 
         public InternalNodeSerializer(int blockSize, Serializer<K> keySerializer) {
             this.blockSize = blockSize;
@@ -60,19 +72,22 @@ public class NodeSerializer<K extends Comparable<K>, V> implements Serializer<No
         @Override
         public ByteBuffer toBytes(InternalNode<K, V> data) {
             ByteBuffer bb = ByteBuffer.allocate(blockSize);
+            writeTo(data, bb);
+            return (ByteBuffer) bb.flip();
+        }
 
-            bb.putInt(data.type);
-            bb.putInt(data.id());
-            bb.putInt(data.keys.size());
+        @Override
+        public void writeTo(InternalNode<K, V> data, ByteBuffer dest) {
+            dest.putInt(data.type);
+            dest.putInt(data.id());
+            dest.putInt(data.keys.size());
 
             for (int i = 0; i < data.keys.size(); i++) {
-                bb.put(keySerializer.toBytes(data.keys.get(i)));
+                dest.put(keySerializer.toBytes(data.keys.get(i)));
             }
             for (int i = 0; i < data.children.size(); i++) {
-                bb.put(pointerSerializer.toBytes(data.children.get(i)));
+                dest.put(pointerSerializer.toBytes(data.children.get(i)));
             }
-
-            return (ByteBuffer) bb.flip();
         }
 
         @Override
@@ -112,18 +127,22 @@ public class NodeSerializer<K extends Comparable<K>, V> implements Serializer<No
         @Override
         public ByteBuffer toBytes(LeafNode<K, V> data) {
             ByteBuffer bb = ByteBuffer.allocate(blockSize);
-            bb.putInt(data.type);
-            bb.putInt(data.id());
-            bb.putInt(data.keys.size());
+            writeTo(data, bb);
+            return (ByteBuffer) bb.flip();
+        }
+
+        @Override
+        public void writeTo(LeafNode<K, V> data, ByteBuffer dest) {
+            dest.putInt(data.type);
+            dest.putInt(data.id());
+            dest.putInt(data.keys.size());
 
             for (int i = 0; i < data.keys.size(); i++) {
-                bb.put(keySerializer.toBytes(data.keys.get(i)));
+                dest.put(keySerializer.toBytes(data.keys.get(i)));
             }
             for (int i = 0; i < data.values.size(); i++) {
-                bb.put(valueSerializer.toBytes(data.values.get(i)));
+                dest.put(valueSerializer.toBytes(data.values.get(i)));
             }
-
-            return (ByteBuffer) bb.flip();
         }
 
         @Override

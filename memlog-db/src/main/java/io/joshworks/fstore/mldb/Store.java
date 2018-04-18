@@ -29,7 +29,7 @@ public class Store<K extends Comparable<K>, V> implements Closeable {
     }
 
     public static <K extends Comparable<K>, V> Store<K, V> open(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
-        Store<K, V> kvStore = new Store<>(new HeapTreeIndex<>(), LogAppender.simpleLog(new Builder<>(directory, LogEntry.serializer(keySerializer, valueSerializer))));
+        Store<K, V> kvStore = new Store<>(new HeapTreeIndex<>(), LogAppender.simpleLog(new Builder<>(directory, LogEntry.serializer(keySerializer, valueSerializer)).mmap()));
         kvStore.reindex();
         return kvStore;
     }

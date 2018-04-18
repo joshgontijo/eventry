@@ -49,12 +49,21 @@ public class KryoStoreSerializer<T> implements Serializer<T> {
     }
 
     @Override
-    public ByteBuffer toBytes(T event) {
+    public ByteBuffer toBytes(T data) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try(Output output = new Output(baos)) {
-            kryo.writeObject(output, event);
+            kryo.writeObject(output, data);
         }
         return ByteBuffer.wrap(baos.toByteArray());
+    }
+
+    @Override
+    public void writeTo(T data, ByteBuffer dest) {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try(Output output = new Output(baos)) {
+            kryo.writeObject(output, data);
+        }
+        dest.put(baos.toByteArray());
     }
 
     @Override

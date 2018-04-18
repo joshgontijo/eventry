@@ -40,11 +40,9 @@ public class State {
 
     @Override
     public String toString() {
-        final StringBuffer sb = new StringBuffer("State{");
-        sb.append("position=").append(position);
-        sb.append(", entryCount=").append(entryCount);
-        sb.append(", segments=").append(segments);
-        sb.append('}');
-        return sb.toString();
+        return "State{" + "position=" + position +
+                ", entryCount=" + entryCount +
+                ", segments=" + segments +
+                '}';
     }
 }

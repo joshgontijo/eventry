@@ -49,6 +49,12 @@ public class User {
             }
 
             @Override
+            public void writeTo(User data, ByteBuffer dest) {
+                ByteBuffer name = stringSerializer.toBytes(data.name);
+                dest.put(name).putInt(data.age);
+            }
+
+            @Override
             public User fromBytes(ByteBuffer buffer) {
                 String name = stringSerializer.fromBytes(buffer);
                 int age = buffer.getInt();

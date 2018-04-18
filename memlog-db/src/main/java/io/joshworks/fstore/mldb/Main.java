@@ -1,6 +1,6 @@
 package io.joshworks.fstore.mldb;
 
-import io.joshworks.fstore.serializer.StandardSerializer;
+import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,10 +25,11 @@ public class Main {
 //        }
 //        System.out.println("READ_KEY_ORDER: " + (System.currentTimeMillis() - start) + "ms");
 
+        int size = 1000000;
 
         long start = System.currentTimeMillis();
-        try (Store<Integer, Integer> store = Store.open(new File("memStore"), StandardSerializer.INTEGER, StandardSerializer.INTEGER)) {
-            for (int i = 0; i < 1000000; i++) {
+        try (Store<Integer, Integer> store = Store.open(new File("memStore"), Serializers.INTEGER, Serializers.INTEGER)) {
+            for (int i = 0; i < size; i++) {
                 store.put(i, 1);
             }
         }
@@ -36,18 +37,22 @@ public class Main {
         System.out.println("WRITE: " + (System.currentTimeMillis() - start));
 
         start = System.currentTimeMillis();
-        try (Store<Integer, Integer> store = Store.open(new File("memStore"), StandardSerializer.INTEGER, StandardSerializer.INTEGER)) {
+
+        int counter = 0;
+        try (Store<Integer, Integer> store = Store.open(new File("memStore"), Serializers.INTEGER, Serializers.INTEGER)) {
             Iterator<Integer> iterator = store.iterator();
 
-            int idx = 0;
             while (iterator.hasNext()) {
                 Integer next = iterator.next();
-
-//                System.out.println("KEY: " + idx++);
+                counter++;
             }
-
         }
-        System.out.println("READ: " + (System.currentTimeMillis() - start));
+
+        if(counter != size) {
+            throw new RuntimeException("WRITTEN ENTRIES: " + size + " - READ: " + counter);
+        }
+
+        System.out.println("READ: " + counter + " entries in " + (System.currentTimeMillis() - start));
 
 
 
