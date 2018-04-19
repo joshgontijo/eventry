@@ -15,6 +15,6 @@ public class Midpoint implements Comparable<IndexEntry>{
 
     @Override
     public int compareTo(IndexEntry o) {
-        return o.compareTo(key);
+        return key.compareTo(o);
     }
 }

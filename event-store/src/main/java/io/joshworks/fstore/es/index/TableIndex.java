@@ -1,14 +1,20 @@
 package io.joshworks.fstore.es.index;
 
-import io.joshworks.fstore.core.io.DiskStorage;
+import io.joshworks.fstore.core.io.MMapStorage;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
 import java.io.File;
+import java.nio.channels.FileChannel;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.SortedSet;
 
-public class TableIndex implements Searchable {
+public class TableIndex implements Searchable, Closeable {
+
+    private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
 
     private MemIndex memIndex = new MemIndex();
     private final List<SegmentIndex> segmentIndexes = new LinkedList<>();
@@ -43,11 +49,22 @@ public class TableIndex implements Searchable {
         return memIndex.size();
     }
 
-    public void flush(File directory, String name)  {
-        String segmentName = name.split("\\.")[0] + ".idx";
+    public void flush(File directory, String segmentName)  {
+        String indexName = segmentName.split("\\.")[0] + ".idx";
 
-        SegmentIndex segmentIndex = SegmentIndex.write(memIndex, new DiskStorage(new File(directory, segmentName)));
+        logger.info("Flushing index to {}", indexName);
+        SegmentIndex segmentIndex = SegmentIndex.write(memIndex, new MMapStorage(new File(directory, indexName), FileChannel.MapMode.READ_WRITE));
         segmentIndexes.add(segmentIndex);
         memIndex = new MemIndex();
+    }
+
+    @Override
+    public void close()  {
+        memIndex.close();
+        for (SegmentIndex segmentIndex : segmentIndexes) {
+            logger.info("Closing {}", segmentIndex);
+            segmentIndex.close();
+        }
+
     }
 }

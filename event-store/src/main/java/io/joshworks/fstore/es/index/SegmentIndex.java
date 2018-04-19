@@ -1,9 +1,12 @@
 package io.joshworks.fstore.es.index;
 
+import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.es.utils.Memory;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,7 +41,7 @@ import java.util.TreeSet;
  * <p>
  * The client code is responsible for ensuring the number will match
  */
-public class SegmentIndex implements Searchable {
+public class SegmentIndex implements Searchable, Closeable {
 
     private static final int HEADER_SIZE = 16;
     private static final Serializer<IndexEntry> indexEntrySerializer = new IndexKeySerializer();
@@ -59,29 +62,26 @@ public class SegmentIndex implements Searchable {
     //TODO stream results ?
     @Override
     public SortedSet<IndexEntry> range(Range range) {
-        if(outOfRange(range)) {
+        if (outOfRange(range)) {
             return new TreeSet<>();
         }
 
-        int idx = Arrays.binarySearch(midpoints, range.start());
-        if(idx < 0) {
-            idx *= (idx * -1) - 1;
-        }
+        Midpoint midpoint = midpoints[getMidpointIdx(range.start())];
 
         SortedSet<IndexEntry> indexEntries = new TreeSet<>();
-        long position = midpoints[idx].position;
-        while(true) {
+        long position = midpoint.position;
+        while (true) {
 
             SortedSet<IndexEntry> loaded = loadPage(position);
-            if(loaded.isEmpty()) {
+            if (loaded.isEmpty()) {
                 return indexEntries;
             }
 
             for (IndexEntry indexEntry : loaded) {
-                if(indexEntry.compareTo(range.start()) < 0) {
+                if (indexEntry.compareTo(range.start()) < 0) {
                     continue; //skip
                 }
-                if(indexEntry.compareTo(range.end()) >= 0) {
+                if (indexEntry.compareTo(range.end()) >= 0) {
                     return indexEntries;
                 }
                 indexEntries.add(indexEntry);
@@ -95,39 +95,50 @@ public class SegmentIndex implements Searchable {
     @Override
     public Optional<IndexEntry> lastOfStream(long stream) {
         Range range = Range.allOf(stream);
-        if(outOfRange(range)) {
+        if (outOfRange(range)) {
             return Optional.empty();
         }
 
-        int idx = Arrays.binarySearch(midpoints, range.start());
-        if(idx < 0) {
-            idx *= (idx * -1) - 1;
-        }
+        Midpoint midpoint = midpoints[getMidpointIdx(range.end()) - 1];
+
 
         IndexEntry latest = null;
-        long position = midpoints[idx].position;
-        while(true) {
+        long position = midpoint.position;
+        do {
 
             SortedSet<IndexEntry> loaded = loadPage(position);
-            if(loaded.isEmpty()) {
+            if (loaded.isEmpty()) {
                 return Optional.empty();
             }
 
             for (IndexEntry indexEntry : loaded) {
-                if(indexEntry.compareTo(range.start()) < 0) {
+                if (indexEntry.compareTo(range.start()) < 0) {
                     continue; //skip
                 }
-                if(indexEntry.compareTo(range.end()) >= 0) {
+                if (indexEntry.compareTo(range.end()) >= 0) {
                     return Optional.ofNullable(latest);
                 }
                 latest = indexEntry;
             }
 
             position += IndexEntry.BYTES * loaded.size();
-        }
+        } while (position <= last().position);
+
+        return Optional.ofNullable(latest);
     }
 
-    private boolean outOfRange(Range range){
+    private int getMidpointIdx(IndexEntry entry) {
+        int idx = Arrays.binarySearch(midpoints, entry);
+        if (idx < 0) {
+            idx = Math.abs(idx) - 2; //TODO: -2 this might be wrong, it can cause IOOB
+        }
+        if (idx >= midpoints.length) {
+            throw new IllegalStateException("Got index " + idx + " midpoints size: " + midpoints.length);
+        }
+        return idx;
+    }
+
+    private boolean outOfRange(Range range) {
         return range.start().compareTo(last()) > 0 || range.end().compareTo(first()) < 0;
     }
 
@@ -156,7 +167,7 @@ public class SegmentIndex implements Searchable {
         bb.flip();
 
         SortedSet<IndexEntry> entries = new TreeSet<>();
-        while(bb.hasRemaining()) {
+        while (bb.hasRemaining()) {
             entries.add(indexEntrySerializer.fromBytes(bb));
         }
 
@@ -252,5 +263,14 @@ public class SegmentIndex implements Searchable {
         }
 
         return new SegmentIndex(storage, midpoints, entriesSize);
+    }
+
+    @Override
+    public void close() {
+        try {
+            storage.close();
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
     }
 }

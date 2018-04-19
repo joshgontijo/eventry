@@ -280,7 +280,7 @@ public class LogAppender<T> implements Log<T> {
 
             invokeRollListeners(afterRollListeners);
 
-            return newSegment;
+            return currentSegment = newSegment;
         } catch (Exception e) {
             throw new RuntimeIOException("Could not close segment file", e);
         }
@@ -370,7 +370,7 @@ public class LogAppender<T> implements Log<T> {
             throw new IllegalStateException("Invalid address " + positionOnSegment);
         }
         if (shouldRoll(currentSegment)) {
-            currentSegment = roll();
+            roll();
         }
         state.position = currentSegment.position();
         state.entryCount++;

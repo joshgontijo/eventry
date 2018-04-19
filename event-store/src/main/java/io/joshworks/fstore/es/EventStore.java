@@ -8,6 +8,8 @@ import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.es.index.TableIndex;
 import io.joshworks.fstore.log.appender.Builder;
 import io.joshworks.fstore.log.appender.LogAppender;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
@@ -18,6 +20,8 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 public class EventStore implements Closeable {
+
+    private static final Logger logger = LoggerFactory.getLogger(EventStore.class);
 
     private final TableIndex index = new TableIndex();
     private final IndexHasher hasher;
@@ -58,12 +62,12 @@ public class EventStore implements Closeable {
         long position = appender.append(event);
         long streamHash = hasher.hash(stream);
 
-//        int version = streamVersion.compute(streamHash, (k, v) -> v == null ? 0 : ++v);
+        int latestVersion = streamVersion.compute(streamHash, (k, v) -> v == null ? 0 : ++v);
 //        int streamSize = index.range(Range.allOf(streamHash)).size();//TODO should position be used here as well, is it possible ?
 
-        int latestVersion = index.lastOfStream(streamHash).map(ie -> ie.version).orElse(-1); //TODO change to stream starting at 1
+//        int latestVersion = index.lastOfStream(streamHash).map(ie -> ie.version).orElse(-1); //TODO change to stream starting at 1
 
-        index.add(streamHash, latestVersion + 1, position);
+        index.add(streamHash, latestVersion, position);
 
         if(index.size() >= 500000) {
             String segmentName = appender.currentSegment();
@@ -79,7 +83,7 @@ public class EventStore implements Closeable {
 
     @Override
     public void close() {
-//        index.clear();
+        index.close();
         appender.close();
     }
 

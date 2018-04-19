@@ -1,11 +1,12 @@
 package io.joshworks.fstore.es.index;
 
+import java.io.Closeable;
 import java.util.Optional;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class MemIndex implements Searchable {
+public class MemIndex implements Searchable, Closeable {
 
     final AtomicInteger size = new AtomicInteger();
     final SortedSet<IndexEntry> index = new ConcurrentSkipListSet<>();
@@ -31,4 +32,9 @@ public class MemIndex implements Searchable {
     }
 
 
+    @Override
+    public void close() {
+        size.set(0);
+        index.clear();
+    }
 }
