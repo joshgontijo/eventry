@@ -6,7 +6,6 @@ import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.IndexHasher;
 import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.es.index.TableIndex;
-import io.joshworks.fstore.log.appender.Builder;
 import io.joshworks.fstore.log.appender.LogAppender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +36,7 @@ public class EventStore implements Closeable {
     }
 
     public static EventStore open(File directory) {
-        return new EventStore(LogAppender.simpleLog(new Builder<>(directory, new EventSerializer()).mmap()));
+        return new EventStore(LogAppender.builder(directory, new EventSerializer()).open());
     }
 
     public List<Event> get(String stream) {

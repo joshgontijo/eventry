@@ -19,6 +19,7 @@ import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 
 public abstract class LogAppenderIT {
 
@@ -52,7 +53,7 @@ public abstract class LogAppenderIT {
         testDirectory = Files.createDirectory(Paths.get(directoryPath)).toFile();
         testDirectory.deleteOnExit();
 
-        Builder<String> builder = new Builder<>(testDirectory, new StringSerializer());
+        Builder<String> builder = LogAppender.builder(testDirectory, new StringSerializer());
 
         appender = appender(builder);
     }
@@ -118,11 +119,11 @@ public abstract class LogAppenderIT {
     public void reopen() {
 
         appender.close();
-        int iterations = 1000;
+        int iterations = 200;
 
         Long lastPosition = null;
         for (int i = 0; i < iterations; i++) {
-            try (LogAppender<String> appender = appender(new Builder<>(testDirectory, Serializers.STRING))) {
+            try (LogAppender<String> appender = appender(LogAppender.builder(testDirectory, Serializers.STRING))) {
                 if (lastPosition != null) {
                     assertEquals(lastPosition, Long.valueOf(appender.position()));
                 }
@@ -132,10 +133,22 @@ public abstract class LogAppenderIT {
             }
         }
 
-        try (LogAppender<String> appender = appender(new Builder<>(testDirectory, Serializers.STRING))) {
+        try (LogAppender<String> appender = appender(LogAppender.builder(testDirectory, Serializers.STRING))) {
             assertEquals(iterations, appender.stream().count());
             assertEquals(iterations, appender.entries());
         }
+    }
+
+    @Test
+    public void deleting_the_current_segment_must_create_a_new_one() {
+
+        String name = appender.currentSegment();
+        appender.delete(name);
+
+        assertEquals(1, appender.segments().size());
+        assertNotEquals(name, appender.currentSegment());
+
+
     }
 
     private static String stringOfByteLength(int length) {

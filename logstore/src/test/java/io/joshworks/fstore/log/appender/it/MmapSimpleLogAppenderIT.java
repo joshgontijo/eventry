@@ -7,6 +7,6 @@ public class MmapSimpleLogAppenderIT extends LogAppenderIT {
 
     @Override
     protected LogAppender<String> appender(Builder<String> builder) {
-        return LogAppender.simpleLog(builder.mmap());
+        return builder.mmap().open();
     }
 }

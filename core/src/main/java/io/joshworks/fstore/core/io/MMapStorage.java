@@ -35,6 +35,7 @@ public class MMapStorage extends Storage {
 
         int written = data.remaining();
         mbb.put(data);
+        size += written;
         return written;
     }
 
@@ -58,6 +59,7 @@ public class MMapStorage extends Storage {
     public void position(long position) {
         checkBoundaries(position);
         mbb.position((int) position);
+        super.size = position;
     }
 
     private void checkBoundaries(long position) {

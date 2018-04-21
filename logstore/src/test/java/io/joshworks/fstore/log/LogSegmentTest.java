@@ -2,6 +2,7 @@ package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.log.reader.FixedBufferDataReader;
 import io.joshworks.fstore.serializer.StringSerializer;
 import org.junit.After;
 import org.junit.Before;
@@ -23,16 +24,18 @@ public abstract class LogSegmentTest {
     private Log<String> appender;
     private Path testFile;
 
-    abstract Storage getStorage(File file);
+    private long FILE_SIZE = 10485760; //10mb
+
+    abstract Storage getStorage(File file, long size);
 
     private Log<String> create() {
-        Storage storage = getStorage(testFile.toFile());
-        return LogSegment.create(storage, new StringSerializer());
+        Storage storage = getStorage(testFile.toFile(), FILE_SIZE);
+        return LogSegment.create(storage, new StringSerializer(), new FixedBufferDataReader());
     }
 
     private Log<String> open(long pos) {
-        Storage storage = getStorage(testFile.toFile());
-        return LogSegment.open(storage, new StringSerializer(), pos);
+        Storage storage = getStorage(testFile.toFile(), FILE_SIZE);
+        return LogSegment.open(storage, new StringSerializer(), new FixedBufferDataReader(), pos);
     }
 
     @Before
@@ -127,7 +130,7 @@ public abstract class LogSegmentTest {
         Scanner<String> scanner1 = appender.scanner();
         assertTrue(scanner1.hasNext());
         assertEquals(data, scanner1.next());
-        assertEquals(Log.HEADER_SIZE + data.length(), scanner1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Log.ENTRY_HEADER_SIZE + data.length(), scanner1.position()); // 4 + 4 (heading) + data length
 
     }
 
@@ -144,26 +147,6 @@ public abstract class LogSegmentTest {
         for (int i = 0; i < items; i++) {
             String found = appender.get(positions.get(i));
             assertEquals(String.valueOf(i), found);
-        }
-    }
-
-    @Test
-    public void getWithLength() throws IOException {
-        List<Long> positions = new ArrayList<>();
-        List<String> values = new ArrayList<>();
-
-        int items = 10;
-        for (int i = 0; i < items; i++) {
-            String value = UUID.randomUUID().toString();
-            values.add(value);
-            positions.add(appender.append(value));
-        }
-        appender.flush();
-
-        int length = 36;
-        for (int i = 0; i < items; i++) {
-            String found = appender.get(positions.get(i), length);
-            assertEquals(values.get(i), found);
         }
     }
 
@@ -209,13 +192,13 @@ public abstract class LogSegmentTest {
         appender.append("a");
         appender.append("b");
 
-        assertEquals((Log.HEADER_SIZE + 1) * 2, appender.size());
+        assertEquals((Log.ENTRY_HEADER_SIZE + 1) * 2, appender.size());
 
         long lastPos = appender.position();
         appender.close();
 
         appender = open(lastPos);
-        assertEquals((Log.HEADER_SIZE + 1) * 2, appender.size());
+        assertEquals((Log.ENTRY_HEADER_SIZE + 1) * 2, appender.size());
     }
 
 }

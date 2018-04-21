@@ -6,7 +6,6 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.reader.FixedBufferDataReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,15 +24,15 @@ public class LogSegment<T> implements Log<T> {
     private final Storage storage;
     private final DataReader reader;
 
-    public static <T> LogSegment<T> create(Storage storage, Serializer<T> serializer) {
-        return new LogSegment<>(storage, serializer);
+    public static <T> LogSegment<T> create(Storage storage, Serializer<T> serializer, DataReader reader) {
+        return new LogSegment<>(storage, serializer, reader);
     }
 
-    public static <T> LogSegment<T> open(Storage storage, Serializer<T> serializer, long position) {
+    public static <T> LogSegment<T> open(Storage storage, Serializer<T> serializer, DataReader reader, long position) {
         LogSegment<T> appender = null;
         try {
 
-            appender = new LogSegment<>(storage, serializer);
+            appender = new LogSegment<>(storage, serializer, reader);
             appender.position(position);
             return appender;
         } catch (CorruptedLogException e) {
@@ -42,12 +41,10 @@ public class LogSegment<T> implements Log<T> {
         }
     }
 
-    private LogSegment(Storage storage, Serializer<T> serializer) {
+    private LogSegment(Storage storage, Serializer<T> serializer, DataReader reader) {
         this.serializer = serializer;
         this.storage = storage;
-        this.reader = new FixedBufferDataReader(storage, false, 1); //TODO externalize, TODO for validation, should be always 1
-//        this.reader = new HeaderLengthDataReader(storage, 1); //TODO externalize, TODO for validation, should be always 1
-//        this.reader = new GrowingBufferDataReader(storage, 1024, true, 1); //TODO externalize, TODO for validation, should be always 1
+        this.reader = reader;
     }
 
     private void position(long position) {
@@ -56,21 +53,12 @@ public class LogSegment<T> implements Log<T> {
 
     @Override
     public long position() {
-        return this.storage.position();
+        return storage.position();
     }
 
     @Override
     public T get(long position) {
-        ByteBuffer data = reader.read(position);
-        if (data.remaining() == 0) { //EOF
-            return null;
-        }
-        return serializer.fromBytes(data);
-    }
-
-    @Override
-    public T get(long position, int length) {
-        ByteBuffer data = reader.read(position, length);
+        ByteBuffer data = reader.read(storage, position);
         if (data.remaining() == 0) { //EOF
             return null;
         }
@@ -87,7 +75,7 @@ public class LogSegment<T> implements Log<T> {
         ByteBuffer bytes = serializer.toBytes(data);
 
         long recordPosition = position();
-        Log.write(storage, bytes);
+        write(storage, bytes);
 
         return recordPosition;
     }
@@ -99,7 +87,7 @@ public class LogSegment<T> implements Log<T> {
 
     @Override
     public Scanner<T> scanner() {
-        return new LogReader<>(reader, serializer);
+        return new LogReader<>(storage, reader, serializer);
     }
 
     @Override
@@ -109,7 +97,7 @@ public class LogSegment<T> implements Log<T> {
 
     @Override
     public Scanner<T> scanner(long position) {
-        return new LogReader<>(reader, serializer, position);
+        return new LogReader<>(storage, reader, serializer, position);
     }
 
     @Override
@@ -119,7 +107,7 @@ public class LogSegment<T> implements Log<T> {
     }
 
     @Override
-    public void flush(){
+    public void flush() {
         try {
             storage.flush();
         } catch (IOException e) {
@@ -127,22 +115,55 @@ public class LogSegment<T> implements Log<T> {
         }
     }
 
+    @Override
+    public long checkIntegrity(long lastKnownPosition) {
+        long position = lastKnownPosition;
+        try {
+            logger.info("Restoring log state and checking consistency from position {}", lastKnownPosition);
+            Scanner<T> scanner = scanner(lastKnownPosition);
+            while (scanner.hasNext()) {
+                T next = scanner.next();
+                if (next == null) {
+                    logger.warn("Found inconsistent entry on position {}, segment '{}'", position, name());
+                    break;
+                }
+                position = scanner.position();
+            }
+        } catch (Exception e) {
+            logger.warn("Found inconsistent entry on position {}, segment '{}'", position, name());
+            return position;
+        }
+        logger.info("Log state restored, current position {}", position);
+        return position;
+    }
+
+    @Override
+    public void delete() {
+        storage.delete();
+    }
+
+    @Override
+    public void complete() {
+
+    }
+
+
     //NOT THREAD SAFE
     private static class LogReader<T> extends Scanner<T> {
 
-        private LogReader(DataReader reader, Serializer<T> serializer) {
-            this(reader, serializer, 0);
+        private LogReader(Storage storage, DataReader reader, Serializer<T> serializer) {
+            this(storage, reader, serializer, 0);
         }
 
-        private LogReader(DataReader reader, Serializer<T> serializer, long initialPosition) {
-            super(reader, serializer, initialPosition);
+        private LogReader(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition) {
+            super(storage, reader, serializer, initialPosition);
         }
 
         @Override
         protected T readAndVerify() {
             long currentPos = position;
 
-            ByteBuffer data = reader.read(currentPos);
+            ByteBuffer data = reader.read(storage, currentPos);
             if (data.remaining() == 0) { //EOF
                 return null;
             }
@@ -157,48 +178,13 @@ public class LogSegment<T> implements Log<T> {
 
     }
 
+    static long write(Storage storage, ByteBuffer bytes) {
+        ByteBuffer bb = ByteBuffer.allocate(ENTRY_HEADER_SIZE + bytes.remaining());
+        bb.putInt(bytes.remaining());
+        bb.putInt(Checksum.crc32(bytes));
+        bb.put(bytes);
 
-//    public static void main(String[] args) {
-//        int[] a = new int[]{1,2,4,6,7,10,15};
-//        int[] b = new int[]{2,5,6,8,11,17,25};
-//
-//        System.out.println(Arrays.toString(merge(a, b)));
-//
-//    }
-//
-//    public static int[] merge(int[] a, int[] b) {
-//
-//        int[] answer = new int[a.length + b.length];
-//        int i = 0, j = 0, k = 0;
-//
-//        while (i < a.length && j < b.length)
-//            answer[k++] = a[i] < b[j] ? a[i++] : b[j++];
-//
-//        if(i < a.length)
-//            System.arraycopy(a, i, answer, k, a.length - i);
-//
-//        if(j < b.length)
-//            System.arraycopy(b, j, answer, k, b.length - j);
-//
-////        while (i < a.length)
-////            answer[k++] = a[i++];
-////
-////        while (j < b.length)
-////            answer[k++] = b[j++];
-//
-//        return answer;
-//    }
-
-    //    protected byte[] writeData(Serializer<T> serializer, T data) throws IOException {
-//
-//
-//        //compressed
-//        ByteArrayOutputStream baos = new ByteArrayOutputStream(bytes.length);
-//        DeflaterOutputStream dos = new DeflaterOutputStream(baos, new Deflater(Deflater.BEST_SPEED));
-//        dos.writeTo(bytes);
-//        dos.close();
-//
-//        return baos.toByteArray();
-//    }
-
+        bb.flip();
+        return storage.write(bb);
+    }
 }

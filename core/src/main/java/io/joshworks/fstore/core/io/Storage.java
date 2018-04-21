@@ -10,6 +10,7 @@ import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.FileLock;
+import java.nio.file.Files;
 
 public abstract class Storage implements Flushable, Closeable {
 
@@ -84,6 +85,16 @@ public abstract class Storage implements Flushable, Closeable {
     public long position() {
         try {
             return channel.position();
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
+    }
+
+    public void delete() {
+        try {
+            IOUtils.closeQuietly(channel);
+            IOUtils.closeQuietly(raf);
+            Files.delete(file.toPath());
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }

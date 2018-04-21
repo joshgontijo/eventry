@@ -6,34 +6,28 @@ import io.joshworks.fstore.log.Log;
 import java.nio.ByteBuffer;
 
 //NOT THREAD SAFE - can be used for each reader though
-public class FixedBufferDataReader extends ChecksumDataReader {
+public class DirectBufferReader extends ChecksumDataReader {
 
     private static final int DEFAULT_SIZE = 4096;
 
-    private final boolean direct;
-    private final int bufferSize;
+    private final ByteBuffer buffer;
 
-    public FixedBufferDataReader() {
-        this(false);
+    public DirectBufferReader() {
+        this(DEFAULT_CHECKUM_PROB, DEFAULT_SIZE);
     }
 
-    public FixedBufferDataReader(boolean direct) {
-        this(direct, DEFAULT_CHECKUM_PROB, DEFAULT_SIZE);
+    public DirectBufferReader(double checksumProb) {
+        this(checksumProb, DEFAULT_SIZE);
     }
 
-    public FixedBufferDataReader(boolean direct, double checksumProb) {
-        this(direct, checksumProb, DEFAULT_SIZE);
-    }
-
-    public FixedBufferDataReader(boolean direct, double checksumProb, int bufferSize) {
+    public DirectBufferReader(double checksumProb, int bufferSize) {
         super(checksumProb);
-        this.direct = direct;
-        this.bufferSize = bufferSize;
+        this.buffer = ByteBuffer.allocateDirect(bufferSize);
     }
 
     @Override
     public ByteBuffer read(Storage storage, long position) {
-        ByteBuffer buffer = direct ? ByteBuffer.allocateDirect(bufferSize) : ByteBuffer.allocate(bufferSize);
+        buffer.clear();
         storage.read(position, buffer);
         buffer.flip();
 

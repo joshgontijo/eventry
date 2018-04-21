@@ -11,38 +11,48 @@ public class State {
 
     long position;
     long entryCount;
-    final List<String> segments = new LinkedList<>();
+    long lastRollTime;
+    String currentSegment;
+    List<String> rolledSegments;
 
-    public State(long position, long entryCount, String[] segments) {
+    private State(long position, long entryCount, long lastRollTime, String currentSegment, String[] rolledSegments) {
         this.position = position;
         this.entryCount = entryCount;
-        this.segments.addAll(Arrays.asList(segments));
+        this.lastRollTime = lastRollTime;
+        this.currentSegment = currentSegment == null || currentSegment.isEmpty() ? null : currentSegment;
+        this.rolledSegments = new LinkedList<>(Arrays.asList(rolledSegments));
     }
 
     public static State readFrom(DataInput in) throws IOException {
         long lastPosition = in.readLong();
         long entryCount = in.readLong();
+        long lastRollTime = in.readLong();
+        String currentSegment = in.readUTF();
         String segments = in.readUTF();
 
-        return new State(lastPosition, entryCount, segments.split(","));
+        return new State(lastPosition, entryCount, lastRollTime, currentSegment, segments.isEmpty() ? new String[0] : segments.split(","));
     }
 
     public static State empty() {
-        return new State(0L,0L, new String[]{});
+        return new State(0L, 0L, System.currentTimeMillis(), null, new String[]{});
     }
 
     public void writeTo(DataOutput out) throws IOException {
         out.writeLong(position);
         out.writeLong(entryCount);
-        out.writeUTF(String.join(",", segments));
+        out.writeLong(lastRollTime);
+        out.writeUTF(currentSegment == null ? "" : currentSegment);
+        out.writeUTF(String.join(",", rolledSegments));
     }
-
 
     @Override
     public String toString() {
-        return "State{" + "position=" + position +
+        String sb = "State{" + "position=" + position +
                 ", entryCount=" + entryCount +
-                ", segments=" + segments +
+                ", lastRollTime=" + lastRollTime +
+                ", currentSegment='" + currentSegment + '\'' +
+                ", rolledSegments=" + rolledSegments +
                 '}';
+        return sb;
     }
 }

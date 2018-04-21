@@ -8,7 +8,7 @@ import java.io.File;
 public class WithDiskStorage extends LogSegmentTest {
 
     @Override
-    Storage getStorage(File file) {
-        return new DiskStorage(file);
+    Storage getStorage(File file, long size) {
+        return new DiskStorage(file, size);
     }
 }

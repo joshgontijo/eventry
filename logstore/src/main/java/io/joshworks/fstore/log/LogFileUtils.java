@@ -2,7 +2,6 @@ package io.joshworks.fstore.log;
 
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.log.appender.BlockAppenderMetadata;
 import io.joshworks.fstore.log.appender.Metadata;
 import io.joshworks.fstore.log.appender.State;
 import org.slf4j.Logger;
@@ -15,7 +14,6 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -25,8 +23,7 @@ public final class LogFileUtils {
 
     private static final String METADATA_FILE = "metadata.dat";
     private static final String STATE_FILE = "state.dat";
-    private static final String SEGMENT_EXTENSION = ".dat";
-    private static final String SEGMENT_PREFIX = "segment_";
+    private static final String SEGMENT_EXTENSION = ".lsm";
 
     private LogFileUtils() {
 
@@ -46,27 +43,49 @@ public final class LogFileUtils {
         }
     }
 
-    public static File newSegmentFile(File directory, long maxSegments, int segmentCount) {
-        String fileName = segmentName(maxSegments, segmentCount);
-        File newFile = new File(directory, fileName);
+    public static File newSegmentFile(File directory, String name, List<String> currentSegments) {
+        if (name == null || name.isEmpty()) {
+            throw new IllegalArgumentException("Invalid segment name");
+        }
+        if (currentSegments.contains(name)) {
+            throw new IllegalArgumentException("Duplicated segment name '" + name + "'");
+        }
+
+        File newFile = new File(directory, name + SEGMENT_EXTENSION);
         if (newFile.exists()) {
-            throw new IllegalStateException("Segment file '" + fileName + "' already exist");
+            throw new IllegalStateException("Segment file '" + name + "' already exist");
         }
         return newFile;
     }
 
-    private static String segmentName(long maxSegmentSize, int segmentIdx) {
-        long totalLength = (long) (Math.log10(maxSegmentSize) + 1);
-        String format = SEGMENT_PREFIX + "%0" + (totalLength) + "d" + SEGMENT_EXTENSION;
-        return String.format(format, segmentIdx);
-    }
+//    private static String segmentName(long maxSegmentSize, List<String> segmentNames) {
+//        long totalLength = (long) (Math.log10(maxSegmentSize) + 1);
+//        String format = "%0" + (totalLength) + "d" + SEGMENT_EXTENSION;
+//        return String.format(format, segmentIdx);
+//    }
 
     public static List<File> loadSegments(File directory) {
         try {
             return Files.list(directory.toPath())
                     .filter(p -> isSegmentFile(p.getFileName().toFile().getName()))
-                    .map(Path::toFile)
+                    .map(p -> loadSegment(directory, p.toFile().getName()))
                     .collect(Collectors.toList());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load segments", e);
+        }
+    }
+
+    public static File loadSegment(File directory, String name) {
+        try {
+            String fileName = name.endsWith(SEGMENT_EXTENSION) ? name : name + SEGMENT_EXTENSION;
+            File file = new File(directory, fileName);
+            if(!Files.exists(file.toPath())) {
+                throw new RuntimeIOException("Segment file " + fileName + " doesn't exist");
+            }
+            if(!isSegmentFile(fileName)) {
+                throw new RuntimeIOException("File " + fileName + " is not a valid segment file name");
+            }
+            return file;
         } catch (Exception e) {
             throw new RuntimeException("Failed to load segments", e);
         }
@@ -108,27 +127,10 @@ public final class LogFileUtils {
         }
     }
 
-    public static void writeMetadata(File directory, BlockAppenderMetadata metadata) {
-        try (DataOutputStream out = new DataOutputStream(new FileOutputStream(new File(directory, METADATA_FILE)))) {
-            metadata.writeTo(out);
-            out.flush();
-        } catch (IOException e) {
-            throw RuntimeIOException.of(e);
-        }
-    }
-
     public static Metadata readBaseMetadata(File directory) {
         checkOpenPreConditions(directory);
         try (DataInputStream input = new DataInputStream(new FileInputStream(new File(directory, METADATA_FILE)))) {
             return Metadata.readFrom(input);
-        } catch (IOException e) {
-            throw RuntimeIOException.of(e);
-        }
-    }
-
-    public static BlockAppenderMetadata readBlockMetadata(File directory) {
-        try (DataInputStream input = new DataInputStream(new FileInputStream(new File(directory, METADATA_FILE)))) {
-            return BlockAppenderMetadata.of(input);
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
@@ -189,6 +191,6 @@ public final class LogFileUtils {
     }
 
     private static boolean isSegmentFile(String name) {
-        return name.startsWith(SEGMENT_PREFIX) && name.endsWith(SEGMENT_EXTENSION);
+        return name.endsWith(SEGMENT_EXTENSION);
     }
 }

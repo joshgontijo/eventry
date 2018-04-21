@@ -7,7 +7,6 @@ import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.index.SortedIndex;
 import io.joshworks.fstore.log.Log;
 import io.joshworks.fstore.log.Scanner;
-import io.joshworks.fstore.log.appender.Builder;
 import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.io.Closeable;
@@ -24,12 +23,10 @@ public class Store<K extends Comparable<K>, V> implements Closeable {
         this.index = index;
         this.log = log;
 
-        this.log.beforeRoll(this::flushIndex);
-
     }
 
     public static <K extends Comparable<K>, V> Store<K, V> open(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
-        Store<K, V> kvStore = new Store<>(new HeapTreeIndex<>(), LogAppender.simpleLog(new Builder<>(directory, LogEntry.serializer(keySerializer, valueSerializer)).mmap()));
+        Store<K, V> kvStore = new Store<>(new HeapTreeIndex<>(), LogAppender.builder(directory, LogEntry.serializer(keySerializer, valueSerializer)).open());
         kvStore.reindex();
         return kvStore;
     }

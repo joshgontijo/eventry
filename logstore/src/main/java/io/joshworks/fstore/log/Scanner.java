@@ -2,12 +2,14 @@ package io.joshworks.fstore.log;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.core.io.Storage;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 public abstract class Scanner<T> implements Iterable<T>, Iterator<T> {
 
+    protected final Storage storage;
     protected final DataReader reader;
     protected final Serializer<T> serializer;
 
@@ -15,7 +17,8 @@ public abstract class Scanner<T> implements Iterable<T>, Iterator<T> {
     protected boolean completed = false;
     protected long position;
 
-    public Scanner(DataReader reader, Serializer<T> serializer, long position) {
+    public Scanner(Storage storage, DataReader reader, Serializer<T> serializer, long position) {
+        this.storage = storage;
         this.reader = reader;
         this.serializer = serializer;
         this.position = position;

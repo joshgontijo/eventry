@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Log;
 import io.joshworks.fstore.log.Scanner;
 import io.joshworks.fstore.log.Utils;
+import io.joshworks.fstore.log.appender.merge.ConcatenateCombiner;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.serializer.StringSerializer;
 import org.junit.After;
@@ -16,24 +17,20 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public abstract class LogAppenderTest {
-
-    private LogAppender<String> appender;
+public class LogAppenderTest {
 
     private static final int SEGMENT_SIZE = 1024 * 64;//64kb
 
-    protected abstract LogAppender<String> appender(Builder<String> builder);
-
-    File testDirectory;
+    private LogAppender<String> appender;
+    private File testDirectory;
 
     @Before
     public void setUp() throws IOException {
@@ -48,7 +45,7 @@ public abstract class LogAppenderTest {
         Builder<String> builder = new Builder<>(testDirectory, new StringSerializer())
                 .segmentSize(SEGMENT_SIZE);
 
-        appender = appender(builder);
+        appender = builder.open();
     }
 
     @After
@@ -65,39 +62,7 @@ public abstract class LogAppenderTest {
         }
         appender.append(sb.toString());
         appender.append("new-segment");
-        assertEquals(2, appender.segments.size());
-    }
-
-    @Test
-    public void roll_timeBased() throws IOException {
-        File testDirectory = Files.createTempDirectory(".fstoreTest2").toFile();
-        try {
-            testDirectory.deleteOnExit();
-            if (testDirectory.exists()) {
-                Utils.tryDelete(testDirectory);
-            }
-
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, Serializers.STRING).rollInterval(Duration.ofSeconds(2)))) {
-                testAppender.append("1");
-
-                Utils.sleep(2100);
-
-                testAppender.append("2");
-                testAppender.append("3");
-            }
-
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, Serializers.STRING))) {
-
-                assertEquals(2, testAppender.segments.size());
-
-                Set<String> values = testAppender.stream().collect(Collectors.toSet());
-                assertTrue(values.contains("1"));
-                assertTrue(values.contains("2"));
-                assertTrue(values.contains("3"));
-            }
-        } finally {
-            Utils.tryDelete(testDirectory);
-        }
+        assertEquals(1, appender.rolledSegments.size());
     }
 
     @Test
@@ -113,7 +78,7 @@ public abstract class LogAppenderTest {
         appender.append(lastEntry);
         appender.flush();
 
-        assertEquals(2, appender.segments.size());
+        assertEquals(1, appender.rolledSegments.size());
 
         Scanner<String> scanner = appender.scanner();
 
@@ -128,7 +93,7 @@ public abstract class LogAppenderTest {
     @Test
     public void positionOnSegment() {
 
-        int segmentIdx = 1;
+        int segmentIdx = 0;
         long positionOnSegment = 32;
         long position = appender.toSegmentedPosition(segmentIdx, positionOnSegment);
 
@@ -203,15 +168,15 @@ public abstract class LogAppenderTest {
                 Utils.tryDelete(testDirectory);
             }
 
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, Serializers.STRING))) {
+            try (LogAppender<String> testAppender = LogAppender.builder(testDirectory, Serializers.STRING).open()) {
                 testAppender.append("1");
                 testAppender.append("2");
                 testAppender.append("3");
             }
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, Serializers.STRING))) {
+            try (LogAppender<String> testAppender = LogAppender.builder(testDirectory, Serializers.STRING).open()) {
                 testAppender.append("4");
             }
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, Serializers.STRING))) {
+            try (LogAppender<String> testAppender = LogAppender.builder(testDirectory, Serializers.STRING).open()) {
                 Set<String> values = testAppender.stream().collect(Collectors.toSet());
                 assertTrue(values.contains("1"));
                 assertTrue(values.contains("2"));
@@ -232,7 +197,7 @@ public abstract class LogAppenderTest {
 
         appender.close();
 
-        appender = appender(new Builder<>(testDirectory, Serializers.STRING));
+        appender = LogAppender.builder(testDirectory, Serializers.STRING).open();
         assertEquals(2, appender.entries());
         assertEquals(2, appender.stream().count());
     }
@@ -246,7 +211,7 @@ public abstract class LogAppenderTest {
 
         appender.close();
 
-        appender = appender(new Builder<>(testDirectory, Serializers.STRING));
+        appender = LogAppender.builder(testDirectory, Serializers.STRING).open();
         assertEquals(2, appender.entries());
         assertEquals(2, appender.stream().count());
     }
@@ -261,31 +226,30 @@ public abstract class LogAppenderTest {
             }
 
             String segmentName;
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, Serializers.STRING))) {
+            try (LogAppender<String> testAppender = LogAppender.builder(testDirectory, Serializers.STRING).open()) {
                 testAppender.append("1");
                 testAppender.append("2");
                 testAppender.append("3");
 
                 //get last segment (in this case there will be always one)
                 segmentName = testAppender.segments().get(testAppender.segments().size() - 1);
-                testAppender.currentSegment.position();
             }
 
             //write broken data
 
             try (Storage storage = new DiskStorage(new File(testDirectory, segmentName))) {
-                ByteBuffer broken = ByteBuffer.allocate(Log.HEADER_SIZE + 4);
+                ByteBuffer broken = ByteBuffer.allocate(Log.ENTRY_HEADER_SIZE + 4);
                 broken.putInt(444); //expected length
                 broken.putInt(123); // broken checksum
                 broken.putChar('A'); // broken data
                 storage.write(broken);
             }
 
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, Serializers.STRING))) {
+            try (LogAppender<String> testAppender = LogAppender.builder(testDirectory, Serializers.STRING).open()) {
                 testAppender.append("4");
             }
 
-            try (LogAppender<String> testAppender = appender(new Builder<>(testDirectory, Serializers.STRING))) {
+            try (LogAppender<String> testAppender = LogAppender.builder(testDirectory, Serializers.STRING).open()) {
                 Set<String> values = testAppender.stream().collect(Collectors.toSet());
                 assertTrue(values.contains("1"));
                 assertTrue(values.contains("2"));
@@ -302,7 +266,7 @@ public abstract class LogAppenderTest {
     @Test
     public void segmentBitShift() {
         for (int i = 0; i < appender.maxSegments; i++) {
-            appender.segments.add(null);
+            appender.rolledSegments.add(null);
             long position = appender.toSegmentedPosition(i, 0);
             long foundSegment = appender.getSegment(position);
             assertEquals("Failed on segIdx " + i + " - position: " + position + " - foundSegment: " + foundSegment, i, foundSegment);
@@ -311,7 +275,7 @@ public abstract class LogAppenderTest {
 
     @Test(expected = IllegalArgumentException.class)
     public void toSegmentedPosition_invalid() {
-        appender.segments.add(null);
+        appender.rolledSegments.add(null);
         long invalidAddress = appender.maxSegments + 1;
         appender.toSegmentedPosition(invalidAddress, 0);
 
@@ -333,36 +297,53 @@ public abstract class LogAppenderTest {
         assertEquals("Failed on position: " + position, value, position);
     }
 
+    @Test(expected = IllegalStateException.class)
+    public void delete_currentSegment() {
+        appender.delete(appender.currentSegment());
+    }
+
     @Test
-    public void clear() throws IOException {
-        File dir = Files.createTempDirectory(".fstoreTest2").toFile();
+    public void delete() {
+        appender.append("A");
+        String firstSegment = appender.currentSegment();
 
-        try (LogAppender<String> appender = appender(new Builder<>(dir, new StringSerializer()))) {
+        appender.roll();
 
-            for (int i = 0; i < 1000; i++) {
-                appender.append("A");
-            }
+        assertEquals(2, appender.segments().size());
 
-            appender.flush();
+        appender.delete(firstSegment);
+        assertEquals(1, appender.segments().size());
+    }
 
-            appender.clear();
+    @Test
+    public void merge() {
 
-            assertEquals(0, appender.position());
-            assertEquals(1, appender.segments.size());
+        String newSegmentName = "new-segment";
 
-            long pos = appender.append("NEW-ENTRY");
+        appender.append("SEGMENT-A");
+        appender.roll();
 
-            appender.flush();
+        appender.append("SEGMENT-B");
+        appender.roll();
 
-            assertEquals(0, pos);
-            assertEquals(1, appender.entries());
+        appender.append("SEGMENT-C");
+        appender.roll();
 
-            Stream<String> stream = appender.stream();
-            assertEquals(1, stream.count());
+        assertEquals(3, appender.rolledSegments.size());
+        assertEquals(3, appender.entries());
+
+        appender.merge(newSegmentName, new ConcatenateCombiner<>(), 0, 1);
+
+        assertEquals(2, appender.rolledSegments.size());
+        assertEquals(3, appender.entries());
+
+        assertEquals(newSegmentName, appender.segments().get(0));
+
+        List<String> found = appender.stream().collect(Collectors.toList());
+        assertEquals("SEGMENT-A", found.get(0));
+        assertEquals("SEGMENT-B", found.get(1));
+        assertEquals("SEGMENT-C", found.get(2));
 
 
-        } finally {
-            Utils.tryDelete(dir);
-        }
     }
 }

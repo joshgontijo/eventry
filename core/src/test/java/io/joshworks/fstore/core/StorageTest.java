@@ -7,6 +7,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -17,6 +18,7 @@ import java.util.Set;
 import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public abstract class StorageTest {
@@ -25,7 +27,9 @@ public abstract class StorageTest {
     private Storage storage;
     private Path testFile;
 
-    protected abstract Storage store(File raf) throws Exception;
+    protected abstract Storage store(File file);
+
+    protected abstract Storage store(File file, long size);
 
     @Before
     public void setUp() throws Exception {
@@ -109,6 +113,36 @@ public abstract class StorageTest {
 
         assertEquals(write, read);
         assertTrue(Arrays.equals(bb.array(), result.array()));
+    }
+
+    @Test
+    public void delete() throws Exception {
+        Path tobeDeleted = Files.createTempFile("tobeDeleted", null);
+        Storage store = store(tobeDeleted.toFile());
+        store.delete();
+
+        assertFalse(Files.exists(tobeDeleted));
+    }
+
+    @Test
+    public void when_data_is_written_the_size_must_increase() {
+        int size = Integer.BYTES;
+        ByteBuffer bb = ByteBuffer.allocate(size);
+        bb.putInt(1).flip();
+
+        storage.write(bb);
+
+        assertEquals(size, storage.size());
+    }
+
+    @Test
+    public void when_position_is_set_the_size_must_be_the_same() throws IOException {
+        long thePosition = 4;
+        Path temp = Files.createTempFile("tobeDeleted", null);
+        Storage store = store(temp.toFile(), thePosition);
+        store.position(thePosition);
+
+        assertEquals(thePosition, store.size());
     }
 
     //terrible work around for waiting the mapped buffer to release file lock

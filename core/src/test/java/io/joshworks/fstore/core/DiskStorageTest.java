@@ -11,4 +11,9 @@ public class DiskStorageTest extends StorageTest {
     protected Storage store(File file) {
         return new DiskStorage(file);
     }
+
+    @Override
+    protected Storage store(File file, long size) {
+        return new DiskStorage(file, size);
+    }
 }
