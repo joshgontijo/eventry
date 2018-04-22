@@ -17,19 +17,24 @@ import static org.junit.Assert.assertTrue;
 public class SegmentTableIndexTest {
 
     private Path tempFile;
+    private TableIndex index;
 
     @Before
     public void setUp() throws Exception {
         tempFile = Files.createTempFile("test", ".idx");
+        index = new TableIndex();
     }
 
     @After
     public void tearDown() throws Exception {
+        index.close();
         Files.delete(tempFile);
     }
 
     @Test
     public void range() {
+
+
     }
 
     @Test

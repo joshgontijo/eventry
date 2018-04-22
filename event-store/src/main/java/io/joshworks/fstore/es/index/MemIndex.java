@@ -3,13 +3,13 @@ package io.joshworks.fstore.es.index;
 import java.io.Closeable;
 import java.util.Optional;
 import java.util.SortedSet;
-import java.util.concurrent.ConcurrentSkipListSet;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class MemIndex implements Searchable, Closeable {
 
     final AtomicInteger size = new AtomicInteger();
-    final SortedSet<IndexEntry> index = new ConcurrentSkipListSet<>();
+    final SortedSet<IndexEntry> index = new TreeSet<>();
 
     void add(long stream, int version, long position) {
         index.add(IndexEntry.of(stream, version, position));
@@ -22,7 +22,7 @@ public class MemIndex implements Searchable, Closeable {
     }
 
     @Override
-    public Optional<IndexEntry> lastOfStream(long stream) {
+    public Optional<IndexEntry> latestOfStream(long stream) {
         SortedSet<IndexEntry> all = range(Range.allOf(stream));
         return all.isEmpty() ? Optional.empty() : Optional.of(all.last());
     }

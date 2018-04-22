@@ -7,6 +7,6 @@ public interface Searchable {
 
     SortedSet<IndexEntry> range(Range range);
 
-    Optional<IndexEntry> lastOfStream(long stream);
+    Optional<IndexEntry> latestOfStream(long stream);
 
 }

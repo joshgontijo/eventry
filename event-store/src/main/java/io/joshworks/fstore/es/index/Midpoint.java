@@ -1,6 +1,8 @@
 package io.joshworks.fstore.es.index;
 
 
+import java.util.Objects;
+
 public class Midpoint implements Comparable<IndexEntry>{
 
     public static final int BYTES = IndexEntry.BYTES + Long.BYTES;
@@ -16,5 +18,21 @@ public class Midpoint implements Comparable<IndexEntry>{
     @Override
     public int compareTo(IndexEntry o) {
         return key.compareTo(o);
+    }
+
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Midpoint midpoint = (Midpoint) o;
+        return position == midpoint.position &&
+                Objects.equals(key, midpoint.key);
+    }
+
+    @Override
+    public int hashCode() {
+
+        return Objects.hash(key, position);
     }
 }

@@ -4,6 +4,8 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.es.utils.Memory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -43,7 +45,9 @@ import java.util.TreeSet;
  */
 public class SegmentIndex implements Searchable, Closeable {
 
-    private static final int HEADER_SIZE = 16;
+    private static final Logger logger = LoggerFactory.getLogger(SegmentIndex.class);
+
+    static final int HEADER_SIZE = 16;
     private static final Serializer<IndexEntry> indexEntrySerializer = new IndexKeySerializer();
     private static final Serializer<Midpoint> midpointSerializer = new MidpointSerializer();
 
@@ -70,8 +74,8 @@ public class SegmentIndex implements Searchable, Closeable {
 
         SortedSet<IndexEntry> indexEntries = new TreeSet<>();
         long position = midpoint.position;
-        while (true) {
 
+        do {
             SortedSet<IndexEntry> loaded = loadPage(position);
             if (loaded.isEmpty()) {
                 return indexEntries;
@@ -88,19 +92,19 @@ public class SegmentIndex implements Searchable, Closeable {
             }
 
             position += IndexEntry.BYTES * loaded.size();
-        }
+        }while (position <= lastMidpoint().position);
+        return indexEntries;
 
     }
 
     @Override
-    public Optional<IndexEntry> lastOfStream(long stream) {
+    public Optional<IndexEntry> latestOfStream(long stream) {
         Range range = Range.allOf(stream);
         if (outOfRange(range)) {
             return Optional.empty();
         }
 
         Midpoint midpoint = midpoints[getMidpointIdx(range.end()) - 1];
-
 
         IndexEntry latest = null;
         long position = midpoint.position;
@@ -122,7 +126,7 @@ public class SegmentIndex implements Searchable, Closeable {
             }
 
             position += IndexEntry.BYTES * loaded.size();
-        } while (position <= last().position);
+        } while (position <= lastMidpoint().position);
 
         return Optional.ofNullable(latest);
     }
@@ -130,9 +134,10 @@ public class SegmentIndex implements Searchable, Closeable {
     private int getMidpointIdx(IndexEntry entry) {
         int idx = Arrays.binarySearch(midpoints, entry);
         if (idx < 0) {
-            idx = Math.abs(idx) - 2; //TODO: -2 this might be wrong, it can cause IOOB
+            idx = Math.abs(idx) - 2; // -1 for the actual position, -1 for the offset where to start scanning
+            idx = idx < 0 ? 0 : idx;
         }
-        if (idx >= midpoints.length) {
+        if (idx >= midpoints.length || idx < 0) {
             throw new IllegalStateException("Got index " + idx + " midpoints size: " + midpoints.length);
         }
         return idx;
@@ -143,11 +148,19 @@ public class SegmentIndex implements Searchable, Closeable {
     }
 
     public IndexEntry first() {
-        return midpoints[0].key;
+        return firstMidpoint().key;
     }
 
     public IndexEntry last() {
-        return midpoints[midpoints.length - 1].key;
+        return lastMidpoint().key;
+    }
+
+    private Midpoint firstMidpoint() {
+        return midpoints[0];
+    }
+
+    private Midpoint lastMidpoint() {
+        return midpoints[midpoints.length - 1];
     }
 
     private IndexEntry loadEntry(long startPosition) {
@@ -157,7 +170,21 @@ public class SegmentIndex implements Searchable, Closeable {
         return indexEntrySerializer.fromBytes(bb);
     }
 
-    private SortedSet<IndexEntry> loadPage(long startPosition) {
+    SortedSet<IndexEntry> loadPage(long startPosition) {
+        //out of range
+        if (startPosition < HEADER_SIZE) {
+            throw new IllegalArgumentException("Position must be greater or equals to " + HEADER_SIZE);
+        }
+        //out of range
+        if (startPosition >= (lastMidpoint().position + IndexEntry.BYTES)) {
+            throw new IllegalArgumentException("Max position " + startPosition + " must be less than " + ((entryCount * IndexEntry.BYTES) + HEADER_SIZE));
+        }
+
+        //not aligned position
+        if ((startPosition - HEADER_SIZE) % IndexEntry.BYTES != 0) {
+            throw new IllegalArgumentException("Position " + startPosition + " is not aligned with IndexEntry size of " + IndexEntry.BYTES);
+        }
+
         //TODO how to load the keys ? page by page or larger chunks ?
         //SOLUTION: FIND THE HIGHER BOUND:
         //WHILE HIGHER BOUND IS GREATER THAN PAGE SIZE, LOAD PAGE SIZE, OTHERWISE READ THE SPECIFIC SIZE OF ENTRIES
@@ -168,27 +195,19 @@ public class SegmentIndex implements Searchable, Closeable {
 
         SortedSet<IndexEntry> entries = new TreeSet<>();
         while (bb.hasRemaining()) {
-            entries.add(indexEntrySerializer.fromBytes(bb));
+            IndexEntry indexEntry = indexEntrySerializer.fromBytes(bb);
+            entries.add(indexEntry);
         }
 
         return entries;
 
     }
 
-//    public static void main(String[] args) {
-//        int cachingFactor = 1; //one per page
-//        int pageSize = 4096;
-//        int maxKeysPerPage = (int) Math.floor(pageSize / IndexEntry.BYTES);
-//        int totalMidPoints = 1000000 * IndexEntry.BYTES / pageSize;
-//
-//
-//        System.out.println(pageSize);
-//        System.out.println(maxKeysPerPage);
-//        System.out.println(totalMidPoints);
-//
-//    }
-
     public static SegmentIndex write(MemIndex memIndex, Storage storage) {
+        logger.info("Writing {} index entries disk", memIndex.size);
+
+        long start = System.currentTimeMillis();
+
         int cachingFactor = 1; //TODO
 
         int maxKeysPerPage = (int) Math.floor(Memory.PAGE_SIZE / IndexEntry.BYTES);
@@ -239,6 +258,7 @@ public class SegmentIndex implements Searchable, Closeable {
 
         storage.write(buffer);
 
+        logger.info("Index written to disk, took {}ms", System.currentTimeMillis() - start);
         return new SegmentIndex(storage, midpoints.toArray(new Midpoint[midpoints.size()]), memIndex.index.size());
     }
 
@@ -263,6 +283,14 @@ public class SegmentIndex implements Searchable, Closeable {
         }
 
         return new SegmentIndex(storage, midpoints, entriesSize);
+    }
+
+    public int entries() {
+        return entryCount;
+    }
+
+    public int midpointCount() {
+        return midpoints.length;
     }
 
     @Override

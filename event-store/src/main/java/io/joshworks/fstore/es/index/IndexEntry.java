@@ -26,7 +26,7 @@ public class IndexEntry implements Comparable<IndexEntry> {
 
     @Override
     public int compareTo(IndexEntry other) {
-        int keyCmp = (int) (stream - other.stream);
+        int keyCmp = Long.compare(stream, other.stream);
         if (keyCmp == 0) {
             keyCmp = version - other.version;
             if (keyCmp != 0)
@@ -37,20 +37,6 @@ public class IndexEntry implements Comparable<IndexEntry> {
         return (int) (position - other.position);
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        IndexEntry indexEntry = (IndexEntry) o;
-        return stream == indexEntry.stream &&
-                version == indexEntry.version &&
-                position == indexEntry.position;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(stream, version, position);
-    }
 
     @Override
     public String toString() {
@@ -58,5 +44,21 @@ public class IndexEntry implements Comparable<IndexEntry> {
                 ", version=" + version +
                 ", position=" + position +
                 '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        IndexEntry that = (IndexEntry) o;
+        return stream == that.stream &&
+                version == that.version &&
+                position == that.position;
+    }
+
+    @Override
+    public int hashCode() {
+
+        return Objects.hash(stream, version, position);
     }
 }

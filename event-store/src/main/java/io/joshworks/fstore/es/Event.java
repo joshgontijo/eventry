@@ -12,6 +12,10 @@ public class Event {
         this.timestamp = timestamp;
     }
 
+    public static Event create(String type, String data) {
+        return new Event(type, data, System.currentTimeMillis());
+    }
+
     @Override
     public String toString() {
         return "Event{" + "type='" + type + '\'' +

@@ -1,6 +1,6 @@
 package io.joshworks.fstore.es;
 
-import io.joshworks.fstore.es.hash.Murmur3;
+import io.joshworks.fstore.es.hash.Murmur3Hash;
 import io.joshworks.fstore.es.hash.XXHash;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.IndexHasher;
@@ -32,7 +32,7 @@ public class EventStore implements Closeable {
 
     private EventStore(LogAppender<Event> appender) {
         this.appender = appender;
-        this.hasher = new IndexHasher(new XXHash(), new Murmur3());
+        this.hasher = new IndexHasher(new XXHash(), new Murmur3Hash());
     }
 
     public static EventStore open(File directory) {
@@ -51,6 +51,9 @@ public class EventStore implements Closeable {
         List<Event> events = new LinkedList<>();
         for (IndexEntry address : addresses) {
             Event event = appender.get(address.position);
+            if(event == null) {
+                throw new IllegalStateException("Event is null");
+            }
             events.add(event);
         }
 
@@ -64,7 +67,7 @@ public class EventStore implements Closeable {
         int latestVersion = streamVersion.compute(streamHash, (k, v) -> v == null ? 0 : ++v);
 //        int streamSize = index.range(Range.allOf(streamHash)).size();//TODO should position be used here as well, is it possible ?
 
-//        int latestVersion = index.lastOfStream(streamHash).map(ie -> ie.version).orElse(-1); //TODO change to stream starting at 1
+//        int latestVersion = index.latestOfStream(streamHash).map(ie -> ie.version).orElse(-1); //TODO change to stream starting at 1
 
         index.add(streamHash, latestVersion, position);
 

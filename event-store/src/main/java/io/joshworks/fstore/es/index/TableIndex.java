@@ -11,6 +11,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.SortedSet;
+import java.util.TreeSet;
 
 public class TableIndex implements Searchable, Closeable {
 
@@ -25,18 +26,20 @@ public class TableIndex implements Searchable, Closeable {
 
     @Override
     public SortedSet<IndexEntry> range(Range range) {
-        SortedSet<IndexEntry> entries = memIndex.range(range);
+        SortedSet<IndexEntry> fromMemIndex = memIndex.range(range);
+        SortedSet<IndexEntry> entries = new TreeSet<>(fromMemIndex);
         for (SegmentIndex segmentIndex : segmentIndexes) {
-            entries.addAll(segmentIndex.range(range));
+            SortedSet<IndexEntry> fromDisk = segmentIndex.range(range);
+            entries.addAll(fromDisk);
         }
         return entries;
     }
 
     @Override
-    public Optional<IndexEntry> lastOfStream(long stream) {
-        Optional<IndexEntry> indexEntry = memIndex.lastOfStream(stream);
+    public Optional<IndexEntry> latestOfStream(long stream) {
+        Optional<IndexEntry> indexEntry = memIndex.latestOfStream(stream);
         for (SegmentIndex segmentIndex : segmentIndexes) {
-            Optional<IndexEntry> found = segmentIndex.lastOfStream(stream);
+            Optional<IndexEntry> found = segmentIndex.latestOfStream(stream);
             if(found.isPresent()) {
                 indexEntry = found;
             }

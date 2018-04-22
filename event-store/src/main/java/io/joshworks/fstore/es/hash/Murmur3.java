@@ -2,7 +2,7 @@ package io.joshworks.fstore.es.hash;
 
 import java.nio.ByteBuffer;
 
-public class Murmur3 implements Hash {
+public class Murmur3 {
     // from 64-bit linear congruential generator
     public static final long NULL_HASHCODE = 2862933555777941757L;
 
@@ -27,13 +27,11 @@ public class Murmur3 implements Hash {
     public static final int DEFAULT_SEED = 104729;
 
 
-    @Override
-    public int hash32(ByteBuffer data) {
+    public static int hash32(ByteBuffer data) {
         return hash32(data, DEFAULT_SEED);
     }
 
-    @Override
-    public int hash32(ByteBuffer data, int seed) {
+    public static int hash32(ByteBuffer data, int seed) {
         if(data.hasArray()) {
             return hash32(data.array(), data.position(), data.limit(), seed);
         }
@@ -49,8 +47,7 @@ public class Murmur3 implements Hash {
      * @param data - input byte array
      * @return - hashcode
      */
-    @Override
-    public int hash32(byte[] data) {
+    public static int hash32(byte[] data) {
         return hash32(data, DEFAULT_SEED);
     }
 
@@ -60,8 +57,7 @@ public class Murmur3 implements Hash {
      * @param data - input byte array
      * @return - hashcode
      */
-    @Override
-    public int hash32(byte[] data, int seed) {
+    public static int hash32(byte[] data, int seed) {
         return hash32(data, data.length, seed);
     }
 
