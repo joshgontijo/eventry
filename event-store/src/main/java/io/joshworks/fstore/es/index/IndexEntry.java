@@ -20,9 +20,6 @@ public class IndexEntry implements Comparable<IndexEntry> {
         return new IndexEntry(stream, version, position);
     }
 
-    public static IndexEntry of(long stream, int version) {
-        return new IndexEntry(stream, version, 0);
-    }
 
     @Override
     public int compareTo(IndexEntry other) {

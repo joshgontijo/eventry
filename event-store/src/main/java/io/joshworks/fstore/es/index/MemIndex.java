@@ -1,6 +1,8 @@
 package io.joshworks.fstore.es.index;
 
 import java.io.Closeable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -17,14 +19,14 @@ public class MemIndex implements Searchable, Closeable {
     }
 
     @Override
-    public SortedSet<IndexEntry> range(Range range) {
-        return index.subSet(range.start(), range.end());
+    public List<IndexEntry> range(Range range) {
+        return new ArrayList<>(index.subSet(range.start(), range.end()));
     }
 
     @Override
     public Optional<IndexEntry> latestOfStream(long stream) {
-        SortedSet<IndexEntry> all = range(Range.allOf(stream));
-        return all.isEmpty() ? Optional.empty() : Optional.of(all.last());
+        List<IndexEntry> all = range(Range.allOf(stream));
+        return all.isEmpty() ? Optional.empty() : Optional.of(all.get(all.size() - 1));
     }
 
     public int size() {

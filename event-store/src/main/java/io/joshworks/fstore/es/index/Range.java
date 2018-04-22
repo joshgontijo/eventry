@@ -21,15 +21,15 @@ public class Range {
     }
 
     public static Range allOf(long stream) {
-        return new Range(stream, 0, Integer.MAX_VALUE);
+        return new Range(stream, 1, Integer.MAX_VALUE);
     }
 
     public IndexEntry start() {
-        return IndexEntry.of(stream, startVersionInclusive);
+        return IndexEntry.of(stream, startVersionInclusive, 0);
     }
 
     public IndexEntry end() {
-        return IndexEntry.of(stream, endVersionExclusive);
+        return IndexEntry.of(stream, endVersionExclusive, 0);
     }
 
 

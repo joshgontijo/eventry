@@ -1,8 +1,5 @@
 package io.joshworks.fstore.es;
 
-import io.joshworks.fstore.es.hash.Murmur3Hash;
-import io.joshworks.fstore.es.hash.XXHash;
-import io.joshworks.fstore.es.index.IndexHasher;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -34,12 +31,12 @@ public class EventStoreTest {
     @Test
     public void get() {
         //given
-        for (int i = 0; i < 1000000; i++) {
+        for (int i = 0; i < 10000; i++) {
             store.put("test-" + i, Event.create(String.valueOf(i), "data-" + i));
         }
 
         //when
-        for (int i = 0; i < 1000000; i++) {
+        for (int i = 0; i < 10000; i++) {
             List<Event> events = store.get("test-" + i, 0);
 
             //then
@@ -47,21 +44,8 @@ public class EventStoreTest {
             assertEquals("Wrong event data, iteration: " + i, "data-" + i, events.get(0).data);
             assertEquals(String.valueOf(i), events.get(0).type);
         }
-
-
-
     }
-
-    @Test
-    public void hash() {
-        IndexHasher hasher = new IndexHasher(new XXHash(), new Murmur3Hash());
-        long hash1 = hasher.hash("test-81804");
-        System.out.println(hash1);
-        long hash2 = hasher.hash("test-934980");
-        System.out.println(hash2);
-
-    }
-
+    
     @Test
     public void get1() {
     }

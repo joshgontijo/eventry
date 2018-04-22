@@ -3,6 +3,7 @@ package io.joshworks.fstore.es.index;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.util.AccessCountStorage;
 import io.joshworks.fstore.es.utils.Memory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,10 +13,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 /**
  * ---- HEADER ----
@@ -55,7 +57,7 @@ public class SegmentIndex implements Searchable, Closeable {
     private final int entryCount;
 
     private final Storage storage;
-    public final Midpoint[] midpoints;
+    final Midpoint[] midpoints;
 
     private SegmentIndex(Storage storage, Midpoint[] midpoints, int entryCount) {
         this.storage = storage;
@@ -63,38 +65,56 @@ public class SegmentIndex implements Searchable, Closeable {
         this.entryCount = entryCount;
     }
 
+    public Map<String, Long> report() {
+        AccessCountStorage storage = (AccessCountStorage)this.storage;
+        Map<String, Long> map = new HashMap<>();
+        map.put("READ", storage.reads());
+        map.put("WRITE", storage.writes());
+        return map;
+
+    }
+
     //TODO stream results ?
     @Override
-    public SortedSet<IndexEntry> range(Range range) {
+    public List<IndexEntry> range(Range range) {
         if (outOfRange(range)) {
-            return new TreeSet<>();
+            return new ArrayList<>();
         }
 
-        Midpoint midpoint = midpoints[getMidpointIdx(range.start())];
+        IndexEntry start = range.start();
+        IndexEntry end = range.end();
 
-        SortedSet<IndexEntry> indexEntries = new TreeSet<>();
+        int midpointIdx = getMidpointIdx(start);
+        Midpoint midpoint = midpoints[midpointIdx];
+
+
+        List<IndexEntry> indexEntries = new ArrayList<>();
         long position = midpoint.position;
 
         do {
-            SortedSet<IndexEntry> loaded = loadPage(position);
+            List<IndexEntry> loaded = loadPage(position);
             if (loaded.isEmpty()) {
                 return indexEntries;
             }
 
-            for (IndexEntry indexEntry : loaded) {
-                if (indexEntry.compareTo(range.start()) < 0) {
+            int startIdx = Collections.binarySearch(loaded, start);
+            startIdx = startIdx < 0 ? Math.abs(startIdx) - 1 : startIdx;
+
+            for (int i = startIdx; i < loaded.size(); i++) {
+                IndexEntry indexEntry = loaded.get(i);
+                if (indexEntry.compareTo(start) < 0) {
                     continue; //skip
                 }
-                if (indexEntry.compareTo(range.end()) >= 0) {
+                if (indexEntry.compareTo(end) >= 0) {
                     return indexEntries;
                 }
                 indexEntries.add(indexEntry);
             }
 
             position += IndexEntry.BYTES * loaded.size();
-        }while (position <= lastMidpoint().position);
-        return indexEntries;
+        } while (position <= lastMidpoint().position);
 
+        return indexEntries;
     }
 
     @Override
@@ -104,22 +124,31 @@ public class SegmentIndex implements Searchable, Closeable {
             return Optional.empty();
         }
 
-        Midpoint midpoint = midpoints[getMidpointIdx(range.end()) - 1];
+        IndexEntry start = range.start();
+        IndexEntry end = range.end();
+
+        int midpointIdx = getMidpointIdx(end);
+
+        Midpoint lowBound = midpoints[midpointIdx];
 
         IndexEntry latest = null;
-        long position = midpoint.position;
+        long position = lowBound.position;
         do {
 
-            SortedSet<IndexEntry> loaded = loadPage(position);
+            List<IndexEntry> loaded = loadPage(position);
             if (loaded.isEmpty()) {
                 return Optional.empty();
             }
 
-            for (IndexEntry indexEntry : loaded) {
-                if (indexEntry.compareTo(range.start()) < 0) {
+            int startIdx = Collections.binarySearch(loaded, start);
+            startIdx = startIdx < 0 ? Math.abs(startIdx) - 1 : startIdx;
+
+            for (int i = startIdx; i < loaded.size(); i++) {
+                IndexEntry indexEntry = loaded.get(i);
+                if (indexEntry.compareTo(start) < 0) {
                     continue; //skip
                 }
-                if (indexEntry.compareTo(range.end()) >= 0) {
+                if (indexEntry.compareTo(end) >= 0) {
                     return Optional.ofNullable(latest);
                 }
                 latest = indexEntry;
@@ -138,7 +167,7 @@ public class SegmentIndex implements Searchable, Closeable {
             idx = idx < 0 ? 0 : idx;
         }
         if (idx >= midpoints.length || idx < 0) {
-            throw new IllegalStateException("Got index " + idx + " midpoints size: " + midpoints.length);
+            throw new IllegalStateException("Got index " + idx + " midpoints position: " + midpoints.length);
         }
         return idx;
     }
@@ -170,7 +199,7 @@ public class SegmentIndex implements Searchable, Closeable {
         return indexEntrySerializer.fromBytes(bb);
     }
 
-    SortedSet<IndexEntry> loadPage(long startPosition) {
+    List<IndexEntry> loadPage(long startPosition) {
         //out of range
         if (startPosition < HEADER_SIZE) {
             throw new IllegalArgumentException("Position must be greater or equals to " + HEADER_SIZE);
@@ -182,25 +211,23 @@ public class SegmentIndex implements Searchable, Closeable {
 
         //not aligned position
         if ((startPosition - HEADER_SIZE) % IndexEntry.BYTES != 0) {
-            throw new IllegalArgumentException("Position " + startPosition + " is not aligned with IndexEntry size of " + IndexEntry.BYTES);
+            throw new IllegalArgumentException("Position " + startPosition + " is not aligned with IndexEntry position of " + IndexEntry.BYTES);
         }
 
-        //TODO how to load the keys ? page by page or larger chunks ?
-        //SOLUTION: FIND THE HIGHER BOUND:
-        //WHILE HIGHER BOUND IS GREATER THAN PAGE SIZE, LOAD PAGE SIZE, OTHERWISE READ THE SPECIFIC SIZE OF ENTRIES
+
         int maxKeysPerPage = (int) Math.floor(Memory.PAGE_SIZE / IndexEntry.BYTES);
-        ByteBuffer bb = ByteBuffer.allocate(Math.min(maxKeysPerPage, entryCount) * IndexEntry.BYTES);
+        int numKeys = Math.min(maxKeysPerPage, entryCount);
+        ByteBuffer bb = ByteBuffer.allocate(numKeys * IndexEntry.BYTES);
         storage.read(startPosition, bb);
         bb.flip();
 
-        SortedSet<IndexEntry> entries = new TreeSet<>();
+        List<IndexEntry> entries = new ArrayList<>(numKeys);
         while (bb.hasRemaining()) {
             IndexEntry indexEntry = indexEntrySerializer.fromBytes(bb);
             entries.add(indexEntry);
         }
 
         return entries;
-
     }
 
     public static SegmentIndex write(MemIndex memIndex, Storage storage) {
@@ -212,7 +239,6 @@ public class SegmentIndex implements Searchable, Closeable {
 
         int maxKeysPerPage = (int) Math.floor(Memory.PAGE_SIZE / IndexEntry.BYTES);
         int totalMidPoints = Math.max(2, memIndex.index.size() * IndexEntry.BYTES / maxKeysPerPage);
-
 
         int bodySize = memIndex.index.size() * IndexEntry.BYTES;
         int footerSize = totalMidPoints * Midpoint.BYTES;

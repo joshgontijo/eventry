@@ -4,14 +4,14 @@ import io.joshworks.fstore.es.hash.Hash;
 
 import java.nio.charset.StandardCharsets;
 
-public class IndexHasher {
+public class StreamHasher {
 
     private final Hash highHasher;
     private final Hash lowHasher;
 
     private static final long MASK = (1L << Integer.SIZE) - 1;
 
-    public IndexHasher(Hash highHasher, Hash lowHasher) {
+    public StreamHasher(Hash highHasher, Hash lowHasher) {
         this.highHasher = highHasher;
         this.lowHasher = lowHasher;
     }

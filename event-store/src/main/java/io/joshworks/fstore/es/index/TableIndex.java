@@ -1,17 +1,17 @@
 package io.joshworks.fstore.es.index;
 
-import io.joshworks.fstore.core.io.MMapStorage;
+import io.joshworks.fstore.core.io.DiskStorage;
+import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.util.AccessCountStorage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.File;
-import java.nio.channels.FileChannel;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
 public class TableIndex implements Searchable, Closeable {
 
@@ -21,15 +21,21 @@ public class TableIndex implements Searchable, Closeable {
     private final List<SegmentIndex> segmentIndexes = new LinkedList<>();
 
     public void add(long stream, int version, long position) {
+        if(version <= 0) {
+            throw new IllegalArgumentException("Version must be greater than zero");
+        }
+        if(position < 0) {
+            throw new IllegalArgumentException("Position must be greater than zero");
+        }
+
         memIndex.add(stream, version, position);
     }
 
     @Override
-    public SortedSet<IndexEntry> range(Range range) {
-        SortedSet<IndexEntry> fromMemIndex = memIndex.range(range);
-        SortedSet<IndexEntry> entries = new TreeSet<>(fromMemIndex);
+    public List<IndexEntry> range(Range range) {
+        List<IndexEntry> entries = memIndex.range(range);
         for (SegmentIndex segmentIndex : segmentIndexes) {
-            SortedSet<IndexEntry> fromDisk = segmentIndex.range(range);
+            List<IndexEntry> fromDisk = segmentIndex.range(range);
             entries.addAll(fromDisk);
         }
         return entries;
@@ -56,7 +62,11 @@ public class TableIndex implements Searchable, Closeable {
         String indexName = segmentName.split("\\.")[0] + ".idx";
 
         logger.info("Flushing index to {}", indexName);
-        SegmentIndex segmentIndex = SegmentIndex.write(memIndex, new MMapStorage(new File(directory, indexName), FileChannel.MapMode.READ_WRITE));
+//        Storage storage = new MMapStorage(new File(directory, indexName), FileChannel.MapMode.READ_WRITE);
+        Storage storage = new AccessCountStorage(new DiskStorage(new File(directory, indexName)));
+        SegmentIndex segmentIndex = SegmentIndex.write(memIndex, storage);
+
+
         segmentIndexes.add(segmentIndex);
         memIndex = new MemIndex();
     }
@@ -67,6 +77,17 @@ public class TableIndex implements Searchable, Closeable {
         for (SegmentIndex segmentIndex : segmentIndexes) {
             logger.info("Closing {}", segmentIndex);
             segmentIndex.close();
+        }
+    }
+
+    public void report() {
+        for (SegmentIndex segmentIndex : segmentIndexes) {
+            Map<String, Long> report = segmentIndex.report();
+            for (Map.Entry<String, Long> stringLongEntry : report.entrySet()) {
+                System.out.println(stringLongEntry.getKey() + " -> " + stringLongEntry.getValue());
+            }
+            System.out.println("----------");
+
         }
 
     }
