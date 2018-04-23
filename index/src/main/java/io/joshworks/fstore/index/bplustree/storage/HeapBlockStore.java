@@ -21,7 +21,7 @@ public class HeapBlockStore<K extends Comparable<K>, V> implements BlockStore<K,
     protected List<Integer> free;
 
     /**
-     * Initialise a BlockStore with block size b
+     * Initialise a BlockStore with block position b
      */
     public HeapBlockStore() {
         blocks = new ArrayList<>();

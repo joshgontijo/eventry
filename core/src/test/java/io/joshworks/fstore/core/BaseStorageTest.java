@@ -21,7 +21,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public abstract class StorageTest {
+public abstract class BaseStorageTest {
 
     private static final String TEST_DATA = "TEST-DATA";
     private Storage storage;
@@ -69,7 +69,7 @@ public abstract class StorageTest {
 
     @Test
     public void when_10000_entries_are_written_it_should_read_all_of_them() {
-        int entrySize = 36; //uuid byte size
+        int entrySize = 36; //uuid byte position
 
         int items = 10000;
         Set<String> inserted = new HashSet<>();
@@ -143,6 +143,32 @@ public abstract class StorageTest {
         store.position(thePosition);
 
         assertEquals(thePosition, store.size());
+    }
+
+    @Test
+    public void providing_bigger_buffer_than_available_data_read_only_available() throws IOException {
+
+        //given
+        int size = 8;
+        Path temp = Files.createTempFile("tobeDeleted", null);
+        Storage store = store(temp.toFile(), size);
+        ByteBuffer data = ByteBuffer.allocate(size);
+        data.putInt(1);
+        data.putInt(2);
+        data.flip();
+
+        store.write(data);
+
+        ByteBuffer result = ByteBuffer.allocate(500);
+
+        //when
+        int read = store.read(0, result);
+        result.flip();
+
+        //then
+        assertEquals(size, read);
+        assertEquals(size, result.remaining());
+
     }
 
     //terrible work around for waiting the mapped buffer to release file lock

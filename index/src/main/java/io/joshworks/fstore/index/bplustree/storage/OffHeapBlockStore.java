@@ -31,9 +31,9 @@ public class OffHeapBlockStore<K extends Comparable<K>, V> implements BlockStore
     private final byte[] emptyBlock;
 
     /**
-     * Initialise a BlockStore with block size b
+     * Initialise a BlockStore with block position b
      *
-     * @param blockSize the block size
+     * @param blockSize the block position
      */
     //TODO on open should read tree info
     public OffHeapBlockStore(int blockSize, int order, Serializer<K> keySerializer, Serializer<V> valueSerializer) {

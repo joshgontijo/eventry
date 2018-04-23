@@ -5,7 +5,7 @@ import io.joshworks.fstore.core.io.Storage;
 
 import java.io.File;
 
-public class DiskStorageTest extends StorageTest {
+public class DiskBaseStorageTest extends BaseStorageTest {
 
     @Override
     protected Storage store(File file) {

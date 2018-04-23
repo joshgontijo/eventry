@@ -57,10 +57,10 @@
 //            }
 //        }
 //
-//        if (!isReplay & data.size() != btree.size()) {
+//        if (!isReplay & data.position() != btree.position()) {
 //            saveTestData(btree.order, data, null);
 //        }
-//        assertEquals(data.size(), btree.size());
+//        assertEquals(data.position(), btree.position());
 //    }
 //
 //    static void remove(BPlusTree<Integer, String> btree, LinkedList<Integer> data, boolean isReplay) throws IOException {
@@ -86,17 +86,17 @@
 //            }
 //        }
 //
-//        if (!isReplay && btree.size() != 0) {
+//        if (!isReplay && btree.position() != 0) {
 //            saveTestData(btree.order, data, null);
 //        }
-//        assertEquals(0, btree.size());
+//        assertEquals(0, btree.position());
 //    }
 //
 //
-//    private LinkedList<Integer> generateUniqueUnorderedData(long size) {
+//    private LinkedList<Integer> generateUniqueUnorderedData(long position) {
 //        Set<Integer> data = new HashSet<>();
 //        ThreadLocalRandom random = ThreadLocalRandom.current();
-//        while (data.size() < size) {
+//        while (data.position() < position) {
 //            data.add(random.nextInt());
 //        }
 //        return new LinkedList<>(data);

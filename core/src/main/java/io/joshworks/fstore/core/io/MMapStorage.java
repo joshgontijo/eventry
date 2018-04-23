@@ -11,7 +11,7 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 
 
-public class MMapStorage extends Storage {
+public class MMapStorage extends BaseStorage {
 
     private MappedByteBuffer mbb;
     private final FileChannel.MapMode mode;
@@ -35,31 +35,30 @@ public class MMapStorage extends Storage {
 
         int written = data.remaining();
         mbb.put(data);
-        size += written;
+        position += written;
         return written;
     }
 
     @Override
     public int read(long position, ByteBuffer data) {
         checkBoundaries(position);
+        int pos = (int) position;
 
         ByteBuffer readOnly = mbb.asReadOnlyBuffer();
-        int entrySize = data.remaining();
 
-        readOnly.limit((int) position + entrySize).position((int) position);
-        if(entrySize > readOnly.remaining()) {
-            throw new IllegalStateException("Not available data. Expected " + entrySize + ", got " + readOnly.remaining());
-        }
+        int limit = Math.min(readOnly.capacity(), data.limit());
+        readOnly.limit(pos + limit).position(pos);
+
 
         data.put(readOnly);
-        return entrySize;
+        return limit;
     }
 
     @Override
     public void position(long position) {
         checkBoundaries(position);
         mbb.position((int) position);
-        super.size = position;
+        super.position = position;
     }
 
     private void checkBoundaries(long position) {

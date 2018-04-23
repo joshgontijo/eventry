@@ -8,14 +8,14 @@ public class BloomFilter<T> {
     private BitSet hashes;
     private Hash<T> hash;
     private int noHashes; // Number of hash functions
-    private int numberOfBits; //bit size
+    private int numberOfBits; //bit position
     private static final double LN2 = 0.6931471805599453; // ln(2)
 
     /**
      * Create a new bloom filter.
      *
      * @param elementSize Expected number of elements
-     * @param numberOfBits Desired size of the container in bits
+     * @param numberOfBits Desired position of the container in bits
      **/
     public BloomFilter(int elementSize, int numberOfBits, Hash<T> hash) {
 
@@ -104,10 +104,10 @@ public class BloomFilter<T> {
 
     /**
      * Calculate the number of bits needed to produce the provided probability of false
-     * positives with the given element size.
+     * positives with the given element position.
      *
      * @param probabilityOfFalsePositives the probability of false positives.
-     * @param elementSize                 the estimated element size.
+     * @param elementSize                 the estimated element position.
      * @return the number of bytes.
      */
     private static int getNumberOfBits(double probabilityOfFalsePositives, long elementSize) {

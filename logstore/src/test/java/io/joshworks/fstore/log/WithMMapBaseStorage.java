@@ -6,7 +6,7 @@ import io.joshworks.fstore.core.io.Storage;
 import java.io.File;
 import java.nio.channels.FileChannel;
 
-public class WithMMapStorage extends LogSegmentTest {
+public class WithMMapBaseStorage extends LogSegmentTest {
 
     @Override
     Storage getStorage(File file, long size) {

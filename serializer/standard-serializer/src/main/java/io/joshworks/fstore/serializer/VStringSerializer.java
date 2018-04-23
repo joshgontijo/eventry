@@ -20,16 +20,6 @@ public class VStringSerializer implements Serializer<String> {
         dest.putInt(bytes.length).put(bytes);
     }
 
-//    @Override
-//    public String fromBytes(ByteBuffer buffer) {
-//        int length = buffer.getInt();
-//        int limit = buffer.limit();
-//        buffer.limit(buffer.position() + length);
-//        String data = StandardCharsets.UTF_8.decode(buffer).toString();
-//        buffer.limit(limit);
-//        return data;
-//    }
-
     @Override
     public String fromBytes(ByteBuffer buffer) {
         int length = buffer.getInt();
@@ -43,4 +33,23 @@ public class VStringSerializer implements Serializer<String> {
         buffer.position(buffer.position() + length);
         return value;
     }
+
+    public static int sizeOf(String value) {
+        if(value == null) {
+            return Integer.BYTES;
+        }
+        return value.length() + Integer.BYTES;
+    }
+
+
+//    @Override
+//    public String fromBytes(ByteBuffer buffer) {
+//        int length = buffer.getInt();
+//        int limit = buffer.limit();
+//        buffer.limit(buffer.position() + length);
+//        String data = StandardCharsets.UTF_8.decode(buffer).toString();
+//        buffer.limit(limit);
+//        return data;
+//    }
+
 }

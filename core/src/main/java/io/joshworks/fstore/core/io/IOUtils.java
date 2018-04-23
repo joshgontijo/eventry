@@ -90,7 +90,7 @@ public final class IOUtils {
         int totalRead = 0;
         int length = to.length;
         if (length <= 0) {
-            throw new IllegalArgumentException("Destination buffer size must be greater than zero");
+            throw new IllegalArgumentException("Destination buffer position must be greater than zero");
         }
 
         while (totalRead < length) {
@@ -106,7 +106,7 @@ public final class IOUtils {
     public static void readFully(RandomAccessFile from, byte[] to, int offset, int length) throws IOException {
         int totalRead = 0;
         if (length <= 0) {
-            throw new IllegalArgumentException("Destination buffer size must be greater than zero");
+            throw new IllegalArgumentException("Destination buffer position must be greater than zero");
         }
 
         while (totalRead < length) {
