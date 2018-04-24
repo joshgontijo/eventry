@@ -245,7 +245,7 @@ public class LogAppender<T> implements Closeable {
 
         if (totalSize > maxAddressPerSegment) {
             //TODO better approach than just throwing an exception ?
-            throw new IllegalStateException("New segment size " + totalSize + " exceeds the maximum segment size: " + maxAddressPerSegment);
+            throw new IllegalStateException("New segment position " + totalSize + " exceeds the maximum segment position: " + maxAddressPerSegment);
         }
 
         File newSegmentFile = new File(directory, newSegmentName);
@@ -257,9 +257,9 @@ public class LogAppender<T> implements Closeable {
             combiner.merge(foundSegments.stream().map(Log::stream).collect(Collectors.toList()), newSegment::append);
 
             //TODO add 'tobeRemoved' list to be removed once cleared up
-            //TODO investigate level and size tiered merges
+            //TODO investigate level and position tiered merges
 
-            //TODO update segment size
+            //TODO update segment position
             newSegment.complete();
 
 

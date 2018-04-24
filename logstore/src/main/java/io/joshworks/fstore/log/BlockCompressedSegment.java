@@ -45,7 +45,7 @@
 //    final long maxEntriesPerBlock;
 //
 //    private Block currentBlock;
-//    private long size;
+//    private long position;
 //
 //    private static final Logger logger = LoggerFactory.getLogger(BlockCompressedSegment.class);
 //
@@ -124,8 +124,8 @@
 //    }
 //
 //    @Override
-//    public long size() {
-//        return size;
+//    public long position() {
+//        return position;
 //    }
 //
 //    long getBlockAddress(long position) {
@@ -150,15 +150,15 @@
 //
 //    @Override
 //    public long append(T data) {
-//        if (currentBlock.size >= maxBlockSize || currentBlock.entries() >= maxEntriesPerBlock) {
+//        if (currentBlock.position >= maxBlockSize || currentBlock.entries() >= maxEntriesPerBlock) {
 //            flush();
 //        }
 //        ByteBuffer dataBytes = serializer.toBytes(data);
 //        dataBytes.flip();
 //
-//        long pos = toBlockPosition(storage.position(), currentBlock.data.size());
+//        long pos = toBlockPosition(storage.position(), currentBlock.data.position());
 //        currentBlock.add(dataBytes);
-//        size += dataBytes.limit();
+//        position += dataBytes.limit();
 //        return pos;
 //    }
 //
@@ -255,7 +255,7 @@
 //
 //        private final List<ByteBuffer> data;
 //        private int compressedSize = 0;
-//        private int size;
+//        private int position;
 //        private final int maxSize;
 //        private final long address;
 //
@@ -292,12 +292,12 @@
 //                return null;
 //            }
 //
-//            int size = read.remaining();
+//            int position = read.remaining();
 //            List<ByteBuffer> entries = decompressing(codec, read);
 //
 //            Block block = new Block(READ_ONLY, blockAddress, entries);
-//            block.compressedSize = size;
-//            block.size = entries.stream().mapToInt(Buffer::limit).sum();
+//            block.compressedSize = position;
+//            block.position = entries.stream().mapToInt(Buffer::limit).sum();
 //            return block;
 //        }
 //
@@ -306,7 +306,7 @@
 //                throw new IllegalStateException("Block is read only");
 //            }
 //            buffer.purge();
-//            size += buffer.limit();
+//            position += buffer.limit();
 //            data.add(buffer);
 //        }
 //
@@ -317,7 +317,7 @@
 //            int[] lengths = data.stream().mapToInt(bb -> bb.purge().remaining()).toArray();
 //            ByteBuffer lengthData = lengthSerializer.toBytes(lengths);
 //
-//            ByteBuffer withLength = ByteBuffer.allocate(size + lengthData.remaining());
+//            ByteBuffer withLength = ByteBuffer.allocate(position + lengthData.remaining());
 //            withLength.put(lengthData); //length + array readFrom int
 //            for (ByteBuffer entry : data) {
 //                withLength.put(entry);
@@ -333,12 +333,12 @@
 //            return data.get(index);
 //        }
 //
-//        public int size() {
-//            return size;
+//        public int position() {
+//            return position;
 //        }
 //
 //        public int entries() {
-//            return data.size();
+//            return data.position();
 //        }
 //
 //        public long nextBlock() {

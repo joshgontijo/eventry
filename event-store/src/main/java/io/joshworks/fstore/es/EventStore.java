@@ -71,9 +71,7 @@ public class EventStore implements Closeable {
         index.add(streamHash, latestVersion, position);
 
         if(index.size() >= 500000) {
-            String segmentName = appender.currentSegment();
-            index.flush(appender.directory().toFile(), segmentName);
-            appender.roll();
+            roll();
         }
 
     }
@@ -82,14 +80,15 @@ public class EventStore implements Closeable {
         return appender.stream();
     }
 
+    public void roll() {
+        String segmentName = appender.currentSegment();
+        index.flush(appender.directory().toFile(), segmentName);
+        appender.roll();
+    }
+
     @Override
     public void close() {
         index.close();
         appender.close();
     }
-
-    public void report() {
-        index.report();
-    }
-
 }

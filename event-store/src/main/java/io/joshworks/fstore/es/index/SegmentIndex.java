@@ -3,8 +3,10 @@ package io.joshworks.fstore.es.index;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.util.AccessCountStorage;
+import io.joshworks.fstore.es.index.filter.BloomFilter;
 import io.joshworks.fstore.es.utils.Memory;
+import io.joshworks.fstore.index.filter.Hash;
+import io.joshworks.fstore.serializer.Serializers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,10 +16,9 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 /**
  * ---- HEADER ----
@@ -53,31 +54,30 @@ public class SegmentIndex implements Searchable, Closeable {
     private static final Serializer<IndexEntry> indexEntrySerializer = new IndexKeySerializer();
     private static final Serializer<Midpoint> midpointSerializer = new MidpointSerializer();
 
+    private final BloomFilter<Long> filter;
 
     private final int entryCount;
 
     private final Storage storage;
     final Midpoint[] midpoints;
 
-    private SegmentIndex(Storage storage, Midpoint[] midpoints, int entryCount) {
+    private SegmentIndex(Storage storage, Midpoint[] midpoints, int entryCount, BloomFilter<Long> filter) {
         this.storage = storage;
         this.midpoints = midpoints;
         this.entryCount = entryCount;
+        this.filter = filter;
     }
 
-    public Map<String, Long> report() {
-        AccessCountStorage storage = (AccessCountStorage)this.storage;
-        Map<String, Long> map = new HashMap<>();
-        map.put("READ", storage.reads());
-        map.put("WRITE", storage.writes());
-        return map;
-
+    public Stream<IndexEntry> stream(Range range) {
+        throw new UnsupportedOperationException("Not implemented yet");
     }
 
-    //TODO stream results ?
     @Override
     public List<IndexEntry> range(Range range) {
         if (outOfRange(range)) {
+            return new ArrayList<>();
+        }
+        if(!filter.contains(range.stream)) {
             return new ArrayList<>();
         }
 
@@ -87,12 +87,11 @@ public class SegmentIndex implements Searchable, Closeable {
         int midpointIdx = getMidpointIdx(start);
         Midpoint midpoint = midpoints[midpointIdx];
 
-
         List<IndexEntry> indexEntries = new ArrayList<>();
         long position = midpoint.position;
 
         do {
-            List<IndexEntry> loaded = loadPage(position);
+            List<IndexEntry> loaded = readPage(position);
             if (loaded.isEmpty()) {
                 return indexEntries;
             }
@@ -123,6 +122,9 @@ public class SegmentIndex implements Searchable, Closeable {
         if (outOfRange(range)) {
             return Optional.empty();
         }
+        if(!filter.contains(range.stream)) {
+            return Optional.empty();
+        }
 
         IndexEntry start = range.start();
         IndexEntry end = range.end();
@@ -135,7 +137,7 @@ public class SegmentIndex implements Searchable, Closeable {
         long position = lowBound.position;
         do {
 
-            List<IndexEntry> loaded = loadPage(position);
+            List<IndexEntry> loaded = readPage(position);
             if (loaded.isEmpty()) {
                 return Optional.empty();
             }
@@ -199,7 +201,7 @@ public class SegmentIndex implements Searchable, Closeable {
         return indexEntrySerializer.fromBytes(bb);
     }
 
-    List<IndexEntry> loadPage(long startPosition) {
+    List<IndexEntry> readPage(long startPosition) {
         //out of range
         if (startPosition < HEADER_SIZE) {
             throw new IllegalArgumentException("Position must be greater or equals to " + HEADER_SIZE);
@@ -214,10 +216,10 @@ public class SegmentIndex implements Searchable, Closeable {
             throw new IllegalArgumentException("Position " + startPosition + " is not aligned with IndexEntry position of " + IndexEntry.BYTES);
         }
 
+        int entryIdx = (int) (startPosition / IndexEntry.BYTES);
 
-        int maxKeysPerPage = (int) Math.floor(Memory.PAGE_SIZE / IndexEntry.BYTES);
-        int numKeys = Math.min(maxKeysPerPage, entryCount);
-        ByteBuffer bb = ByteBuffer.allocate(numKeys * IndexEntry.BYTES);
+        int numKeys = Math.min(keysPerPage(), entryCount - entryIdx);
+        ByteBuffer bb = ByteBuffer.allocate(numKeys *  IndexEntry.BYTES);
         storage.read(startPosition, bb);
         bb.flip();
 
@@ -230,14 +232,18 @@ public class SegmentIndex implements Searchable, Closeable {
         return entries;
     }
 
+    private static int keysPerPage() {
+        return (int) Math.floor(Memory.PAGE_SIZE / IndexEntry.BYTES);
+    }
+
     public static SegmentIndex write(MemIndex memIndex, Storage storage) {
         logger.info("Writing {} index entries disk", memIndex.size);
 
         long start = System.currentTimeMillis();
 
-        int cachingFactor = 1; //TODO
+        int cachingFactor = 1;
 
-        int maxKeysPerPage = (int) Math.floor(Memory.PAGE_SIZE / IndexEntry.BYTES);
+        int maxKeysPerPage = keysPerPage() * cachingFactor;
         int totalMidPoints = Math.max(2, memIndex.index.size() * IndexEntry.BYTES / maxKeysPerPage);
 
         int bodySize = memIndex.index.size() * IndexEntry.BYTES;
@@ -245,19 +251,24 @@ public class SegmentIndex implements Searchable, Closeable {
 
         ByteBuffer buffer = ByteBuffer.allocate(HEADER_SIZE + bodySize + footerSize);
 
-
         List<Midpoint> midpoints = new ArrayList<>();
         buffer.position(HEADER_SIZE);
 
         //first midpoint
         midpoints.add(new Midpoint(memIndex.index.first(), buffer.position()));
 
-        //TODO properly calculate midpoints spacing
+
+        BloomFilter<Long> filter = new BloomFilter<>(memIndex.index.size(), 0.3, Hash.Murmur64(Serializers.LONG));
+
         int mpCache = 0;
         for (IndexEntry index : memIndex.index) {
             indexEntrySerializer.writeTo(index, buffer);
 
-            if (mpCache >= maxKeysPerPage) {
+            //TODO no need to serialize again prior to hashing
+            //TODO same stream will be hashed multiple times, no a problem though
+            filter.add(index.stream);
+
+            if (mpCache == maxKeysPerPage) {
                 int address = buffer.position() - IndexEntry.BYTES;
                 midpoints.add(new Midpoint(index, address));
                 mpCache = 0;
@@ -266,7 +277,9 @@ public class SegmentIndex implements Searchable, Closeable {
         }
 
         //last midpoint
-        midpoints.add(new Midpoint(memIndex.index.last(), buffer.position() - IndexEntry.BYTES));
+        if (mpCache != 0) {
+            midpoints.add(new Midpoint(memIndex.index.last(), buffer.position() - IndexEntry.BYTES));
+        }
 
         long footerOffset = buffer.position();
         //footer
@@ -285,7 +298,7 @@ public class SegmentIndex implements Searchable, Closeable {
         storage.write(buffer);
 
         logger.info("Index written to disk, took {}ms", System.currentTimeMillis() - start);
-        return new SegmentIndex(storage, midpoints.toArray(new Midpoint[midpoints.size()]), memIndex.index.size());
+        return new SegmentIndex(storage, midpoints.toArray(new Midpoint[midpoints.size()]), memIndex.index.size(), filter);
     }
 
     public static SegmentIndex load(Storage storage) {
@@ -308,7 +321,13 @@ public class SegmentIndex implements Searchable, Closeable {
             midpoints[i] = midpointSerializer.fromBytes(midpointsBuffer);
         }
 
-        return new SegmentIndex(storage, midpoints, entriesSize);
+        BloomFilter<Long> filter = loadBloomFilter();
+
+        return new SegmentIndex(storage, midpoints, entriesSize, filter);
+    }
+
+    private static BloomFilter<Long> loadBloomFilter() {
+        return null; //TODO
     }
 
     public int entries() {

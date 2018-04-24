@@ -3,16 +3,11 @@ package io.joshworks.fstore.index.filter;
 import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
-import java.util.Random;
 
 public interface Hash<T> {
 
 
     int[] hash(int maximum, int k, T val);
-
-    static <T> Hash<T> java() {
-        return new JavaHash<>();
-    }
 
     static <T> Hash<T> Murmur64(Serializer<T> serializer) {
         return new Murmur64<>(serializer);
@@ -52,25 +47,6 @@ public interface Hash<T> {
 //                bitsChanged |= bits.set(combinedHash % bitSize);
             }
             return result;
-        }
-    }
-
-    class JavaHash<T> implements Hash<T> {
-
-        private final Random rand = new Random();
-
-        @Override
-        public int[] hash(int max, int k, T val) {
-            if(val == null) {
-                throw new IllegalArgumentException("Value must not be null");
-            }
-            rand.setSeed(val.hashCode());
-            int[] hashes = new int[k];
-            for (int i = 0; i < hashes.length; i++) {
-                int hash = rand.nextInt() % max;
-                hashes[i] = hash < 0 ? ~hash : hash;
-            }
-            return hashes;
         }
     }
 

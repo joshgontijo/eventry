@@ -3,17 +3,20 @@ package io.joshworks.fstore.core.util;
 import io.joshworks.fstore.core.io.Storage;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class AccessCountStorage implements Storage {
+public class StatsStorage implements Storage {
 
     private final AtomicLong reads = new AtomicLong();
     private final AtomicLong writes = new AtomicLong();
+    private BigDecimal bytesWritten = BigDecimal.ZERO;
+    private BigDecimal bytesRead = BigDecimal.ZERO;
 
     private final Storage delegate;
 
-    public AccessCountStorage(Storage delegate) {
+    public StatsStorage(Storage delegate) {
         this.delegate = delegate;
     }
 
@@ -28,13 +31,17 @@ public class AccessCountStorage implements Storage {
     @Override
     public int write(ByteBuffer data) {
         writes.incrementAndGet();
-        return delegate.write(data);
+        int write = delegate.write(data);
+        bytesWritten = bytesWritten.add(BigDecimal.valueOf(write));
+        return write;
     }
 
     @Override
     public int read(long position, ByteBuffer data) {
         reads.incrementAndGet();
-        return delegate.read(position, data);
+        int read = delegate.read(position, data);
+        bytesRead = bytesRead.add(BigDecimal.valueOf(read));
+        return read;
     }
 
     @Override

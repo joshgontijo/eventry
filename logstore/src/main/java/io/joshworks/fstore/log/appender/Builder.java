@@ -43,7 +43,7 @@ public final class Builder<T> {
     public Builder<T> segmentSize(int size) {
         long maxAddress = BitUtil.maxValueForBits(segmentBitShift);
         if (size > maxAddress) {
-            throw new IllegalArgumentException("Maximum size allowed is " + maxAddress);
+            throw new IllegalArgumentException("Maximum position allowed is " + maxAddress);
         }
         this.segmentSize = size;
         return this;

@@ -2,6 +2,9 @@ package io.joshworks.fstore.es.index;
 
 import io.joshworks.fstore.core.io.DiskStorage;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.es.index.filter.BloomFilter;
+import io.joshworks.fstore.index.filter.Hash;
+import io.joshworks.fstore.serializer.Serializers;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -14,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class SegmentIndexTest {
@@ -40,9 +44,21 @@ public class SegmentIndexTest {
     }
 
     @Test
-    public void loaded_segmentIndex_has_the_same_midpoints() {
+    public void loaded_segmentIndex_has_the_same_10_midpoints() {
         //given
-        SegmentIndex diskIndex = indexWithStreamRanging(0, 1000000);
+        SegmentIndex diskIndex = indexWithStreamRanging(1, 10);
+
+        //when
+        SegmentIndex loaded = SegmentIndex.load(storage);
+
+        //then
+        assertTrue(Arrays.equals(diskIndex.midpoints, loaded.midpoints));
+    }
+
+    @Test
+    public void loaded_segmentIndex_has_the_same_1000000_midpoints() {
+        //given
+        SegmentIndex diskIndex = indexWithStreamRanging(1, 1000000);
 
         //when
         SegmentIndex loaded = SegmentIndex.load(storage);
@@ -87,7 +103,7 @@ public class SegmentIndexTest {
         SegmentIndex diskIndex = indexWithStreamRanging(1, numEntries);
 
         //when
-        Collection<IndexEntry> entries = diskIndex.loadPage(SegmentIndex.HEADER_SIZE); //start after header
+        Collection<IndexEntry> entries = diskIndex.readPage(SegmentIndex.HEADER_SIZE); //start after header
 
         //then
         assertEquals(numEntries, entries.size());
@@ -101,7 +117,7 @@ public class SegmentIndexTest {
         SegmentIndex diskIndex = indexWithStreamRanging(0, numEntries);
 
         //when
-        diskIndex.loadPage(SegmentIndex.HEADER_SIZE - 1);
+        diskIndex.readPage(SegmentIndex.HEADER_SIZE - 1);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -113,7 +129,7 @@ public class SegmentIndexTest {
 
         //when
         long pos = (diskIndex.entries() * IndexEntry.BYTES) + SegmentIndex.HEADER_SIZE;
-        diskIndex.loadPage(pos);
+        diskIndex.readPage(pos);
 
     }
 
@@ -122,11 +138,11 @@ public class SegmentIndexTest {
 
         //given
         int numEntries = 10;
-        SegmentIndex diskIndex = indexWithStreamRanging(0, numEntries);
+        SegmentIndex diskIndex = indexWithStreamRanging(1, numEntries);
 
         //when
         long pos = SegmentIndex.HEADER_SIZE + 1;
-        diskIndex.loadPage(pos);
+        diskIndex.readPage(pos);
     }
 
     @Test
@@ -184,21 +200,70 @@ public class SegmentIndexTest {
     }
 
     @Test
+    public void range() {
+        //given
+        int startStream = 1;
+        int endStream = 100000;
+        SegmentIndex diskIndex = indexWithStreamRanging(startStream, endStream);
+
+        //when
+        for (int i = startStream; i < endStream; i++) {
+            List<IndexEntry> last = diskIndex.range(Range.allOf(i));
+
+            //then
+            assertEquals("Failed on position " + i, 1, last.size());
+        }
+    }
+
+    @Test
     public void latestStreamVersion_with_index_multiple_streams() {
 
         //given
-        long stream = 123L;
-        SegmentIndex diskIndex = indexWithStreamRanging(1, 500);
+        int startStream = 1;
+        int endStream = 100000;
+        SegmentIndex diskIndex = indexWithStreamRanging(startStream, endStream);
 
         //when
-        for (int i = 1; i <= 500; i++) {
-            Optional<IndexEntry> indexEntry = diskIndex.latestOfStream(stream);
+        for (int i = startStream; i <= endStream; i++) {
+            Optional<IndexEntry> indexEntry = diskIndex.latestOfStream(i);
 
             //then
-            assertTrue(indexEntry.isPresent());
-            assertEquals(1, indexEntry.get().version);
+            assertTrue("Failed on iteration " + i, indexEntry.isPresent());
+            assertEquals("Failed on iteration " + i, 1, indexEntry.get().version);
         }
+    }
 
+    @Test
+    public void bloom_filter_usage() {
+
+        //given
+        MemIndex memIndex = new MemIndex();
+        memIndex.add(1, 0, 0);
+        memIndex.add(2, 0, 0);
+        memIndex.add(3, 0, 0);
+        memIndex.add(5, 0, 0);
+
+        //when
+        int someOtherStream = 4;
+        SegmentIndex diskIndex = SegmentIndex.write(memIndex, storage);
+        List<IndexEntry> range = diskIndex.range(Range.allOf(someOtherStream));
+        assertEquals(0, range.size());
+    }
+
+    @Test
+    public void bloom_filter() {
+        //given
+        BloomFilter<Long> filter = new BloomFilter<>(5, 0.5, new Hash.Murmur64<>(Serializers.LONG));
+        filter.add(1L);
+        filter.add(2L);
+        filter.add(3L);
+        filter.add(5L);
+
+        assertTrue(filter.contains(1L));
+        assertTrue(filter.contains(2L));
+        assertTrue(filter.contains(3L));
+        assertTrue(filter.contains(5L));
+        assertFalse(filter.contains(4L));
     }
 
     private SegmentIndex indexWithStreamRanging(int from, int to) {
