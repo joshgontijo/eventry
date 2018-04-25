@@ -5,14 +5,14 @@ import io.joshworks.fstore.core.io.Storage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
 import java.io.File;
 import java.nio.channels.FileChannel;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
-public class TableIndex implements Searchable, Closeable {
+public class TableIndex implements Index {
 
     private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
 
@@ -20,10 +20,10 @@ public class TableIndex implements Searchable, Closeable {
     private final List<SegmentIndex> segmentIndexes = new LinkedList<>();
 
     public void add(long stream, int version, long position) {
-        if(version <= 0) {
+        if (version <= 0) {
             throw new IllegalArgumentException("Version must be greater than zero");
         }
-        if(position < 0) {
+        if (position < 0) {
             throw new IllegalArgumentException("Position must be greater than zero");
         }
 
@@ -45,7 +45,7 @@ public class TableIndex implements Searchable, Closeable {
         Optional<IndexEntry> indexEntry = memIndex.latestOfStream(stream);
         for (SegmentIndex segmentIndex : segmentIndexes) {
             Optional<IndexEntry> found = segmentIndex.latestOfStream(stream);
-            if(found.isPresent()) {
+            if (found.isPresent()) {
                 indexEntry = found;
             }
         }
@@ -57,7 +57,7 @@ public class TableIndex implements Searchable, Closeable {
         return memIndex.size();
     }
 
-    public void flush(File directory, String segmentName)  {
+    public void flush(File directory, String segmentName) {
         String indexName = segmentName.split("\\.")[0] + ".idx";
 
         logger.info("Flushing index to {}", indexName);
@@ -71,11 +71,26 @@ public class TableIndex implements Searchable, Closeable {
     }
 
     @Override
-    public void close()  {
+    public void close() {
         memIndex.close();
         for (SegmentIndex segmentIndex : segmentIndexes) {
             logger.info("Closing {}", segmentIndex);
             segmentIndex.close();
         }
+    }
+
+    @Override
+    public Iterator<IndexEntry> iterator(Range range) {
+        return null;
+    }
+
+    @Override
+    public Optional<IndexEntry> get(long stream, int version) {
+        throw new UnsupportedOperationException("Not implemented yet");
+    }
+
+    @Override
+    public Iterator<IndexEntry> iterator() {
+        return null;
     }
 }

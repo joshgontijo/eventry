@@ -19,19 +19,21 @@ public class Main {
         long start = System.currentTimeMillis();
         int size = 1000000;
         for (int i = 0; i < size; i++) {
-            store.put("test-stream-", Event.create("" + i, "data-" + i));
+            store.put("test-stream", Event.create("" + i, "data-" + i));
         }
         System.out.println("WRITE: " + (System.currentTimeMillis() - start));
 
         start = System.currentTimeMillis();
 
-        for (int i = 0; i < size; i++) {
-            List<Event> events = store.get("test-stream-");
-//            if (events.size() != 1) {
-//                store.close();
-//                throw new RuntimeException("Not equals to one: "+events.size()+" idx: " + i);
-//            }
-        }
+        List<Event> events = store.get("test-stream");
+//        for (int i = 0; i < size; i++) {
+//
+////            if (events.size() != 1) {
+////                store.close();
+////                throw new RuntimeException("Not equals to one: "+events.size()+" idx: " + i);
+////            }
+//        }
+        System.out.println("SIZE: " + events.size());
         System.out.println("READ: " + (System.currentTimeMillis() - start));
 
 

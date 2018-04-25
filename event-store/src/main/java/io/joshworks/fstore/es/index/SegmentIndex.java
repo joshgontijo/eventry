@@ -10,7 +10,6 @@ import io.joshworks.fstore.serializer.Serializers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -50,7 +49,7 @@ import java.util.stream.Stream;
  * <p>
  * The client code is responsible for ensuring the number will match
  */
-public class SegmentIndex implements Searchable, Closeable, Iterable<IndexEntry> {
+public class SegmentIndex implements Index {
 
     private static final Logger logger = LoggerFactory.getLogger(SegmentIndex.class);
 
@@ -330,7 +329,8 @@ public class SegmentIndex implements Searchable, Closeable, Iterable<IndexEntry>
     }
 
     private static BloomFilter<Long> loadBloomFilter() {
-        return null; //TODO
+        //TODO IMPLEMENT BLOOM FILTER LOADING
+        throw new UnsupportedOperationException("TODO");
     }
 
     public int entries() {
@@ -359,6 +359,7 @@ public class SegmentIndex implements Searchable, Closeable, Iterable<IndexEntry>
         return new FullScanIterator();
     }
 
+    @Override
     public Iterator<IndexEntry> iterator(Range range) {
         if (!hasEntries(range)) {
             return new EmptyIterator();
@@ -380,6 +381,20 @@ public class SegmentIndex implements Searchable, Closeable, Iterable<IndexEntry>
         List<IndexEntry> start = loaded.subList(startIdx, loaded.size());
         long firstEntryPos = lowBound.position + (startIdx * IndexEntry.BYTES);
         return new MultiPageRangeIterator(range, start, firstEntryPos);
+    }
+
+    @Override
+    public Optional<IndexEntry> get(long stream, int version) {
+        Range range = Range.of(stream, version, version + 1);
+        List<IndexEntry> found = range(range);
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        if (found.size() > 1) {
+            throw new IllegalStateException("More than one event found (" + found.size() + ") for stream " + stream + ", version " + version);
+        }
+        return Optional.of(found.get(0));
+
     }
 
     private class MultiPageRangeIterator implements Iterator<IndexEntry> {

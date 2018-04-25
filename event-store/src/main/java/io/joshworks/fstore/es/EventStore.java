@@ -64,9 +64,10 @@ public class EventStore implements Closeable {
         long position = appender.append(event);
         long streamHash = hasher.hash(stream);
 
-        int latestVersion = streamVersion.compute(streamHash, (k, v) -> v == null ? 1 : ++v);
 
-//        int latestVersion = index.latestOfStream(streamHash).map(ie -> ie.version).orElse(1); //TODO change to stream starting at 1
+
+//        int latestVersion = streamVersion.compute(streamHash, (k, v) -> v == null ? 1 : ++v);
+        int latestVersion = index.latestOfStream(streamHash).map(ie -> ie.version).orElse(1);
 
         index.add(streamHash, latestVersion, position);
 
