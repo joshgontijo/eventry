@@ -16,8 +16,12 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Stream;
 
 /**
@@ -46,7 +50,7 @@ import java.util.stream.Stream;
  * <p>
  * The client code is responsible for ensuring the number will match
  */
-public class SegmentIndex implements Searchable, Closeable {
+public class SegmentIndex implements Searchable, Closeable, Iterable<IndexEntry> {
 
     private static final Logger logger = LoggerFactory.getLogger(SegmentIndex.class);
 
@@ -77,7 +81,7 @@ public class SegmentIndex implements Searchable, Closeable {
         if (outOfRange(range)) {
             return new ArrayList<>();
         }
-        if(!filter.contains(range.stream)) {
+        if (!filter.contains(range.stream)) {
             return new ArrayList<>();
         }
 
@@ -122,7 +126,7 @@ public class SegmentIndex implements Searchable, Closeable {
         if (outOfRange(range)) {
             return Optional.empty();
         }
-        if(!filter.contains(range.stream)) {
+        if (!filter.contains(range.stream)) {
             return Optional.empty();
         }
 
@@ -130,7 +134,6 @@ public class SegmentIndex implements Searchable, Closeable {
         IndexEntry end = range.end();
 
         int midpointIdx = getMidpointIdx(end);
-
         Midpoint lowBound = midpoints[midpointIdx];
 
         IndexEntry latest = null;
@@ -147,10 +150,10 @@ public class SegmentIndex implements Searchable, Closeable {
 
             for (int i = startIdx; i < loaded.size(); i++) {
                 IndexEntry indexEntry = loaded.get(i);
-                if (indexEntry.compareTo(start) < 0) {
+                if (indexEntry.lessThan(start)) {
                     continue; //skip
                 }
-                if (indexEntry.compareTo(end) >= 0) {
+                if (indexEntry.greatOrEqualsTo(end)) {
                     return Optional.ofNullable(latest);
                 }
                 latest = indexEntry;
@@ -219,7 +222,7 @@ public class SegmentIndex implements Searchable, Closeable {
         int entryIdx = (int) (startPosition / IndexEntry.BYTES);
 
         int numKeys = Math.min(keysPerPage(), entryCount - entryIdx);
-        ByteBuffer bb = ByteBuffer.allocate(numKeys *  IndexEntry.BYTES);
+        ByteBuffer bb = ByteBuffer.allocate(numKeys * IndexEntry.BYTES);
         storage.read(startPosition, bb);
         bb.flip();
 
@@ -346,4 +349,128 @@ public class SegmentIndex implements Searchable, Closeable {
             throw RuntimeIOException.of(e);
         }
     }
+
+    private boolean hasEntries(Range range) {
+        return !outOfRange(range) && filter.contains(range.stream);
+    }
+
+    @Override
+    public Iterator<IndexEntry> iterator() {
+        return new FullScanIterator();
+    }
+
+    public Iterator<IndexEntry> iterator(Range range) {
+        if (!hasEntries(range)) {
+            return new EmptyIterator();
+        }
+
+        int midpointIdx = getMidpointIdx(range.start());
+        Midpoint lowBound = midpoints[midpointIdx];
+        List<IndexEntry> loaded = readPage(lowBound.position);
+        if (loaded.isEmpty()) {
+            return new EmptyIterator();
+        }
+
+        int startIdx = Collections.binarySearch(loaded, range.start());
+        startIdx = startIdx < 0 ? Math.abs(startIdx) - 1 : startIdx;
+        if (startIdx >= loaded.size()) {
+            return new EmptyIterator();
+        }
+
+        List<IndexEntry> start = loaded.subList(startIdx, loaded.size());
+        long firstEntryPos = lowBound.position + (startIdx * IndexEntry.BYTES);
+        return new MultiPageRangeIterator(range, start, firstEntryPos);
+    }
+
+    private class MultiPageRangeIterator implements Iterator<IndexEntry> {
+
+        private final IndexEntry end;
+
+        private long position;
+        private final Queue<IndexEntry> entries;
+
+        private MultiPageRangeIterator(Range range, List<IndexEntry> initialData, long initialPosition) {
+            this.end = range.end();
+            if (initialData.isEmpty()) {
+                //just to avoid having to read another page
+                throw new IllegalStateException("Initial data cannot be empty");
+            }
+            entries = new ConcurrentLinkedQueue<>(initialData);
+            this.position = initialPosition;
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (!entries.isEmpty()) {
+                IndexEntry next = entries.peek();
+                return next.lessThan(end);
+            }
+
+            if (position > lastMidpoint().position) {
+                return false;
+            }
+
+            List<IndexEntry> loaded = readPage(position);
+            if (loaded.isEmpty()) {
+                return false;
+            }
+
+            entries.addAll(loaded);
+
+            IndexEntry next = entries.peek();
+            return next.compareTo(end) < 0;
+        }
+
+        @Override
+        public IndexEntry next() {
+            this.position += IndexEntry.BYTES;
+            return entries.remove();
+
+        }
+    }
+
+    private class FullScanIterator implements Iterator<IndexEntry> {
+
+        private long position = HEADER_SIZE;
+        private final Queue<IndexEntry> entries = new ConcurrentLinkedQueue<>();
+
+        @Override
+        public boolean hasNext() {
+            if (!entries.isEmpty()) {
+                return true;
+            }
+
+            if (position > lastMidpoint().position) {
+                return false;
+            }
+
+            List<IndexEntry> loaded = readPage(position);
+            if (loaded.isEmpty()) {
+                return false;
+            }
+
+            entries.addAll(loaded);
+            return true;
+        }
+
+        @Override
+        public IndexEntry next() {
+            this.position += IndexEntry.BYTES;
+            return entries.remove();
+        }
+    }
+
+    private class EmptyIterator implements Iterator<IndexEntry> {
+
+        @Override
+        public boolean hasNext() {
+            return false;
+        }
+
+        @Override
+        public IndexEntry next() {
+            throw new NoSuchElementException();
+        }
+    }
+
 }

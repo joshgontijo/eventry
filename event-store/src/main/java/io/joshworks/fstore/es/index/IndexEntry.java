@@ -34,6 +34,18 @@ public class IndexEntry implements Comparable<IndexEntry> {
         return (int) (position - other.position);
     }
 
+    public boolean greaterThan(IndexEntry other) {
+        return this.compareTo(other) > 0;
+    }
+
+    public boolean lessThan(IndexEntry other) {
+        return this.compareTo(other) < 0;
+    }
+
+    public boolean greatOrEqualsTo(IndexEntry other) {
+        return this.compareTo(other) >= 0;
+    }
+
 
     @Override
     public String toString() {
