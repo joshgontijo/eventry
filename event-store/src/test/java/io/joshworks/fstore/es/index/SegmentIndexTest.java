@@ -14,8 +14,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Optional;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -38,10 +36,10 @@ public class SegmentIndexTest {
         SegmentIndex diskIndex = indexWithStreamRanging(0, 1000000);
 
         //when
-        List<IndexEntry> range = diskIndex.range(Range.allOf(0));
+        long size = diskIndex.stream(Range.allOf(0)).count();
 
         //then
-        assertEquals(1, range.size());
+        assertEquals(1L, size);
     }
 
     @Test
@@ -74,10 +72,10 @@ public class SegmentIndexTest {
         SegmentIndex diskIndex = indexWithStreamRanging(-5, 0);
 
         //when
-        List<IndexEntry> range = diskIndex.range(Range.allOf(-5));
+        long size = diskIndex.stream(Range.allOf(-5)).count();
 
         //then
-        assertEquals(1, range.size());
+        assertEquals(1, size);
     }
 
     @Test
@@ -90,10 +88,10 @@ public class SegmentIndexTest {
         SegmentIndex diskIndex = indexWithSameStreamWithVersionRanging(stream, startVersion, endVersion);
 
         //when
-        List<IndexEntry> found = diskIndex.range(Range.allOf(stream));
+        long size = diskIndex.stream(Range.allOf(stream)).count();
 
         //then
-        assertEquals(10, found.size());
+        assertEquals(10, size);
     }
 
     @Test
@@ -129,7 +127,7 @@ public class SegmentIndexTest {
         SegmentIndex diskIndex = indexWithStreamRanging(0, numEntries);
 
         //when
-        long pos = (diskIndex.entries() * IndexEntry.BYTES) + SegmentIndex.HEADER_SIZE;
+        long pos = (diskIndex.size() * IndexEntry.BYTES) + SegmentIndex.HEADER_SIZE;
         diskIndex.readPage(pos);
 
     }
@@ -175,7 +173,7 @@ public class SegmentIndexTest {
 
         //given
         MemIndex index = new MemIndex();
-        index.add(0,0,0);
+        index.add(0, 0, 0);
 
         //when
         SegmentIndex write = SegmentIndex.write(index, storage);
@@ -193,11 +191,10 @@ public class SegmentIndexTest {
         SegmentIndex diskIndex = indexWithSameStreamWithVersionRanging(stream, 1, lastVersion);
 
         //when
-        Optional<IndexEntry> indexEntry = diskIndex.latestOfStream(stream);
+        int version = diskIndex.version(stream);
 
         //then
-        assertTrue(indexEntry.isPresent());
-        assertEquals(lastVersion, indexEntry.get().version);
+        assertEquals(lastVersion, version);
     }
 
     @Test
@@ -209,10 +206,10 @@ public class SegmentIndexTest {
 
         //when
         for (int i = startStream; i < endStream; i++) {
-            List<IndexEntry> last = diskIndex.range(Range.allOf(i));
+            long size = diskIndex.stream(Range.allOf(i)).count();
 
             //then
-            assertEquals("Failed on position " + i, 1, last.size());
+            assertEquals("Failed on position " + i, 1, size);
         }
     }
 
@@ -226,11 +223,10 @@ public class SegmentIndexTest {
 
         //when
         for (int i = startStream; i <= endStream; i++) {
-            Optional<IndexEntry> indexEntry = diskIndex.latestOfStream(i);
+            int version = diskIndex.version(i);
 
             //then
-            assertTrue("Failed on iteration " + i, indexEntry.isPresent());
-            assertEquals("Failed on iteration " + i, 1, indexEntry.get().version);
+            assertEquals("Failed on iteration " + i, 1, version);
         }
     }
 
@@ -247,8 +243,8 @@ public class SegmentIndexTest {
         //when
         int someOtherStream = 4;
         SegmentIndex diskIndex = SegmentIndex.write(memIndex, storage);
-        List<IndexEntry> range = diskIndex.range(Range.allOf(someOtherStream));
-        assertEquals(0, range.size());
+        long size = diskIndex.stream(Range.allOf(someOtherStream)).count();
+        assertEquals(0, size);
     }
 
     @Test
@@ -329,9 +325,9 @@ public class SegmentIndexTest {
 
         int count = 0;
         IndexEntry preciousEntry = null;
-        while(iterator.hasNext()) {
+        while (iterator.hasNext()) {
             IndexEntry current = iterator.next();
-            if(preciousEntry != null) {
+            if (preciousEntry != null) {
                 assertTrue(current.greaterThan(preciousEntry));
             }
             preciousEntry = current;
@@ -341,10 +337,137 @@ public class SegmentIndexTest {
         assertEquals(numStreams * numEvents, count);
     }
 
+    @Test
+    public void write() throws IOException {
+        MemIndex memIndex = new MemIndex();
+        memIndex.add(1, 0, 0);
+        memIndex.add(1, 1, 0);
+        memIndex.add(1, 2, 0);
+        memIndex.add(1, 3, 0);
+
+        SegmentIndex idx = SegmentIndex.write(memIndex, storage);
+
+        assertEquals(2, idx.midpoints.length);
+
+        assertEquals(memIndex.index.first(), idx.midpoints[0].key);
+        assertEquals(memIndex.index.last(), idx.midpoints[idx.midpoints.length - 1].key);
+
+    }
+
+    @Test
+    public void load() throws IOException {
+
+        MemIndex memIndex = new MemIndex();
+        memIndex.add(1, 0, 0);
+        memIndex.add(1, 1, 0);
+        memIndex.add(1, 2, 0);
+        memIndex.add(1, 3, 0);
+
+        SegmentIndex idx = SegmentIndex.write(memIndex, storage);
+
+        SegmentIndex found = SegmentIndex.load(storage);
+
+        assertEquals(2, found.midpoints.length);
+        assertEquals(idx.midpoints[0].key, found.midpoints[0].key);
+
+        assertEquals(memIndex.index.first(), idx.midpoints[0].key);
+        assertEquals(memIndex.index.last(), idx.midpoints[idx.midpoints.length - 1].key);
+
+    }
+
+    @Test
+    public void when_range_query_gt_index_bounds_return_empty_set() throws IOException {
+
+        long stream = 1;
+        long streamQuery = 2;
+
+        MemIndex memIndex = new MemIndex();
+        memIndex.add(stream, 0, 0);
+        memIndex.add(stream, 1, 0);
+        memIndex.add(stream, 2, 0);
+        memIndex.add(stream, 3, 0);
+
+        SegmentIndex idx = SegmentIndex.write(memIndex, storage);
+
+        Range range = Range.of(streamQuery, 0);
+
+        assertEquals(0, idx.stream(range).count());
+    }
+
+    @Test
+    public void iterator_return_version_in_increasing_order() throws IOException {
+
+        long stream = 1;
+        long streamQuery = 2;
+
+        MemIndex memIndex = new MemIndex();
+        memIndex.add(stream, 0, 0);
+        memIndex.add(stream, 1, 0);
+        memIndex.add(stream, 2, 0);
+        memIndex.add(stream, 3, 0);
+
+
+        SegmentIndex idx = SegmentIndex.write(memIndex, storage);
+
+        Range range = Range.of(streamQuery, 0);
+
+        assertEquals(0, idx.stream(range).count());
+    }
+
+    @Test
+    public void when_range_query_lt_index_bounds_return_empty_set() throws IOException {
+
+        long stream = 2;
+        long streamQuery = 1;
+
+        MemIndex memIndex = new MemIndex();
+        memIndex.add(stream, 0, 0);
+        memIndex.add(stream, 1, 0);
+        memIndex.add(stream, 2, 0);
+        memIndex.add(stream, 3, 0);
+
+        SegmentIndex idx = SegmentIndex.write(memIndex, storage);
+
+        Range range = Range.of(streamQuery, 0);
+
+        assertEquals(0, idx.stream(range).count());
+    }
+
+    @Test
+    public void when_range_query_in_index_bounds_return_all_matches() throws IOException {
+
+        long stream = 1;
+
+        MemIndex memIndex = new MemIndex();
+        memIndex.add(stream, 0, 0);
+        memIndex.add(stream, 1, 0);
+        memIndex.add(stream, 2, 0);
+        memIndex.add(stream, 3, 0);
+
+        SegmentIndex idx = SegmentIndex.write(memIndex, storage);
+
+        Range range = Range.of(stream, 1, 3);
+
+        Iterator<IndexEntry> it = idx.iterator(range);
+
+        assertTrue(it.hasNext());
+        IndexEntry next = it.next();
+        assertEquals(stream, next.stream);
+        assertEquals(1, next.version);
+
+        assertTrue(it.hasNext());
+        next = it.next();
+        assertEquals(stream, next.stream);
+        assertEquals(2, next.version);
+
+        assertFalse(it.hasNext());
+
+    }
+
     private void assertIteratorHasAllEntries(long stream, int latestVersion, Iterator<IndexEntry> iterator) {
         int previousVersion = 0;
         int count = 0;
-        while(iterator.hasNext()) {
+        while (iterator.hasNext()) {
             IndexEntry next = iterator.next();
 
             assertEquals(stream, next.stream);

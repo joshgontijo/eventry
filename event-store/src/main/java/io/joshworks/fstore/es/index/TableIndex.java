@@ -2,22 +2,28 @@ package io.joshworks.fstore.es.index;
 
 import io.joshworks.fstore.core.io.MMapStorage;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.es.utils.Iterators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.channels.FileChannel;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class TableIndex implements Index {
 
     private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
 
     private MemIndex memIndex = new MemIndex();
-    private final List<SegmentIndex> segmentIndexes = new LinkedList<>();
+    private final LinkedList<SegmentIndex> segmentIndexes = new LinkedList<>();
 
     public void add(long stream, int version, long position) {
         if (version <= 0) {
@@ -31,29 +37,30 @@ public class TableIndex implements Index {
     }
 
     @Override
-    public List<IndexEntry> range(Range range) {
-        List<IndexEntry> entries = memIndex.range(range);
-        for (SegmentIndex segmentIndex : segmentIndexes) {
-            List<IndexEntry> fromDisk = segmentIndex.range(range);
-            entries.addAll(fromDisk);
+    public int version(long stream) {
+        int version = memIndex.version(stream);
+        if (version > 0) {
+            return version;
         }
-        return entries;
+
+        Iterator<SegmentIndex> reverse = segmentIndexes.descendingIterator();
+        while (reverse.hasNext()) {
+            SegmentIndex previous = reverse.next();
+            int v = previous.version(stream);
+            if (v > 0) {
+                return v;
+            }
+        }
+        return 0;
     }
 
     @Override
-    public Optional<IndexEntry> latestOfStream(long stream) {
-        Optional<IndexEntry> indexEntry = memIndex.latestOfStream(stream);
-        for (SegmentIndex segmentIndex : segmentIndexes) {
-            Optional<IndexEntry> found = segmentIndex.latestOfStream(stream);
-            if (found.isPresent()) {
-                indexEntry = found;
-            }
-        }
-        return indexEntry;
+    public long size() {
+        long segmentsSize = segmentIndexes.stream().mapToLong(SegmentIndex::size).sum();
+        return segmentsSize + memIndex.size();
     }
 
-
-    public int size() {
+    public long inMemoryItems() {
         return memIndex.size();
     }
 
@@ -80,17 +87,53 @@ public class TableIndex implements Index {
     }
 
     @Override
+    public Stream<IndexEntry> stream() {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(), Spliterator.ORDERED), false);
+    }
+
+    @Override
+    public Stream<IndexEntry> stream(Range range) {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(range), Spliterator.ORDERED), false);
+    }
+
+    @Override
     public Iterator<IndexEntry> iterator(Range range) {
-        return null;
+        List<Iterator<IndexEntry>> iterators = new ArrayList<>();
+
+        Iterator<IndexEntry> cacheIterator = memIndex.iterator(range);
+
+        iterators.add(cacheIterator);
+        for (SegmentIndex next : segmentIndexes) {
+            iterators.add(next.iterator(range));
+        }
+
+        return Iterators.concat(iterators);
     }
 
     @Override
     public Optional<IndexEntry> get(long stream, int version) {
-        throw new UnsupportedOperationException("Not implemented yet");
+        Optional<IndexEntry> fromMemory = memIndex.get(stream, version);
+        if (fromMemory.isPresent()) {
+            return fromMemory;
+        }
+        for (SegmentIndex next : segmentIndexes) {
+            Optional<IndexEntry> fromDisk = next.get(stream, version);
+            if (fromDisk.isPresent()) {
+                return fromDisk;
+            }
+        }
+        return Optional.empty();
     }
 
     @Override
     public Iterator<IndexEntry> iterator() {
-        return null;
+        List<Iterator<IndexEntry>> iterators = new ArrayList<>();
+
+        for (SegmentIndex next : segmentIndexes) {
+            iterators.add(next.iterator());
+        }
+        iterators.add(memIndex.iterator());
+
+        return Iterators.concat(iterators);
     }
 }

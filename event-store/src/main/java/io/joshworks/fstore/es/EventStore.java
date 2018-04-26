@@ -14,6 +14,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -46,10 +47,12 @@ public class EventStore implements Closeable {
     public List<Event> get(String stream, int versionInclusive) {
         long streamHash = hasher.hash(stream);
 
-        List<IndexEntry> addresses = index.range(Range.of(streamHash, versionInclusive));
+        Iterator<IndexEntry> addresses = index.iterator(Range.of(streamHash, versionInclusive));
 
         List<Event> events = new ArrayList<>();
-        for (IndexEntry address : addresses) {
+        while(addresses.hasNext()) {
+            IndexEntry address = addresses.next();
+
             Event event = appender.get(address.position);
             if(event == null) {
                 throw new IllegalStateException("Event is null");
@@ -66,12 +69,13 @@ public class EventStore implements Closeable {
 
 
 
-//        int latestVersion = streamVersion.compute(streamHash, (k, v) -> v == null ? 1 : ++v);
-        int latestVersion = index.latestOfStream(streamHash).map(ie -> ie.version).orElse(1);
+//        int currentVersion = streamVersion.compute(streamHash, (k, v) -> v == null ? 1 : ++v);
+//        int currentVersion = 0;
+        int currentVersion = index.version(streamHash);
 
-        index.add(streamHash, latestVersion, position);
+        index.add(streamHash, currentVersion + 1, position);
 
-        if(index.size() >= 500000) {
+        if(index.inMemoryItems() >= 500000) {
             roll();
         }
 

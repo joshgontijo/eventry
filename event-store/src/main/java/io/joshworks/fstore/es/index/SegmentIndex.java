@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.es.index.filter.BloomFilter;
+import io.joshworks.fstore.es.utils.Iterators;
 import io.joshworks.fstore.es.utils.Memory;
 import io.joshworks.fstore.index.filter.Hash;
 import io.joshworks.fstore.serializer.Serializers;
@@ -17,16 +18,18 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * ---- HEADER ----
  * TODO MD5 checksum -> 16bytes
- * entryCount -> 4bytes
+ * size -> 4bytes
  * TODO ? entrySize -> 8bytes
  * footer offset -> 8bytes
  * midpointCount -> 4bytes
@@ -59,74 +62,23 @@ public class SegmentIndex implements Index {
 
     private final BloomFilter<Long> filter;
 
-    private final int entryCount;
+    private final long size;
 
     private final Storage storage;
     final Midpoint[] midpoints;
 
-    private SegmentIndex(Storage storage, Midpoint[] midpoints, int entryCount, BloomFilter<Long> filter) {
+    private SegmentIndex(Storage storage, Midpoint[] midpoints, long size, BloomFilter<Long> filter) {
         this.storage = storage;
         this.midpoints = midpoints;
-        this.entryCount = entryCount;
+        this.size = size;
         this.filter = filter;
     }
 
-    public Stream<IndexEntry> stream(Range range) {
-        throw new UnsupportedOperationException("Not implemented yet");
-    }
-
     @Override
-    public List<IndexEntry> range(Range range) {
-        if (outOfRange(range)) {
-            return new ArrayList<>();
-        }
-        if (!filter.contains(range.stream)) {
-            return new ArrayList<>();
-        }
-
-        IndexEntry start = range.start();
-        IndexEntry end = range.end();
-
-        int midpointIdx = getMidpointIdx(start);
-        Midpoint midpoint = midpoints[midpointIdx];
-
-        List<IndexEntry> indexEntries = new ArrayList<>();
-        long position = midpoint.position;
-
-        do {
-            List<IndexEntry> loaded = readPage(position);
-            if (loaded.isEmpty()) {
-                return indexEntries;
-            }
-
-            int startIdx = Collections.binarySearch(loaded, start);
-            startIdx = startIdx < 0 ? Math.abs(startIdx) - 1 : startIdx;
-
-            for (int i = startIdx; i < loaded.size(); i++) {
-                IndexEntry indexEntry = loaded.get(i);
-                if (indexEntry.compareTo(start) < 0) {
-                    continue; //skip
-                }
-                if (indexEntry.compareTo(end) >= 0) {
-                    return indexEntries;
-                }
-                indexEntries.add(indexEntry);
-            }
-
-            position += IndexEntry.BYTES * loaded.size();
-        } while (position <= lastMidpoint().position);
-
-        return indexEntries;
-    }
-
-    @Override
-    public Optional<IndexEntry> latestOfStream(long stream) {
+    public int version(long stream) {
         Range range = Range.allOf(stream);
-        if (outOfRange(range)) {
-            return Optional.empty();
-        }
-        if (!filter.contains(range.stream)) {
-            return Optional.empty();
+        if(!hasEntries(range)) {
+            return 0;
         }
 
         IndexEntry start = range.start();
@@ -135,13 +87,13 @@ public class SegmentIndex implements Index {
         int midpointIdx = getMidpointIdx(end);
         Midpoint lowBound = midpoints[midpointIdx];
 
-        IndexEntry latest = null;
+        int version = 0;
         long position = lowBound.position;
         do {
 
             List<IndexEntry> loaded = readPage(position);
             if (loaded.isEmpty()) {
-                return Optional.empty();
+                return version;
             }
 
             int startIdx = Collections.binarySearch(loaded, start);
@@ -153,15 +105,15 @@ public class SegmentIndex implements Index {
                     continue; //skip
                 }
                 if (indexEntry.greatOrEqualsTo(end)) {
-                    return Optional.ofNullable(latest);
+                    return version;
                 }
-                latest = indexEntry;
+                version = indexEntry.version;
             }
 
             position += IndexEntry.BYTES * loaded.size();
         } while (position <= lastMidpoint().position);
 
-        return Optional.ofNullable(latest);
+        return version;
     }
 
     private int getMidpointIdx(IndexEntry entry) {
@@ -196,13 +148,6 @@ public class SegmentIndex implements Index {
         return midpoints[midpoints.length - 1];
     }
 
-    private IndexEntry loadEntry(long startPosition) {
-        ByteBuffer bb = ByteBuffer.allocate(IndexEntry.BYTES);
-        storage.read(startPosition, bb);
-        bb.flip();
-        return indexEntrySerializer.fromBytes(bb);
-    }
-
     List<IndexEntry> readPage(long startPosition) {
         //out of range
         if (startPosition < HEADER_SIZE) {
@@ -210,7 +155,7 @@ public class SegmentIndex implements Index {
         }
         //out of range
         if (startPosition >= (lastMidpoint().position + IndexEntry.BYTES)) {
-            throw new IllegalArgumentException("Max position " + startPosition + " must be less than " + ((entryCount * IndexEntry.BYTES) + HEADER_SIZE));
+            throw new IllegalArgumentException("Max position " + startPosition + " must be less than " + ((size * IndexEntry.BYTES) + HEADER_SIZE));
         }
 
         //not aligned position
@@ -218,9 +163,9 @@ public class SegmentIndex implements Index {
             throw new IllegalArgumentException("Position " + startPosition + " is not aligned with IndexEntry position of " + IndexEntry.BYTES);
         }
 
-        int entryIdx = (int) (startPosition / IndexEntry.BYTES);
+        int entryIdx = (int) ((startPosition - HEADER_SIZE) / IndexEntry.BYTES);
 
-        int numKeys = Math.min(keysPerPage(), entryCount - entryIdx);
+        int numKeys = Math.min(keysPerPage(), (int)(size - entryIdx));
         ByteBuffer bb = ByteBuffer.allocate(numKeys * IndexEntry.BYTES);
         storage.read(startPosition, bb);
         bb.flip();
@@ -239,7 +184,7 @@ public class SegmentIndex implements Index {
     }
 
     public static SegmentIndex write(MemIndex memIndex, Storage storage) {
-        logger.info("Writing {} index entries disk", memIndex.size);
+        logger.info("Writing {} index entries disk", memIndex.size());
 
         long start = System.currentTimeMillis();
 
@@ -248,7 +193,7 @@ public class SegmentIndex implements Index {
         int maxKeysPerPage = keysPerPage() * cachingFactor;
         int totalMidPoints = Math.max(2, memIndex.index.size() * IndexEntry.BYTES / maxKeysPerPage);
 
-        int bodySize = memIndex.index.size() * IndexEntry.BYTES;
+        int bodySize = (int) (memIndex.size() * IndexEntry.BYTES);
         int footerSize = totalMidPoints * Midpoint.BYTES;
 
         ByteBuffer buffer = ByteBuffer.allocate(HEADER_SIZE + bodySize + footerSize);
@@ -256,14 +201,20 @@ public class SegmentIndex implements Index {
         List<Midpoint> midpoints = new ArrayList<>();
         buffer.position(HEADER_SIZE);
 
-        //first midpoint
-        midpoints.add(new Midpoint(memIndex.index.first(), buffer.position()));
-
 
         BloomFilter<Long> filter = new BloomFilter<>(memIndex.index.size(), 0.3, Hash.Murmur64(Serializers.LONG));
 
         int mpCache = 0;
-        for (IndexEntry index : memIndex.index) {
+
+
+        //first midpoint
+        midpoints.add(new Midpoint(memIndex.iterator().next(), buffer.position()));
+
+        Iterator<IndexEntry> iterator = memIndex.iterator();
+        IndexEntry last = null;
+        while(iterator.hasNext()) {
+            IndexEntry index = iterator.next();
+            last = index;
             indexEntrySerializer.writeTo(index, buffer);
 
             //TODO no need to serialize again prior to hashing
@@ -280,7 +231,7 @@ public class SegmentIndex implements Index {
 
         //last midpoint
         if (mpCache != 0) {
-            midpoints.add(new Midpoint(memIndex.index.last(), buffer.position() - IndexEntry.BYTES));
+            midpoints.add(new Midpoint(last, buffer.position() - IndexEntry.BYTES));
         }
 
         long footerOffset = buffer.position();
@@ -333,12 +284,13 @@ public class SegmentIndex implements Index {
         throw new UnsupportedOperationException("TODO");
     }
 
-    public int entries() {
-        return entryCount;
-    }
-
     public int midpointCount() {
         return midpoints.length;
+    }
+
+    @Override
+    public long size() {
+        return size;
     }
 
     @Override
@@ -355,6 +307,16 @@ public class SegmentIndex implements Index {
     }
 
     @Override
+    public Stream<IndexEntry> stream() {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(), Spliterator.ORDERED), false);
+    }
+
+    @Override
+    public Stream<IndexEntry> stream(Range range) {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(range), Spliterator.ORDERED), false);
+    }
+
+    @Override
     public Iterator<IndexEntry> iterator() {
         return new FullScanIterator();
     }
@@ -362,20 +324,20 @@ public class SegmentIndex implements Index {
     @Override
     public Iterator<IndexEntry> iterator(Range range) {
         if (!hasEntries(range)) {
-            return new EmptyIterator();
+            return Iterators.empty();
         }
 
         int midpointIdx = getMidpointIdx(range.start());
         Midpoint lowBound = midpoints[midpointIdx];
         List<IndexEntry> loaded = readPage(lowBound.position);
         if (loaded.isEmpty()) {
-            return new EmptyIterator();
+            return Iterators.empty();
         }
 
         int startIdx = Collections.binarySearch(loaded, range.start());
         startIdx = startIdx < 0 ? Math.abs(startIdx) - 1 : startIdx;
         if (startIdx >= loaded.size()) {
-            return new EmptyIterator();
+            return Iterators.empty();
         }
 
         List<IndexEntry> start = loaded.subList(startIdx, loaded.size());
@@ -386,14 +348,15 @@ public class SegmentIndex implements Index {
     @Override
     public Optional<IndexEntry> get(long stream, int version) {
         Range range = Range.of(stream, version, version + 1);
-        List<IndexEntry> found = range(range);
-        if (found.isEmpty()) {
+        Iterator<IndexEntry> found = iterator(range);
+        if (!found.hasNext()) {
             return Optional.empty();
         }
-        if (found.size() > 1) {
-            throw new IllegalStateException("More than one event found (" + found.size() + ") for stream " + stream + ", version " + version);
+        IndexEntry next = found.next();
+        if (found.hasNext()) {
+            throw new IllegalStateException("More than one event found for stream " + stream + ", version " + version);
         }
-        return Optional.of(found.get(0));
+        return Optional.of(next);
 
     }
 
@@ -474,18 +437,4 @@ public class SegmentIndex implements Index {
             return entries.remove();
         }
     }
-
-    private class EmptyIterator implements Iterator<IndexEntry> {
-
-        @Override
-        public boolean hasNext() {
-            return false;
-        }
-
-        @Override
-        public IndexEntry next() {
-            throw new NoSuchElementException();
-        }
-    }
-
 }
