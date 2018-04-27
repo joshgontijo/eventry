@@ -1,45 +1,64 @@
 package io.joshworks.fstore.es.index;
 
+import io.joshworks.fstore.es.utils.Iterators;
+
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Optional;
 import java.util.SortedSet;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class MemIndex implements Index {
 
-    final SortedSet<IndexEntry> index = new TreeSet<>();
+    private final Map<Long, SortedSet<IndexEntry>> index = new ConcurrentHashMap<>();
+    private final AtomicInteger size = new AtomicInteger();
 
     void add(long stream, int version, long position) {
-        index.add(IndexEntry.of(stream, version, position));
+        index.compute(stream, (k, v) -> {
+            if (v == null)
+                v = new TreeSet<>();
+            v.add(IndexEntry.of(stream, version, position));
+            size.incrementAndGet();
+            return v;
+        });
     }
 
     @Override
     public int version(long stream) {
-        Range range = Range.allOf(stream);
-        SortedSet<IndexEntry> subset = index.subSet(range.start(), range.end());
+        SortedSet<IndexEntry> entries = index.get(stream);
+        if(entries == null) {
+            return 0;
+        }
 
-        return subset.isEmpty() ? 0 : subset.last().version;
+        return entries.last().version;
     }
 
     @Override
-    public long size() {
-        return index.size();
+    public int size() {
+        return size.get();
     }
 
 
     @Override
     public void close() {
         index.clear();
+        size.set(0);
     }
 
     @Override
     public Iterator<IndexEntry> iterator(Range range) {
-        return Collections.unmodifiableSet(index.subSet(range.start(), range.end())).iterator();
+        SortedSet<IndexEntry> entries = index.get(range.stream);
+        if(entries == null) {
+            return Iterators.empty();
+        }
+        return Collections.unmodifiableSet(entries.subSet(range.start(), range.end())).iterator();
     }
 
     @Override
@@ -54,8 +73,13 @@ public class MemIndex implements Index {
 
     @Override
     public Optional<IndexEntry> get(long stream, int version) {
+        SortedSet<IndexEntry> entries = index.get(stream);
+        if(entries == null) {
+            return Optional.empty();
+        }
+
         Range range = Range.of(stream, version, version + 1);
-        SortedSet<IndexEntry> entries = index.subSet(range.start(), range.end());
+        entries = entries.subSet(range.start(), range.end());
         if (entries.isEmpty()) {
             return Optional.empty();
         }
@@ -68,6 +92,11 @@ public class MemIndex implements Index {
 
     @Override
     public Iterator<IndexEntry> iterator() {
-        return Collections.unmodifiableSet(index).iterator();
+        SortedSet<IndexEntry> reduced = index.values().stream().reduce(new TreeSet<>(), (state, next) -> {
+            state.addAll(next);
+            return state;
+        });
+
+        return Collections.unmodifiableSet(reduced).iterator();
     }
 }

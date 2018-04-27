@@ -29,9 +29,7 @@ public class IndexEntry implements Comparable<IndexEntry> {
             if (keyCmp != 0)
                 return keyCmp;
         }
-        if (keyCmp != 0)
-            return keyCmp;
-        return (int) (position - other.position);
+        return keyCmp;
     }
 
     public boolean greaterThan(IndexEntry other) {
@@ -61,13 +59,11 @@ public class IndexEntry implements Comparable<IndexEntry> {
         if (o == null || getClass() != o.getClass()) return false;
         IndexEntry that = (IndexEntry) o;
         return stream == that.stream &&
-                version == that.version &&
-                position == that.position;
+                version == that.version;
     }
 
     @Override
     public int hashCode() {
-
-        return Objects.hash(stream, version, position);
+        return Objects.hash(stream, version);
     }
 }

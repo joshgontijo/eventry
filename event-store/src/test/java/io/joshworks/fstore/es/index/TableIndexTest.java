@@ -45,6 +45,8 @@ public class TableIndexTest {
 
         Iterator<IndexEntry> it = tableIndex.iterator();
 
+        tableIndex.forEach(System.out::println);
+
         assertEquals(1, it.next().version);
         assertEquals(2, it.next().version);
         assertEquals(3, it.next().version);

@@ -25,11 +25,11 @@ public class IndexEntryTest {
     }
 
     @Test
-    public void higher_position_is_greater() {
+    public void position_isnt_used_in_compareTo() {
 
         IndexEntry first = IndexEntry.of(1, 0, 0);
         IndexEntry second = IndexEntry.of(1, 0, 1);
 
-        assertTrue(first.compareTo(second) < 0);
+        assertEquals(0, first.compareTo(second));
     }
 }

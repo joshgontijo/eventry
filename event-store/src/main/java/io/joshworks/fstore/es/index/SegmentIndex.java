@@ -62,12 +62,12 @@ public class SegmentIndex implements Index {
 
     private final BloomFilter<Long> filter;
 
-    private final long size;
+    private final int size;
 
     private final Storage storage;
     final Midpoint[] midpoints;
 
-    private SegmentIndex(Storage storage, Midpoint[] midpoints, long size, BloomFilter<Long> filter) {
+    private SegmentIndex(Storage storage, Midpoint[] midpoints, int size, BloomFilter<Long> filter) {
         this.storage = storage;
         this.midpoints = midpoints;
         this.size = size;
@@ -84,7 +84,7 @@ public class SegmentIndex implements Index {
         IndexEntry start = range.start();
         IndexEntry end = range.end();
 
-        int midpointIdx = getMidpointIdx(end);
+        int midpointIdx = getMidpointIdx(midpoints, end);
         Midpoint lowBound = midpoints[midpointIdx];
 
         int version = 0;
@@ -116,7 +116,7 @@ public class SegmentIndex implements Index {
         return version;
     }
 
-    private int getMidpointIdx(IndexEntry entry) {
+    static int getMidpointIdx(Midpoint[] midpoints, IndexEntry entry) {
         int idx = Arrays.binarySearch(midpoints, entry);
         if (idx < 0) {
             idx = Math.abs(idx) - 2; // -1 for the actual position, -1 for the offset where to start scanning
@@ -165,7 +165,7 @@ public class SegmentIndex implements Index {
 
         int entryIdx = (int) ((startPosition - HEADER_SIZE) / IndexEntry.BYTES);
 
-        int numKeys = Math.min(keysPerPage(), (int)(size - entryIdx));
+        int numKeys = Math.min(keysPerPage(), (size - entryIdx));
         ByteBuffer bb = ByteBuffer.allocate(numKeys * IndexEntry.BYTES);
         storage.read(startPosition, bb);
         bb.flip();
@@ -180,20 +180,20 @@ public class SegmentIndex implements Index {
     }
 
     private static int keysPerPage() {
-        return (int) Math.floor(Memory.PAGE_SIZE / IndexEntry.BYTES);
+        return Memory.PAGE_SIZE / IndexEntry.BYTES;
     }
 
     public static SegmentIndex write(MemIndex memIndex, Storage storage) {
-        logger.info("Writing {} index entries disk", memIndex.size());
+        logger.info("Writing {} index entries to disk", memIndex.size());
 
         long start = System.currentTimeMillis();
 
         int cachingFactor = 1;
 
         int maxKeysPerPage = keysPerPage() * cachingFactor;
-        int totalMidPoints = Math.max(2, memIndex.index.size() * IndexEntry.BYTES / maxKeysPerPage);
+        int totalMidPoints = Math.max(2, memIndex.size() * IndexEntry.BYTES / maxKeysPerPage);
 
-        int bodySize = (int) (memIndex.size() * IndexEntry.BYTES);
+        int bodySize = memIndex.size() * IndexEntry.BYTES;
         int footerSize = totalMidPoints * Midpoint.BYTES;
 
         ByteBuffer buffer = ByteBuffer.allocate(HEADER_SIZE + bodySize + footerSize);
@@ -202,7 +202,7 @@ public class SegmentIndex implements Index {
         buffer.position(HEADER_SIZE);
 
 
-        BloomFilter<Long> filter = new BloomFilter<>(memIndex.index.size(), 0.3, Hash.Murmur64(Serializers.LONG));
+        BloomFilter<Long> filter = new BloomFilter<>(memIndex.size(), 0.3, Hash.Murmur64(Serializers.LONG));
 
         int mpCache = 0;
 
@@ -242,7 +242,7 @@ public class SegmentIndex implements Index {
 
         //header
         buffer.position(0);
-        buffer.putInt(memIndex.index.size());
+        buffer.putInt(memIndex.size());
         buffer.putLong(footerOffset);
         buffer.putInt(midpoints.size());
 
@@ -251,7 +251,7 @@ public class SegmentIndex implements Index {
         storage.write(buffer);
 
         logger.info("Index written to disk, took {}ms", System.currentTimeMillis() - start);
-        return new SegmentIndex(storage, midpoints.toArray(new Midpoint[midpoints.size()]), memIndex.index.size(), filter);
+        return new SegmentIndex(storage, midpoints.toArray(new Midpoint[midpoints.size()]), memIndex.size(), filter);
     }
 
     public static SegmentIndex load(Storage storage) {
@@ -289,7 +289,7 @@ public class SegmentIndex implements Index {
     }
 
     @Override
-    public long size() {
+    public int size() {
         return size;
     }
 
@@ -327,7 +327,7 @@ public class SegmentIndex implements Index {
             return Iterators.empty();
         }
 
-        int midpointIdx = getMidpointIdx(range.start());
+        int midpointIdx = getMidpointIdx(midpoints, range.start());
         Midpoint lowBound = midpoints[midpointIdx];
         List<IndexEntry> loaded = readPage(lowBound.position);
         if (loaded.isEmpty()) {
@@ -354,7 +354,7 @@ public class SegmentIndex implements Index {
         }
         IndexEntry next = found.next();
         if (found.hasNext()) {
-            throw new IllegalStateException("More than one event found for stream " + stream + ", version " + version);
+            throw new IllegalStateException("More than one event found for fromStream " + stream + ", version " + version);
         }
         return Optional.of(next);
 
@@ -436,5 +436,10 @@ public class SegmentIndex implements Index {
             this.position += IndexEntry.BYTES;
             return entries.remove();
         }
+    }
+
+    @Override
+    public String toString() {
+        return storage.name();
     }
 }

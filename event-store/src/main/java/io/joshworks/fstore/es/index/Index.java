@@ -17,6 +17,6 @@ public interface Index extends Closeable, Iterable<IndexEntry> {
 
     int version(long stream);
 
-    long size();
+    int size();
 
 }

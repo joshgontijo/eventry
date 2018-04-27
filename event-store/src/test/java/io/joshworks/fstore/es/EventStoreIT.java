@@ -1,12 +1,13 @@
 package io.joshworks.fstore.es;
 
+import io.joshworks.fstore.es.log.Event;
 import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
 
@@ -24,7 +25,7 @@ public class EventStoreIT {
 
         long lastInsert = System.currentTimeMillis();
         for (int i = 0; i < size; i++) {
-            store.put("test-stream", Event.create("" + i, "data-" + i));
+            store.add("test-fromStream", Event.create("" + i, "data-" + i));
 //            if(i % 1000 == 0) {
 //                long now = System.currentTimeMillis();
 //                System.out.println("Batch insertion took: " + (now - lastInsert));
@@ -35,9 +36,9 @@ public class EventStoreIT {
 
         start = System.currentTimeMillis();
 
-        List<Event> events = store.get("test-stream");
+        Stream<Event> events = store.fromStream("test-fromStream");
 
-        System.out.println("SIZE: " + events.size());
+        System.out.println("SIZE: " + events.count());
         System.out.println("READ: " + (System.currentTimeMillis() - start));
 
         store.close();
@@ -55,18 +56,18 @@ public class EventStoreIT {
 
 
         for (int i = 0; i < size; i++) {
-            store.put("test-stream-" + i, Event.create("" + i, "data-" + i));
+            store.add("test-fromStream-" + i, Event.create("" + i, "data-" + i));
         }
         System.out.println("WRITE: " + (System.currentTimeMillis() - start));
 
         start = System.currentTimeMillis();
 
         for (int i = 0; i < size; i++) {
-            List<Event> events = store.get("test-stream-" + i);
-            assertEquals("Failed on iteration " + i, 1, events.size());
+            Stream<Event> events = store.fromStream("test-fromStream-" + i);
+            assertEquals("Failed on iteration " + i, 1, events.count());
         }
 
-        System.out.println("GET READ: " + (System.currentTimeMillis() - start));
+        System.out.println("READ: " + (System.currentTimeMillis() - start));
 
 
         store.close();

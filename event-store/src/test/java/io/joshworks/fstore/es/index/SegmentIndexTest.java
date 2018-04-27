@@ -132,6 +132,40 @@ public class SegmentIndexTest {
 
     }
 
+    @Test
+    public void midpoint_return_the_previous_index_for_non_exact_match() {
+
+        //given
+        Midpoint m1 = new Midpoint(IndexEntry.of(1, 0, 0), 0);
+        Midpoint m2 = new Midpoint(IndexEntry.of(10, 0, 0), 0);
+        Midpoint m3 = new Midpoint(IndexEntry.of(100, 0, 0), 0);
+
+        IndexEntry key = IndexEntry.of(2, 0, 0);
+
+        //when
+        int idx = SegmentIndex.getMidpointIdx(new Midpoint[]{m1, m2, m3}, key);
+
+        //then
+        assertEquals(0, idx);
+    }
+
+    @Test
+    public void midpoint_return_the_previous_index_for_exact_match() {
+
+        //given
+        Midpoint m1 = new Midpoint(IndexEntry.of(1, 0, 0), 0);
+        Midpoint m2 = new Midpoint(IndexEntry.of(10, 0, 0), 0);
+        Midpoint m3 = new Midpoint(IndexEntry.of(100, 0, 0), 0);
+
+        IndexEntry key = IndexEntry.of(1, 0, 0);
+
+        //when
+        int idx = SegmentIndex.getMidpointIdx(new Midpoint[]{m1, m2, m3}, key);
+
+        //then
+        assertEquals(0, idx);
+    }
+
     @Test(expected = IllegalArgumentException.class)
     public void loading_unaligned_page_throws_error() {
 
@@ -338,30 +372,30 @@ public class SegmentIndexTest {
     }
 
     @Test
-    public void write() throws IOException {
+    public void write() {
         MemIndex memIndex = new MemIndex();
-        memIndex.add(1, 0, 0);
-        memIndex.add(1, 1, 0);
-        memIndex.add(1, 2, 0);
-        memIndex.add(1, 3, 0);
+        memIndex.add(1L, 0, 0);
+        memIndex.add(1L, 1, 0);
+        memIndex.add(1L, 2, 0);
+        memIndex.add(1L, 3, 0);
 
         SegmentIndex idx = SegmentIndex.write(memIndex, storage);
 
         assertEquals(2, idx.midpoints.length);
 
-        assertEquals(memIndex.index.first(), idx.midpoints[0].key);
-        assertEquals(memIndex.index.last(), idx.midpoints[idx.midpoints.length - 1].key);
+        assertEquals(IndexEntry.of(1L, 0, 0), idx.midpoints[0].key);
+        assertEquals(IndexEntry.of(1L, 3, 0), idx.midpoints[idx.midpoints.length - 1].key);
 
     }
 
     @Test
-    public void load() throws IOException {
+    public void load() {
 
         MemIndex memIndex = new MemIndex();
-        memIndex.add(1, 0, 0);
-        memIndex.add(1, 1, 0);
-        memIndex.add(1, 2, 0);
-        memIndex.add(1, 3, 0);
+        memIndex.add(1L, 0, 0);
+        memIndex.add(1L, 1, 0);
+        memIndex.add(1L, 2, 0);
+        memIndex.add(1L, 3, 0);
 
         SegmentIndex idx = SegmentIndex.write(memIndex, storage);
 
@@ -370,13 +404,13 @@ public class SegmentIndexTest {
         assertEquals(2, found.midpoints.length);
         assertEquals(idx.midpoints[0].key, found.midpoints[0].key);
 
-        assertEquals(memIndex.index.first(), idx.midpoints[0].key);
-        assertEquals(memIndex.index.last(), idx.midpoints[idx.midpoints.length - 1].key);
+        assertEquals(IndexEntry.of(1L, 0, 0), idx.midpoints[0].key);
+        assertEquals(IndexEntry.of(1L, 3, 0), idx.midpoints[idx.midpoints.length - 1].key);
 
     }
 
     @Test
-    public void when_range_query_gt_index_bounds_return_empty_set() throws IOException {
+    public void when_range_query_gt_index_bounds_return_empty_set() {
 
         long stream = 1;
         long streamQuery = 2;
@@ -395,7 +429,7 @@ public class SegmentIndexTest {
     }
 
     @Test
-    public void iterator_return_version_in_increasing_order() throws IOException {
+    public void iterator_return_version_in_increasing_order() {
 
         long stream = 1;
         long streamQuery = 2;
@@ -415,7 +449,7 @@ public class SegmentIndexTest {
     }
 
     @Test
-    public void when_range_query_lt_index_bounds_return_empty_set() throws IOException {
+    public void when_range_query_lt_index_bounds_return_empty_set() {
 
         long stream = 2;
         long streamQuery = 1;
@@ -434,7 +468,7 @@ public class SegmentIndexTest {
     }
 
     @Test
-    public void when_range_query_in_index_bounds_return_all_matches() throws IOException {
+    public void when_range_query_in_index_bounds_return_all_matches() {
 
         long stream = 1;
 

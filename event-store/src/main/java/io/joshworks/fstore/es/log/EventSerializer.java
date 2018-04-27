@@ -1,4 +1,4 @@
-package io.joshworks.fstore.es;
+package io.joshworks.fstore.es.log;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.VStringSerializer;
@@ -11,9 +11,9 @@ public class EventSerializer implements Serializer<Event> {
 
     @Override
     public ByteBuffer toBytes(Event data) {
-        int uuidLength = VStringSerializer.sizeOf(data.uuid);
-        int dataLength = VStringSerializer.sizeOf(data.data);
-        int typeLength = VStringSerializer.sizeOf(data.type);
+        int uuidLength = VStringSerializer.sizeOf(data.uuid());
+        int dataLength = VStringSerializer.sizeOf(data.data());
+        int typeLength = VStringSerializer.sizeOf(data.type());
 
         ByteBuffer bb = ByteBuffer.allocate(uuidLength + dataLength + typeLength + Long.BYTES);
         writeTo(data, bb);
@@ -23,10 +23,10 @@ public class EventSerializer implements Serializer<Event> {
 
     @Override
     public void writeTo(Event data, ByteBuffer dest) {
-        strSerializer.writeTo(data.uuid, dest);
-        strSerializer.writeTo(data.type, dest);
-        strSerializer.writeTo(data.data, dest);
-        dest.putLong(data.timestamp);
+        strSerializer.writeTo(data.uuid(), dest);
+        strSerializer.writeTo(data.type(), dest);
+        strSerializer.writeTo(data.data(), dest);
+        dest.putLong(data.timestamp());
     }
 
 
@@ -37,7 +37,7 @@ public class EventSerializer implements Serializer<Event> {
         String data = strSerializer.fromBytes(buffer);
         long timestamp = buffer.getLong();
 
-        return new Event(uuid, type, data, timestamp);
+        return Event.load(uuid, type, data, timestamp);
     }
 
 }

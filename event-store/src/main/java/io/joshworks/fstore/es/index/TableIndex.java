@@ -55,8 +55,8 @@ public class TableIndex implements Index {
     }
 
     @Override
-    public long size() {
-        long segmentsSize = segmentIndexes.stream().mapToLong(SegmentIndex::size).sum();
+    public int size() {
+        int segmentsSize = segmentIndexes.stream().mapToInt(SegmentIndex::size).sum();
         return segmentsSize + memIndex.size();
     }
 
@@ -69,7 +69,6 @@ public class TableIndex implements Index {
 
         logger.info("Flushing index to {}", indexName);
         Storage storage = new MMapStorage(new File(directory, indexName), FileChannel.MapMode.READ_WRITE);
-//        Storage storage = new DiskStorage(new File(directory, indexName));
         SegmentIndex segmentIndex = SegmentIndex.write(memIndex, storage);
 
 
