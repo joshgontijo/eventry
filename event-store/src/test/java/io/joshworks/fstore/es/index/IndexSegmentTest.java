@@ -17,7 +17,7 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public class SegmentIndexTest {
+public class IndexSegmentTest {
 
     private File indexFile;
 
@@ -30,7 +30,7 @@ public class SegmentIndexTest {
     public void range_query_returns_the_correct_midpoint() {
 
         //given
-        SegmentIndex diskIndex = indexWithStreamRanging(0, 1000000);
+        IndexSegment diskIndex = indexWithStreamRanging(0, 1000000);
 
         //when
         long size = diskIndex.stream(Range.allOf(0)).count();
@@ -42,10 +42,10 @@ public class SegmentIndexTest {
     @Test
     public void loaded_segmentIndex_has_the_same_10_midpoints() {
         //given
-        SegmentIndex diskIndex = indexWithStreamRanging(1, 10);
+        IndexSegment diskIndex = indexWithStreamRanging(1, 10);
 
         //when
-        SegmentIndex loaded = SegmentIndex.load(indexFile);
+        IndexSegment loaded = IndexSegment.load(indexFile);
 
         //then
         assertTrue(Arrays.equals(diskIndex.midpoints, loaded.midpoints));
@@ -54,10 +54,10 @@ public class SegmentIndexTest {
     @Test
     public void loaded_segmentIndex_has_the_same_1000000_midpoints() {
         //given
-        SegmentIndex diskIndex = indexWithStreamRanging(1, 1000000);
+        IndexSegment diskIndex = indexWithStreamRanging(1, 1000000);
 
         //when
-        SegmentIndex loaded = SegmentIndex.load(indexFile);
+        IndexSegment loaded = IndexSegment.load(indexFile);
 
         //then
         assertTrue(Arrays.equals(diskIndex.midpoints, loaded.midpoints));
@@ -66,7 +66,7 @@ public class SegmentIndexTest {
     @Test
     public void range_query_returns_the_correct_midpoint_for_negative_hash() {
         //given
-        SegmentIndex diskIndex = indexWithStreamRanging(-5, 0);
+        IndexSegment diskIndex = indexWithStreamRanging(-5, 0);
 
         //when
         long size = diskIndex.stream(Range.allOf(-5)).count();
@@ -82,7 +82,7 @@ public class SegmentIndexTest {
         long stream = 0;
         int startVersion = 1;
         int endVersion = 10;
-        SegmentIndex diskIndex = indexWithSameStreamWithVersionRanging(stream, startVersion, endVersion);
+        IndexSegment diskIndex = indexWithSameStreamWithVersionRanging(stream, startVersion, endVersion);
 
         //when
         long size = diskIndex.stream(Range.allOf(stream)).count();
@@ -96,10 +96,10 @@ public class SegmentIndexTest {
 
         //given
         int numEntries = 10;
-        SegmentIndex diskIndex = indexWithStreamRanging(1, numEntries);
+        IndexSegment diskIndex = indexWithStreamRanging(1, numEntries);
 
         //when
-        Collection<IndexEntry> entries = diskIndex.readPage(SegmentIndex.HEADER_SIZE); //start after header
+        Collection<IndexEntry> entries = diskIndex.readPage(IndexSegment.HEADER_SIZE); //start after header
 
         //then
         assertEquals(numEntries, entries.size());
@@ -110,10 +110,10 @@ public class SegmentIndexTest {
 
         //given
         int numEntries = 10;
-        SegmentIndex diskIndex = indexWithStreamRanging(0, numEntries);
+        IndexSegment diskIndex = indexWithStreamRanging(0, numEntries);
 
         //when
-        diskIndex.readPage(SegmentIndex.HEADER_SIZE - 1);
+        diskIndex.readPage(IndexSegment.HEADER_SIZE - 1);
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -121,10 +121,10 @@ public class SegmentIndexTest {
 
         //given
         int numEntries = 10;
-        SegmentIndex diskIndex = indexWithStreamRanging(0, numEntries);
+        IndexSegment diskIndex = indexWithStreamRanging(0, numEntries);
 
         //when
-        long pos = (diskIndex.size() * IndexEntry.BYTES) + SegmentIndex.HEADER_SIZE;
+        long pos = (diskIndex.size() * IndexEntry.BYTES) + IndexSegment.HEADER_SIZE;
         diskIndex.readPage(pos);
 
     }
@@ -140,7 +140,7 @@ public class SegmentIndexTest {
         IndexEntry key = IndexEntry.of(2, 0, 0);
 
         //when
-        int idx = SegmentIndex.getMidpointIdx(new Midpoint[]{m1, m2, m3}, key);
+        int idx = IndexSegment.getMidpointIdx(new Midpoint[]{m1, m2, m3}, key);
 
         //then
         assertEquals(0, idx);
@@ -157,7 +157,7 @@ public class SegmentIndexTest {
         IndexEntry key = IndexEntry.of(1, 0, 0);
 
         //when
-        int idx = SegmentIndex.getMidpointIdx(new Midpoint[]{m1, m2, m3}, key);
+        int idx = IndexSegment.getMidpointIdx(new Midpoint[]{m1, m2, m3}, key);
 
         //then
         assertEquals(0, idx);
@@ -168,17 +168,17 @@ public class SegmentIndexTest {
 
         //given
         int numEntries = 10;
-        SegmentIndex diskIndex = indexWithStreamRanging(1, numEntries);
+        IndexSegment diskIndex = indexWithStreamRanging(1, numEntries);
 
         //when
-        long pos = SegmentIndex.HEADER_SIZE + 1;
+        long pos = IndexSegment.HEADER_SIZE + 1;
         diskIndex.readPage(pos);
     }
 
     @Test
     public void first_returns_the_first_key_in_the_index() {
         //given
-        SegmentIndex diskIndex = indexWithStreamRanging(0, 10);
+        IndexSegment diskIndex = indexWithStreamRanging(0, 10);
 
         //when
         IndexEntry first = diskIndex.first();
@@ -190,7 +190,7 @@ public class SegmentIndexTest {
     @Test
     public void last_returns_the_last_key_in_the_index() {
         //given
-        SegmentIndex diskIndex = indexWithStreamRanging(1, 10);
+        IndexSegment diskIndex = indexWithStreamRanging(1, 10);
 
         //when
         IndexEntry last = diskIndex.last();
@@ -207,7 +207,7 @@ public class SegmentIndexTest {
         index.add(0, 0, 0);
 
         //when
-        SegmentIndex write = SegmentIndex.write(index, indexFile);
+        IndexSegment write = IndexSegment.write(index, indexFile);
 
         //then
         assertTrue(indexFile.length() > 0);
@@ -219,7 +219,7 @@ public class SegmentIndexTest {
         //given
         long stream = 123L;
         int lastVersion = 500;
-        SegmentIndex diskIndex = indexWithSameStreamWithVersionRanging(stream, 1, lastVersion);
+        IndexSegment diskIndex = indexWithSameStreamWithVersionRanging(stream, 1, lastVersion);
 
         //when
         int version = diskIndex.version(stream);
@@ -233,7 +233,7 @@ public class SegmentIndexTest {
         //given
         int startStream = 1;
         int endStream = 100000;
-        SegmentIndex diskIndex = indexWithStreamRanging(startStream, endStream);
+        IndexSegment diskIndex = indexWithStreamRanging(startStream, endStream);
 
         //when
         for (int i = startStream; i < endStream; i++) {
@@ -250,7 +250,7 @@ public class SegmentIndexTest {
         //given
         int startStream = 1;
         int endStream = 100000;
-        SegmentIndex diskIndex = indexWithStreamRanging(startStream, endStream);
+        IndexSegment diskIndex = indexWithStreamRanging(startStream, endStream);
 
         //when
         for (int i = startStream; i <= endStream; i++) {
@@ -273,7 +273,7 @@ public class SegmentIndexTest {
 
         //when
         int someOtherStream = 4;
-        SegmentIndex diskIndex = SegmentIndex.write(memIndex, indexFile);
+        IndexSegment diskIndex = IndexSegment.write(memIndex, indexFile);
         long size = diskIndex.stream(Range.allOf(someOtherStream)).count();
         assertEquals(0, size);
     }
@@ -299,7 +299,7 @@ public class SegmentIndexTest {
 
         long stream = 1;
         int latestVersion = 1000;
-        SegmentIndex diskIndex = indexWithSameStreamWithVersionRanging(stream, 1, latestVersion);
+        IndexSegment diskIndex = indexWithSameStreamWithVersionRanging(stream, 1, latestVersion);
 
         for (int i = 0; i < latestVersion; i++) {
             //when
@@ -314,7 +314,7 @@ public class SegmentIndexTest {
     public void iterator_return_all_entries_with_index_containing_multiple_streams() {
 
         int numStreams = 1000;
-        SegmentIndex diskIndex = indexWithStreamRanging(1, numStreams);
+        IndexSegment diskIndex = indexWithStreamRanging(1, numStreams);
 
         for (int stream = 1; stream < numStreams; stream++) {
             //when
@@ -336,7 +336,7 @@ public class SegmentIndexTest {
         int numStreams = 200;
         int numEvents = 500;
 
-        SegmentIndex diskIndex = indexWithXStreamsWithYEventsEach(numStreams, numEvents);
+        IndexSegment diskIndex = indexWithXStreamsWithYEventsEach(numStreams, numEvents);
 
         for (int stream = 0; stream < numStreams; stream++) {
             Iterator<IndexEntry> iterator = diskIndex.iterator(Range.allOf(stream));
@@ -350,7 +350,7 @@ public class SegmentIndexTest {
         int numStreams = 200;
         int numEvents = 500;
 
-        SegmentIndex diskIndex = indexWithXStreamsWithYEventsEach(numStreams, numEvents);
+        IndexSegment diskIndex = indexWithXStreamsWithYEventsEach(numStreams, numEvents);
 
         Iterator<IndexEntry> iterator = diskIndex.iterator();
 
@@ -376,7 +376,7 @@ public class SegmentIndexTest {
         memIndex.add(1L, 2, 0);
         memIndex.add(1L, 3, 0);
 
-        SegmentIndex idx = SegmentIndex.write(memIndex, indexFile);
+        IndexSegment idx = IndexSegment.write(memIndex, indexFile);
 
         assertEquals(2, idx.midpoints.length);
 
@@ -394,9 +394,9 @@ public class SegmentIndexTest {
         memIndex.add(1L, 2, 0);
         memIndex.add(1L, 3, 0);
 
-        SegmentIndex idx = SegmentIndex.write(memIndex, indexFile);
+        IndexSegment idx = IndexSegment.write(memIndex, indexFile);
 
-        SegmentIndex found = SegmentIndex.load(indexFile);
+        IndexSegment found = IndexSegment.load(indexFile);
 
         assertEquals(2, found.midpoints.length);
         assertEquals(idx.midpoints[0].key, found.midpoints[0].key);
@@ -418,7 +418,7 @@ public class SegmentIndexTest {
         memIndex.add(stream, 2, 0);
         memIndex.add(stream, 3, 0);
 
-        SegmentIndex idx = SegmentIndex.write(memIndex, indexFile);
+        IndexSegment idx = IndexSegment.write(memIndex, indexFile);
 
         Range range = Range.of(streamQuery, 0);
 
@@ -438,7 +438,7 @@ public class SegmentIndexTest {
         memIndex.add(stream, 3, 0);
 
 
-        SegmentIndex idx = SegmentIndex.write(memIndex, indexFile);
+        IndexSegment idx = IndexSegment.write(memIndex, indexFile);
 
         Range range = Range.of(streamQuery, 0);
 
@@ -457,7 +457,7 @@ public class SegmentIndexTest {
         memIndex.add(stream, 2, 0);
         memIndex.add(stream, 3, 0);
 
-        SegmentIndex idx = SegmentIndex.write(memIndex, indexFile);
+        IndexSegment idx = IndexSegment.write(memIndex, indexFile);
 
         Range range = Range.of(streamQuery, 0);
 
@@ -475,7 +475,7 @@ public class SegmentIndexTest {
         memIndex.add(stream, 2, 0);
         memIndex.add(stream, 3, 0);
 
-        SegmentIndex idx = SegmentIndex.write(memIndex, indexFile);
+        IndexSegment idx = IndexSegment.write(memIndex, indexFile);
 
         Range range = Range.of(stream, 1, 3);
 
@@ -511,25 +511,25 @@ public class SegmentIndexTest {
         assertEquals(latestVersion, count);
     }
 
-    private SegmentIndex indexWithStreamRanging(int from, int to) {
+    private IndexSegment indexWithStreamRanging(int from, int to) {
         //given
         MemIndex memIndex = new MemIndex();
         for (int i = from; i <= to; i++) {
             memIndex.add(i, 1, 0);
         }
-        return SegmentIndex.write(memIndex, indexFile);
+        return IndexSegment.write(memIndex, indexFile);
     }
 
-    private SegmentIndex indexWithSameStreamWithVersionRanging(long stream, int from, int to) {
+    private IndexSegment indexWithSameStreamWithVersionRanging(long stream, int from, int to) {
         //given
         MemIndex memIndex = new MemIndex();
         for (int i = from; i <= to; i++) {
             memIndex.add(stream, i, 0);
         }
-        return SegmentIndex.write(memIndex, indexFile);
+        return IndexSegment.write(memIndex, indexFile);
     }
 
-    private SegmentIndex indexWithXStreamsWithYEventsEach(int streamQtd, int eventsPerStream) {
+    private IndexSegment indexWithXStreamsWithYEventsEach(int streamQtd, int eventsPerStream) {
         //given
         MemIndex memIndex = new MemIndex();
         for (int stream = 0; stream < streamQtd; stream++) {
@@ -537,7 +537,7 @@ public class SegmentIndexTest {
                 memIndex.add(stream, version, 0);
             }
         }
-        return SegmentIndex.write(memIndex, indexFile);
+        return IndexSegment.write(memIndex, indexFile);
     }
 
 }

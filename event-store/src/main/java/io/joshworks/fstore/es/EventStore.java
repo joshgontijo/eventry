@@ -129,8 +129,8 @@ public class EventStore implements Closeable {
     }
 
     public void roll() {
-        String rolledSegmentName = eventLog.roll();
-        index.flush(eventLog.directory(), rolledSegmentName);
+        eventLog.roll();
+        index.flush(eventLog.directory());
     }
 
     @Override

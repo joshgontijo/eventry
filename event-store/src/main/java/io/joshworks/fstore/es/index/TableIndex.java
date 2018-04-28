@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.UUID;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -19,8 +20,10 @@ public class TableIndex implements Index {
 
     private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
 
+    private static final String INDEX_FOLDER = "index";
+
     private MemIndex memIndex = new MemIndex();
-    private final LinkedList<SegmentIndex> segmentIndexes = new LinkedList<>();
+    private final LinkedList<IndexSegment> indexSegments = new LinkedList<>();
 
     public void add(long stream, int version, long position) {
         if (version <= 0) {
@@ -40,9 +43,9 @@ public class TableIndex implements Index {
             return version;
         }
 
-        Iterator<SegmentIndex> reverse = segmentIndexes.descendingIterator();
+        Iterator<IndexSegment> reverse = indexSegments.descendingIterator();
         while (reverse.hasNext()) {
-            SegmentIndex previous = reverse.next();
+            IndexSegment previous = reverse.next();
             int v = previous.version(stream);
             if (v > 0) {
                 return v;
@@ -53,7 +56,7 @@ public class TableIndex implements Index {
 
     @Override
     public int size() {
-        int segmentsSize = segmentIndexes.stream().mapToInt(SegmentIndex::size).sum();
+        int segmentsSize = indexSegments.stream().mapToInt(IndexSegment::size).sum();
         return segmentsSize + memIndex.size();
     }
 
@@ -61,24 +64,26 @@ public class TableIndex implements Index {
         return memIndex.size();
     }
 
-    public void flush(File directory, String segmentName) {
-        String indexName = segmentName.split("\\.")[0] + ".idx";
+    public void flush(File directory) {
+        //TODO improve index name
+        String indexName = UUID.randomUUID().toString().substring(0, 8) + ".idx";
+        String indexLocation = INDEX_FOLDER + File.separator + indexName;
 
         logger.info("Flushing index to {}", indexName);
 
-        File file = new File(directory, indexName);
-        SegmentIndex segmentIndex = SegmentIndex.write(memIndex, file);
+        File indexDir = new File(directory, indexLocation);
+        IndexSegment indexSegment = IndexSegment.write(memIndex, indexDir);
 
-        segmentIndexes.add(segmentIndex);
+        indexSegments.add(indexSegment);
         memIndex = new MemIndex();
     }
 
     @Override
     public void close() {
         memIndex.close();
-        for (SegmentIndex segmentIndex : segmentIndexes) {
-            logger.info("Closing {}", segmentIndex);
-            segmentIndex.close();
+        for (IndexSegment indexSegment : indexSegments) {
+            logger.info("Closing {}", indexSegment);
+            indexSegment.close();
         }
     }
 
@@ -99,7 +104,7 @@ public class TableIndex implements Index {
         Iterator<IndexEntry> cacheIterator = memIndex.iterator(range);
 
         iterators.add(cacheIterator);
-        for (SegmentIndex next : segmentIndexes) {
+        for (IndexSegment next : indexSegments) {
             iterators.add(next.iterator(range));
         }
 
@@ -112,7 +117,7 @@ public class TableIndex implements Index {
         if (fromMemory.isPresent()) {
             return fromMemory;
         }
-        for (SegmentIndex next : segmentIndexes) {
+        for (IndexSegment next : indexSegments) {
             Optional<IndexEntry> fromDisk = next.get(stream, version);
             if (fromDisk.isPresent()) {
                 return fromDisk;
@@ -125,7 +130,7 @@ public class TableIndex implements Index {
     public Iterator<IndexEntry> iterator() {
         List<Iterator<IndexEntry>> iterators = new ArrayList<>();
 
-        for (SegmentIndex next : segmentIndexes) {
+        for (IndexSegment next : indexSegments) {
             iterators.add(next.iterator());
         }
         iterators.add(memIndex.iterator());

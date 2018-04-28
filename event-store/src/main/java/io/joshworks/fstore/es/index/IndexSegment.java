@@ -55,9 +55,9 @@ import java.util.stream.StreamSupport;
  * <p>
  * The client code is responsible for ensuring the number will match
  */
-public class SegmentIndex implements Index {
+public class IndexSegment implements Index {
 
-    private static final Logger logger = LoggerFactory.getLogger(SegmentIndex.class);
+    private static final Logger logger = LoggerFactory.getLogger(IndexSegment.class);
 
     static final int HEADER_SIZE = 16;
     private static final Serializer<IndexEntry> indexEntrySerializer = new IndexKeySerializer();
@@ -70,7 +70,7 @@ public class SegmentIndex implements Index {
     private final Storage storage;
     final Midpoint[] midpoints;
 
-    private SegmentIndex(Storage storage, Midpoint[] midpoints, int size, BloomFilter<Long> filter) {
+    private IndexSegment(Storage storage, Midpoint[] midpoints, int size, BloomFilter<Long> filter) {
         this.storage = storage;
         this.midpoints = midpoints;
         this.size = size;
@@ -186,7 +186,7 @@ public class SegmentIndex implements Index {
         return Memory.PAGE_SIZE / IndexEntry.BYTES;
     }
 
-    public static SegmentIndex write(MemIndex memIndex, File dest) {
+    public static IndexSegment write(MemIndex memIndex, File dest) {
         logger.info("Writing {} index entries to disk", memIndex.size());
 
         long start = System.currentTimeMillis();
@@ -259,10 +259,10 @@ public class SegmentIndex implements Index {
         storage.write(buffer);
 
         logger.info("Index written to disk, took {}ms", System.currentTimeMillis() - start);
-        return new SegmentIndex(storage, midpoints.toArray(new Midpoint[midpoints.size()]), memIndex.size(), filter);
+        return new IndexSegment(storage, midpoints.toArray(new Midpoint[midpoints.size()]), memIndex.size(), filter);
     }
 
-    public static SegmentIndex load(File indexFile) {
+    public static IndexSegment load(File indexFile) {
 
         Storage storage = new MMapStorage(indexFile, indexFile.length(), FileChannel.MapMode.READ_WRITE);
 
@@ -286,12 +286,16 @@ public class SegmentIndex implements Index {
 
         BloomFilter<Long> filter = loadBloomFilter();
 
-        return new SegmentIndex(storage, midpoints, entriesSize, filter);
+        return new IndexSegment(storage, midpoints, entriesSize, filter);
     }
 
     private static BloomFilter<Long> loadBloomFilter() {
         //TODO IMPLEMENT BLOOM FILTER LOADING
         throw new UnsupportedOperationException("TODO");
+    }
+
+    public String name() {
+        return storage.name();
     }
 
     @Override
