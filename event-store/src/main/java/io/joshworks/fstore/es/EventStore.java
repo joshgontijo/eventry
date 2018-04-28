@@ -42,7 +42,7 @@ public class EventStore implements Closeable {
     }
 
     public static EventStore open(File directory) {
-        LogAppender<Event> appender = LogAppender.builder(directory, new EventSerializer()).open();
+        LogAppender<Event> appender = LogAppender.builder(directory, new EventSerializer()).segmentSize(524288000).open();
         return new EventStore(appender);
     }
 

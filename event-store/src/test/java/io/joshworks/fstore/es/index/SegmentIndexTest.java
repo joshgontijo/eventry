@@ -1,16 +1,14 @@
 package io.joshworks.fstore.es.index;
 
-import io.joshworks.fstore.core.io.RafStorage;
-import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.es.index.filter.BloomFilter;
 import io.joshworks.fstore.index.filter.Hash;
 import io.joshworks.fstore.serializer.Serializers;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
@@ -21,12 +19,11 @@ import static org.junit.Assert.assertTrue;
 
 public class SegmentIndexTest {
 
-    private Storage storage;
+    private File indexFile;
 
     @Before
     public void setUp() throws IOException {
-        Path tempFile = Files.createTempFile(null, null);
-        storage = new RafStorage(tempFile.toFile());
+        indexFile = Files.createTempFile(null, null).toFile();
     }
 
     @Test
@@ -48,7 +45,7 @@ public class SegmentIndexTest {
         SegmentIndex diskIndex = indexWithStreamRanging(1, 10);
 
         //when
-        SegmentIndex loaded = SegmentIndex.load(storage);
+        SegmentIndex loaded = SegmentIndex.load(indexFile);
 
         //then
         assertTrue(Arrays.equals(diskIndex.midpoints, loaded.midpoints));
@@ -60,7 +57,7 @@ public class SegmentIndexTest {
         SegmentIndex diskIndex = indexWithStreamRanging(1, 1000000);
 
         //when
-        SegmentIndex loaded = SegmentIndex.load(storage);
+        SegmentIndex loaded = SegmentIndex.load(indexFile);
 
         //then
         assertTrue(Arrays.equals(diskIndex.midpoints, loaded.midpoints));
@@ -210,10 +207,10 @@ public class SegmentIndexTest {
         index.add(0, 0, 0);
 
         //when
-        SegmentIndex write = SegmentIndex.write(index, storage);
+        SegmentIndex write = SegmentIndex.write(index, indexFile);
 
         //then
-        assertTrue(storage.length() > 0);
+        assertTrue(indexFile.length() > 0);
     }
 
     @Test
@@ -276,7 +273,7 @@ public class SegmentIndexTest {
 
         //when
         int someOtherStream = 4;
-        SegmentIndex diskIndex = SegmentIndex.write(memIndex, storage);
+        SegmentIndex diskIndex = SegmentIndex.write(memIndex, indexFile);
         long size = diskIndex.stream(Range.allOf(someOtherStream)).count();
         assertEquals(0, size);
     }
@@ -379,7 +376,7 @@ public class SegmentIndexTest {
         memIndex.add(1L, 2, 0);
         memIndex.add(1L, 3, 0);
 
-        SegmentIndex idx = SegmentIndex.write(memIndex, storage);
+        SegmentIndex idx = SegmentIndex.write(memIndex, indexFile);
 
         assertEquals(2, idx.midpoints.length);
 
@@ -397,9 +394,9 @@ public class SegmentIndexTest {
         memIndex.add(1L, 2, 0);
         memIndex.add(1L, 3, 0);
 
-        SegmentIndex idx = SegmentIndex.write(memIndex, storage);
+        SegmentIndex idx = SegmentIndex.write(memIndex, indexFile);
 
-        SegmentIndex found = SegmentIndex.load(storage);
+        SegmentIndex found = SegmentIndex.load(indexFile);
 
         assertEquals(2, found.midpoints.length);
         assertEquals(idx.midpoints[0].key, found.midpoints[0].key);
@@ -421,7 +418,7 @@ public class SegmentIndexTest {
         memIndex.add(stream, 2, 0);
         memIndex.add(stream, 3, 0);
 
-        SegmentIndex idx = SegmentIndex.write(memIndex, storage);
+        SegmentIndex idx = SegmentIndex.write(memIndex, indexFile);
 
         Range range = Range.of(streamQuery, 0);
 
@@ -441,7 +438,7 @@ public class SegmentIndexTest {
         memIndex.add(stream, 3, 0);
 
 
-        SegmentIndex idx = SegmentIndex.write(memIndex, storage);
+        SegmentIndex idx = SegmentIndex.write(memIndex, indexFile);
 
         Range range = Range.of(streamQuery, 0);
 
@@ -460,7 +457,7 @@ public class SegmentIndexTest {
         memIndex.add(stream, 2, 0);
         memIndex.add(stream, 3, 0);
 
-        SegmentIndex idx = SegmentIndex.write(memIndex, storage);
+        SegmentIndex idx = SegmentIndex.write(memIndex, indexFile);
 
         Range range = Range.of(streamQuery, 0);
 
@@ -478,7 +475,7 @@ public class SegmentIndexTest {
         memIndex.add(stream, 2, 0);
         memIndex.add(stream, 3, 0);
 
-        SegmentIndex idx = SegmentIndex.write(memIndex, storage);
+        SegmentIndex idx = SegmentIndex.write(memIndex, indexFile);
 
         Range range = Range.of(stream, 1, 3);
 
@@ -520,7 +517,7 @@ public class SegmentIndexTest {
         for (int i = from; i <= to; i++) {
             memIndex.add(i, 1, 0);
         }
-        return SegmentIndex.write(memIndex, storage);
+        return SegmentIndex.write(memIndex, indexFile);
     }
 
     private SegmentIndex indexWithSameStreamWithVersionRanging(long stream, int from, int to) {
@@ -529,7 +526,7 @@ public class SegmentIndexTest {
         for (int i = from; i <= to; i++) {
             memIndex.add(stream, i, 0);
         }
-        return SegmentIndex.write(memIndex, storage);
+        return SegmentIndex.write(memIndex, indexFile);
     }
 
     private SegmentIndex indexWithXStreamsWithYEventsEach(int streamQtd, int eventsPerStream) {
@@ -540,7 +537,7 @@ public class SegmentIndexTest {
                 memIndex.add(stream, version, 0);
             }
         }
-        return SegmentIndex.write(memIndex, storage);
+        return SegmentIndex.write(memIndex, indexFile);
     }
 
 }

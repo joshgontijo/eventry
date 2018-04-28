@@ -2,6 +2,7 @@ package io.joshworks.fstore.es.index;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.core.io.MMapStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.es.index.filter.BloomFilter;
 import io.joshworks.fstore.es.utils.Iterators;
@@ -11,8 +12,10 @@ import io.joshworks.fstore.serializer.Serializers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -183,7 +186,7 @@ public class SegmentIndex implements Index {
         return Memory.PAGE_SIZE / IndexEntry.BYTES;
     }
 
-    public static SegmentIndex write(MemIndex memIndex, Storage storage) {
+    public static SegmentIndex write(MemIndex memIndex, File dest) {
         logger.info("Writing {} index entries to disk", memIndex.size());
 
         long start = System.currentTimeMillis();
@@ -196,7 +199,14 @@ public class SegmentIndex implements Index {
         int bodySize = memIndex.size() * IndexEntry.BYTES;
         int footerSize = totalMidPoints * Midpoint.BYTES;
 
-        ByteBuffer buffer = ByteBuffer.allocate(HEADER_SIZE + bodySize + footerSize);
+
+        int bufferSize = HEADER_SIZE + bodySize + footerSize;
+        ByteBuffer buffer = ByteBuffer.allocate(bufferSize);
+
+        logger.info("Index file size {}", bufferSize);
+
+        Storage storage = new MMapStorage(dest, bufferSize, FileChannel.MapMode.READ_WRITE);
+
 
         List<Midpoint> midpoints = new ArrayList<>();
         buffer.position(HEADER_SIZE);
@@ -204,21 +214,19 @@ public class SegmentIndex implements Index {
 
         BloomFilter<Long> filter = new BloomFilter<>(memIndex.size(), 0.3, Hash.Murmur64(Serializers.LONG));
 
-        int mpCache = 0;
-
-
         //first midpoint
         midpoints.add(new Midpoint(memIndex.iterator().next(), buffer.position()));
 
         Iterator<IndexEntry> iterator = memIndex.iterator();
         IndexEntry last = null;
+        int mpCache = 0;
         while(iterator.hasNext()) {
             IndexEntry index = iterator.next();
             last = index;
             indexEntrySerializer.writeTo(index, buffer);
 
             //TODO no need to serialize again prior to hashing
-            //TODO same stream will be hashed multiple times, no a problem though
+            //TODO same stream will be hashed multiple times, not a problem though
             filter.add(index.stream);
 
             if (mpCache == maxKeysPerPage) {
@@ -254,7 +262,9 @@ public class SegmentIndex implements Index {
         return new SegmentIndex(storage, midpoints.toArray(new Midpoint[midpoints.size()]), memIndex.size(), filter);
     }
 
-    public static SegmentIndex load(Storage storage) {
+    public static SegmentIndex load(File indexFile) {
+
+        Storage storage = new MMapStorage(indexFile, indexFile.length(), FileChannel.MapMode.READ_WRITE);
 
         ByteBuffer header = ByteBuffer.allocate(HEADER_SIZE);
         storage.read(0, header);

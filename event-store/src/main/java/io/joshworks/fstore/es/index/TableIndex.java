@@ -1,13 +1,10 @@
 package io.joshworks.fstore.es.index;
 
-import io.joshworks.fstore.core.io.MMapStorage;
-import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.es.utils.Iterators;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -68,9 +65,9 @@ public class TableIndex implements Index {
         String indexName = segmentName.split("\\.")[0] + ".idx";
 
         logger.info("Flushing index to {}", indexName);
-        Storage storage = new MMapStorage(new File(directory, indexName), FileChannel.MapMode.READ_WRITE);
-        SegmentIndex segmentIndex = SegmentIndex.write(memIndex, storage);
 
+        File file = new File(directory, indexName);
+        SegmentIndex segmentIndex = SegmentIndex.write(memIndex, file);
 
         segmentIndexes.add(segmentIndex);
         memIndex = new MemIndex();
