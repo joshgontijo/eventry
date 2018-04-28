@@ -20,6 +20,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public abstract class LogAppenderIT {
 
@@ -76,6 +78,57 @@ public abstract class LogAppenderIT {
     }
 
     @Test
+    public void shrink() {
+
+        String data = "DATA";
+        appender.append(data);
+        long lastPos = appender.position();
+        String name = appender.currentSegment();
+        appender.roll();
+
+        File f = new File(testDirectory, name);
+        if (!Files.exists(f.toPath())) {
+            fail("File " + f + " doesn't exist");
+        }
+
+        assertEquals(lastPos, f.length()); //header + data + EOF;
+
+        Scanner<String> scanner = appender.scanner();
+        assertTrue(scanner.hasNext());
+        assertEquals(data, scanner.next());
+
+    }
+
+    @Test
+    public void reopening_after_shrinking_returns_all_data() {
+
+        String data = "DATA";
+        long position;
+        String name;
+
+
+        appender.append(data);
+        position = appender.position();
+        name = appender.currentSegment();
+        appender.roll();
+
+        appender.close();
+
+        File f = new File(testDirectory, name);
+        if (!Files.exists(f.toPath())) {
+            fail("File " + f + " doesn't exist");
+        }
+
+        assertEquals(position, f.length());
+
+        try (LogAppender<String> appender = appender(LogAppender.builder(testDirectory, Serializers.STRING))) {
+            Scanner<String> scanner = appender.scanner();
+            assertTrue(scanner.hasNext());
+            assertEquals(data, scanner.next());
+        }
+    }
+
+    @Test
     public void insert_scan_1M_2kb_entries() {
         int items = 1000000;
         String value = stringOfByteLength(2048);
@@ -97,7 +150,7 @@ public abstract class LogAppenderIT {
     }
 
     @Test
-    public void insert_10_segments_of_1GB_with_2kb_entries() {
+    public void insert_10_segments_with_2kb_entries() {
         String value = stringOfByteLength(2048);
 
         fillNSegments(value, 10);
@@ -139,8 +192,8 @@ public abstract class LogAppenderIT {
         }
     }
 
-    @Test
-    public void deleting_the_current_segment_must_create_a_new_one() {
+    @Test(expected = IllegalStateException.class)
+    public void deleting_the_current_segment_must_throw_exception() {
 
         String name = appender.currentSegment();
         appender.delete(name);

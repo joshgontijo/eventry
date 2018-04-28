@@ -6,12 +6,7 @@ import io.joshworks.fstore.core.io.Storage;
 import java.io.File;
 import java.nio.channels.FileChannel;
 
-public class MMapBaseStorageTest extends BaseStorageTest {
-
-    @Override
-    protected Storage store(File file) {
-        return new MMapStorage(file, FileChannel.MapMode.READ_WRITE);
-    }
+public class MMapBaseStorageTest extends DiskStorageTest {
 
     @Override
     protected Storage store(File file, long size) {

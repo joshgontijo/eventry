@@ -1,6 +1,6 @@
 package io.joshworks.fstore.log.appender;
 
-import io.joshworks.fstore.core.io.DiskStorage;
+import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Log;
@@ -23,6 +23,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 
 public class LogAppenderTest {
@@ -56,12 +57,28 @@ public class LogAppenderTest {
 
     @Test
     public void roll() {
+        appender.append("data");
+        String firstSegment = appender.currentSegment();
+
+        assertTrue(appender.rolledSegments.isEmpty());
+
+        appender.roll();
+
+        String secondSegment = appender.currentSegment();
+        assertNotEquals(firstSegment, secondSegment);
+        assertEquals(1, appender.rolledSegments.size());
+        assertEquals(firstSegment, appender.rolledSegments.get(0).name());
+    }
+
+    @Test
+    public void roll_size_based() {
         StringBuilder sb = new StringBuilder();
         while (sb.length() <= SEGMENT_SIZE) {
             sb.append(UUID.randomUUID().toString());
         }
         appender.append(sb.toString());
         appender.append("new-segment");
+
         assertEquals(1, appender.rolledSegments.size());
     }
 
@@ -237,7 +254,8 @@ public class LogAppenderTest {
 
             //write broken data
 
-            try (Storage storage = new DiskStorage(new File(testDirectory, segmentName))) {
+            File file = new File(testDirectory, segmentName);
+            try (Storage storage = new RafStorage(file, file.length())) {
                 ByteBuffer broken = ByteBuffer.allocate(Log.ENTRY_HEADER_SIZE + 4);
                 broken.putInt(444); //expected length
                 broken.putInt(123); // broken checksum

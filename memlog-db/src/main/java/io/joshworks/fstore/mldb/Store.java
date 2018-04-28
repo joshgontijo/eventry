@@ -102,7 +102,7 @@ public class Store<K extends Comparable<K>, V> implements Closeable {
 
             position = scanner.position();
         }
-        System.out.println("Reindexing complete in " + (System.currentTimeMillis() - start) + "ms");
+        System.out.println("Reindexing seal in " + (System.currentTimeMillis() - start) + "ms");
     }
 
     @Override

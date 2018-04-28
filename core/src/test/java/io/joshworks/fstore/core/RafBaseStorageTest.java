@@ -1,14 +1,14 @@
-package io.joshworks.fstore.log;
+package io.joshworks.fstore.core;
 
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 
 import java.io.File;
 
-public class WithDiskBaseStorage extends LogSegmentTest {
+public class RafBaseStorageTest extends DiskStorageTest {
 
     @Override
-    Storage getStorage(File file, long size) {
+    protected Storage store(File file, long size) {
         return new RafStorage(file, size);
     }
 }

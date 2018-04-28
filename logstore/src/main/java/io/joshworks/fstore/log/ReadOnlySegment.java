@@ -59,7 +59,7 @@ public class ReadOnlySegment<T> implements Log<T> {
     }
 
     @Override
-    public void complete() {
+    public Log<T> seal() {
         throw new ReadOnlyException();
     }
 

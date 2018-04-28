@@ -101,6 +101,29 @@ public class EventStoreTest {
     }
 
     @Test
+    public void fromAll_return_all_elements_in_insertion_order() {
+
+        int size = 1000;
+        for (int i = 0; i < size; i++) {
+            store.add("stream-" + i, Event.create("test", "data"));
+        }
+
+        Iterator<Event> it = store.iterateAll();
+
+        Event last = null;
+        int total = 0;
+        while(it.hasNext()) {
+            Event next = it.next();
+            if(last == null)
+                last = next;
+            assertTrue(next.timestamp() >= last.timestamp()); //no order is guaranteed for same timestamps
+            total++;
+        }
+
+        assertEquals(size, total);
+    }
+
+    @Test
     public void fromStreams_single_stream() {
         //given
         int numStreams = 10000;
@@ -126,18 +149,19 @@ public class EventStoreTest {
     }
 
     @Test
-    public void get1() {
+    public void get() {
+        int size = 1000;
+        for (int i = 0; i < size; i++) {
+            store.add("stream-" + i, Event.create("test", "data"));
+        }
+
+        for (int i = 0; i < size; i++) {
+            String stream = "stream-" + i;
+            Optional<Event> event = store.get(stream, 1);
+            assertTrue(event.isPresent());
+            assertEquals(stream, event.get().stream());
+            assertEquals(1, event.get().version());
+        }
     }
 
-    @Test
-    public void put() {
-    }
-
-    @Test
-    public void stream() {
-    }
-
-    @Test
-    public void close() {
-    }
 }

@@ -29,7 +29,7 @@ import java.util.stream.StreamSupport;
 /**
  * ---- HEADER ----
  * TODO MD5 checksum -> 16bytes
- * size -> 4bytes
+ * length -> 4bytes
  * TODO ? entrySize -> 8bytes
  * footer offset -> 8bytes
  * midpointCount -> 4bytes
@@ -282,10 +282,6 @@ public class SegmentIndex implements Index {
     private static BloomFilter<Long> loadBloomFilter() {
         //TODO IMPLEMENT BLOOM FILTER LOADING
         throw new UnsupportedOperationException("TODO");
-    }
-
-    public int midpointCount() {
-        return midpoints.length;
     }
 
     @Override

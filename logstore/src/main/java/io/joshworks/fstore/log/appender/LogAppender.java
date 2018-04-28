@@ -3,7 +3,7 @@ package io.joshworks.fstore.log.appender;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
-import io.joshworks.fstore.core.io.DiskStorage;
+import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.MMapStorage;
 import io.joshworks.fstore.core.io.Storage;
@@ -49,6 +49,8 @@ import java.util.stream.StreamSupport;
 public class LogAppender<T> implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(LogAppender.class);
+
+    private static final double SEGMENT_EXTRA_SIZE = 0.1;
 
     private final File directory;
     private final Serializer<T> serializer;
@@ -152,14 +154,14 @@ public class LogAppender<T> implements Closeable {
 
     private Log<T> loadSegment(File segmentFile, long position, boolean readonly) {
         Storage storage = openStorage(segmentFile);
-        LogSegment<T> segment = LogSegment.open(storage, serializer, dataReader, position);
+        Log<T> segment = LogSegment.open(storage, serializer, dataReader, position);
         return readonly ? new ReadOnlySegment<>(segment) : segment;
     }
 
     private Storage openStorage(File file) {
         if (mmap)
-            return new MMapStorage(file, FileChannel.MapMode.READ_WRITE);
-        return new DiskStorage(file);
+            return new MMapStorage(file, file.length(), FileChannel.MapMode.READ_WRITE);
+        return new RafStorage(file, file.length());
     }
 
     private List<Log<T>> withCurrentSegment() {
@@ -171,9 +173,11 @@ public class LogAppender<T> implements Closeable {
     }
 
     private Storage createStorage(File file, long length) {
+        //extra length for the last entry, to avoid remapping
+        length = (long) (length + (length * SEGMENT_EXTRA_SIZE));
         if (mmap)
             return new MMapStorage(file, length, FileChannel.MapMode.READ_WRITE);
-        return new DiskStorage(file, length);
+        return new RafStorage(file, length);
     }
 
     public void roll() {
@@ -182,12 +186,14 @@ public class LogAppender<T> implements Closeable {
             flush();
 
             Log<T> newSegment = createSegment(nextSegmentName());
+            Log<T> readOnly = currentSegment.seal();
 
-            rolledSegments.add(new ReadOnlySegment<>(currentSegment));
+            rolledSegments.add(readOnly);
+            state.rolledSegments.add(readOnly.name());
+
             currentSegment = newSegment;
-
             state.currentSegment = newSegment.name();
-            state.rolledSegments.add(newSegment.name());
+
             state.lastRollTime = System.currentTimeMillis();
             LogFileUtils.writeState(directory, state);
 
@@ -260,7 +266,7 @@ public class LogAppender<T> implements Closeable {
             //TODO investigate level and position tiered merges
 
             //TODO update segment position
-            newSegment.complete();
+            newSegment.seal();
 
 
             List<Log<T>> newSegmentOrder = new LinkedList<>();
@@ -348,13 +354,15 @@ public class LogAppender<T> implements Closeable {
         logger.info("Closing log appender {}", directory.getName());
         scheduler.shutdown();
 
-        IOUtils.flush(currentSegment);
         if (currentSegment != null) {
+            IOUtils.flush(currentSegment);
             state.position = currentSegment.position();
             logger.info("Writing state {}", state);
             LogFileUtils.writeState(directory, state);
+
+            logger.info("Closing segment {} (current)", currentSegment.name());
+            IOUtils.closeQuietly(currentSegment);
         }
-        IOUtils.closeQuietly(currentSegment);
 
         for (Log<T> segment : rolledSegments) {
             logger.info("Closing segment {}", segment.name());

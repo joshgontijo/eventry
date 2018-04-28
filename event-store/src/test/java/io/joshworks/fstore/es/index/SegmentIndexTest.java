@@ -1,6 +1,6 @@
 package io.joshworks.fstore.es.index;
 
-import io.joshworks.fstore.core.io.DiskStorage;
+import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.es.index.filter.BloomFilter;
 import io.joshworks.fstore.index.filter.Hash;
@@ -26,7 +26,7 @@ public class SegmentIndexTest {
     @Before
     public void setUp() throws IOException {
         Path tempFile = Files.createTempFile(null, null);
-        storage = new DiskStorage(tempFile.toFile());
+        storage = new RafStorage(tempFile.toFile());
     }
 
     @Test
@@ -213,7 +213,7 @@ public class SegmentIndexTest {
         SegmentIndex write = SegmentIndex.write(index, storage);
 
         //then
-        assertTrue(storage.size() > 0);
+        assertTrue(storage.length() > 0);
     }
 
     @Test

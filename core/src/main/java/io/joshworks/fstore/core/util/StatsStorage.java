@@ -45,8 +45,8 @@ public class StatsStorage implements Storage {
     }
 
     @Override
-    public long size() {
-        return delegate.size();
+    public long length() {
+        return delegate.length();
     }
 
     @Override
@@ -67,6 +67,11 @@ public class StatsStorage implements Storage {
     @Override
     public String name() {
         return delegate.name();
+    }
+
+    @Override
+    public void shrink() {
+        delegate.shrink();
     }
 
 

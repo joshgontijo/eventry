@@ -21,20 +21,19 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public abstract class BaseStorageTest {
+public abstract class DiskStorageTest {
 
+    protected static final int DEFAULT_LENGTH = 5242880;
     private static final String TEST_DATA = "TEST-DATA";
     private Storage storage;
     private Path testFile;
 
-    protected abstract Storage store(File file);
-
     protected abstract Storage store(File file, long size);
 
     @Before
-    public void setUp() throws Exception {
+    public void setUp() {
         testFile = new File("storage.db").toPath();
-        storage = store(testFile.toFile());
+        storage = store(testFile.toFile(), DEFAULT_LENGTH);
     }
 
     @After
@@ -117,22 +116,25 @@ public abstract class BaseStorageTest {
 
     @Test
     public void delete() throws Exception {
-        Path tobeDeleted = Files.createTempFile("tobeDeleted", null);
-        Storage store = store(tobeDeleted.toFile());
-        store.delete();
-
-        assertFalse(Files.exists(tobeDeleted));
+        Storage store = null;
+        try {
+            Path tobeDeleted = Files.createTempFile("tobeDeleted", null);
+            store = store(tobeDeleted.toFile(), DEFAULT_LENGTH);
+            store.delete();
+            assertFalse(Files.exists(tobeDeleted));
+        } finally {
+            IOUtils.closeQuietly(store);
+        }
     }
 
     @Test
     public void when_data_is_written_the_size_must_increase() {
-        int size = Integer.BYTES;
-        ByteBuffer bb = ByteBuffer.allocate(size);
-        bb.putInt(1).flip();
+        int newLength = (int) (storage.length() + 4096);
+        ByteBuffer bb = ByteBuffer.wrap(new byte[newLength]);
 
         storage.write(bb);
 
-        assertEquals(size, storage.size());
+        assertEquals(newLength, storage.length());
     }
 
     @Test
@@ -142,7 +144,7 @@ public abstract class BaseStorageTest {
         Storage store = store(temp.toFile(), thePosition);
         store.position(thePosition);
 
-        assertEquals(thePosition, store.size());
+        assertEquals(thePosition, store.length());
     }
 
     @Test
@@ -179,7 +181,7 @@ public abstract class BaseStorageTest {
             try {
                 Files.delete(testFile);
                 break;
-            }catch (Exception e) {
+            } catch (Exception e) {
                 System.err.println(":: LOCK NOT RELEASED YET ::");
                 try {
                     Thread.sleep(100);

@@ -6,6 +6,7 @@ import java.util.stream.Stream;
 public interface Log<T> extends Writer<T>, Closeable {
 
     int ENTRY_HEADER_SIZE = Integer.BYTES * 2; //length + crc32
+    byte[] EOF = new byte[]{0xFFFFFFFF, 0x00000000}; //eof header, -1 length, 0 crc
 
     String name();
 
@@ -25,6 +26,6 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     void delete();
 
-    void complete();
+    Log<T> seal();
 
 }

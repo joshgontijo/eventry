@@ -5,15 +5,13 @@ import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
-import io.joshworks.fstore.log.appender.naming.TimestampNamingStrategy;
+import io.joshworks.fstore.log.appender.naming.UUIDNamingStrategy;
 import io.joshworks.fstore.log.reader.FixedBufferDataReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.nio.ByteBuffer;
 import java.util.Objects;
-import java.util.function.Function;
 
 public final class Builder<T> {
 
@@ -27,11 +25,10 @@ public final class Builder<T> {
     private DataReader reader = new FixedBufferDataReader(false, 1);
 
     int segmentBitShift = Long.SIZE - SEGMENT_BITS;
-    int segmentSize = 1073741824;
+    int segmentSize = 10485760; //10mb
     boolean mmap;
     boolean asyncFlush;
-    int headerSize;
-    private NamingStrategy namingStrategy = new TimestampNamingStrategy();
+    private NamingStrategy namingStrategy = new UUIDNamingStrategy();
 
     Builder(File directory, Serializer<T> serializer) {
         Objects.requireNonNull(directory, "directory cannot be null");
@@ -46,14 +43,6 @@ public final class Builder<T> {
             throw new IllegalArgumentException("Maximum position allowed is " + maxAddress);
         }
         this.segmentSize = size;
-        return this;
-    }
-
-    public Builder<T> headerWriter(int headerSize, Function<LogAppender, ByteBuffer> dataSupplier) {
-        if (headerSize < 0) {
-            throw new IllegalArgumentException("Size must be equal or greater than zero");
-        }
-        this.headerSize = headerSize;
         return this;
     }
 

@@ -1,63 +1,146 @@
 package io.joshworks.fstore.core.io;
 
-
-import io.joshworks.fstore.core.RuntimeIOException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.file.Files;
+import java.util.Objects;
 
-public class DiskStorage extends BaseStorage {
+public abstract class DiskStorage implements Storage {
 
-    public DiskStorage(File target) {
-        super(target);
-    }
+    private static final Logger logger = LoggerFactory.getLogger(DiskStorage.class);
+
+    protected RandomAccessFile raf;
+    protected FileChannel channel;
+    protected File file;
+    protected FileLock lock;
+    protected long position;
 
     public DiskStorage(File target, long length) {
-        super(target, length);
+        Objects.requireNonNull(target, "File must specified");
+        if (length <= 0) {
+            throw new StorageException("File length must be specified");
+        }
+        if (length < 5242880) {
+            logger.warn("File is less then 5mb, frequent remapping / resizing might impact performance");
+        }
+
+        if (length < target.length()) {
+            logger.error("The specified ({})is less than the actual file length ({}), this may cause loss of data, use 'shrink()' instead", length, target.length());
+            throw new StorageException("The specified length (" + length + ") is less than the actual file length (" + target.length() + ")");
+        }
+
+        this.raf = IOUtils.readWriteRandomAccessFile(target);
+        try {
+            logger.info("Opening {}", target.getName());
+            this.raf.setLength(length);
+            this.file = target;
+            this.raf.setLength(length);
+            this.channel = raf.getChannel();
+            logger.info("Acquiring lock on {}", target.getName());
+            this.lock = this.channel.lock();
+
+        } catch (Exception e) {
+            IOUtils.closeQuietly(raf);
+            IOUtils.closeQuietly(channel);
+            IOUtils.releaseLock(lock);
+            throw new StorageException("Failed to open storage of " + target.getName(), e);
+        }
     }
 
-    /**
-     * Using channel.write(buffer, position) will result in a pwrite() sys call
-     */
-    @Override
-    public int write(ByteBuffer data) {
-        ensureNonEmpty(data);
-        try {
-            int written = 0;
-            while (data.hasRemaining()) {
-                written += channel.write(data);
-            }
-            position += written;
-            return written;
-        } catch (IOException e) {
-            throw RuntimeIOException.of(e);
+    protected void ensureNonEmpty(ByteBuffer data) {
+        if (data.remaining() == 0) {
+            throw new IllegalArgumentException("Cannot store empty record");
         }
     }
 
     @Override
-    public int read(long position, ByteBuffer data) {
-        try {
-            int read = 0;
-            int totalRead = 0;
-            while (data.hasRemaining() && read >= 0) {
-                read = channel.read(data, position + totalRead);
-                if (read > 0) {
-                    totalRead += read;
-                }
-            }
-            return totalRead;
-        } catch (IOException e) {
-            throw RuntimeIOException.of(e);
-        }
-    }
-
-    @Override
-    public long size() {
+    public long length() {
         try {
             return raf.length();
         } catch (IOException e) {
-            throw RuntimeIOException.of(e);
+            throw new StorageException(e);
         }
     }
+
+    public void position(long position) {
+        try {
+            channel.position(position);
+            this.position = position;
+        } catch (Exception e) {
+            throw new StorageException(e);
+        }
+    }
+
+    @Override
+    public long position() {
+        return position;
+    }
+
+    @Override
+    public void delete() {
+        try {
+            IOUtils.closeQuietly(channel);
+            IOUtils.closeQuietly(raf);
+            Files.delete(file.toPath());
+        } catch (Exception e) {
+            throw new StorageException(e);
+        }
+    }
+
+    @Override
+    public void close() {
+        flush();
+        IOUtils.releaseLock(lock);
+        IOUtils.closeQuietly(channel);
+        IOUtils.closeQuietly(raf);
+    }
+
+    @Override
+    public void flush() {
+        try {
+            if (channel.isOpen()) {
+                channel.force(true);
+            }
+        } catch (Exception e) {
+            throw new StorageException(e);
+        }
+    }
+
+    @Override
+    public String name() {
+        return file.getName();
+    }
+
+    @Override
+    public void shrink() {
+        try {
+            raf.setLength(position);
+        } catch (Exception e) {
+            throw new StorageException(e);
+        }
+    }
+
+    public static class StorageException extends RuntimeException {
+
+        public StorageException(String message) {
+            super(message);
+        }
+
+        public StorageException(String message, Throwable cause) {
+            super(message, cause);
+        }
+
+        public StorageException(Throwable cause) {
+            super(cause);
+        }
+
+    }
+
 }

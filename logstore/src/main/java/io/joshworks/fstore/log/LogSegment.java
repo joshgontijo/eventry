@@ -24,11 +24,11 @@ public class LogSegment<T> implements Log<T> {
     private final Storage storage;
     private final DataReader reader;
 
-    public static <T> LogSegment<T> create(Storage storage, Serializer<T> serializer, DataReader reader) {
+    public static <T> Log<T> create(Storage storage, Serializer<T> serializer, DataReader reader) {
         return new LogSegment<>(storage, serializer, reader);
     }
 
-    public static <T> LogSegment<T> open(Storage storage, Serializer<T> serializer, DataReader reader, long position) {
+    public static <T> Log<T> open(Storage storage, Serializer<T> serializer, DataReader reader, long position) {
         LogSegment<T> appender = null;
         try {
 
@@ -102,7 +102,6 @@ public class LogSegment<T> implements Log<T> {
 
     @Override
     public void close() {
-        flush();
         IOUtils.closeQuietly(storage);
     }
 
@@ -143,8 +142,9 @@ public class LogSegment<T> implements Log<T> {
     }
 
     @Override
-    public void complete() {
-
+    public Log<T> seal() {
+        storage.shrink();
+        return new ReadOnlySegment<>(this);
     }
 
 

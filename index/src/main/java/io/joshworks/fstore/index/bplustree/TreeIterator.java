@@ -3,13 +3,10 @@ package io.joshworks.fstore.index.bplustree;
 import io.joshworks.fstore.index.Entry;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.index.bplustree.storage.BlockStore;
-import org.h2.mvstore.MVMap;
-import org.h2.mvstore.MVStore;
 
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.UUID;
 
 public class TreeIterator<K extends Comparable<K>, V> implements Iterator<Entry<K, V>> {
 
@@ -123,32 +120,6 @@ public class TreeIterator<K extends Comparable<K>, V> implements Iterator<Entry<
             node = store.readBlock(childId);
         }
         return (LeafNode<K, V>) node;
-    }
-
-
-    public static void main(String[] args) {
-        MVStore s = new MVStore.Builder().fileName("testTree").open();
-
-        MVMap<Integer, String> map = s.openMap("data");
-
-        long start = System.currentTimeMillis();
-        for (int i = 0; i < 1000000; i++) {
-            map.put(i, UUID.randomUUID().toString());
-        }
-
-        s.sync();
-        System.out.println("WRITE: " + (System.currentTimeMillis() - start));
-
-
-        long totalLength = 0;
-        start = System.currentTimeMillis();
-        for (int i = 0; i < 1000000; i++) {
-            totalLength +=  map.get(i).length();
-        }
-
-        System.out.println("READ: " + (System.currentTimeMillis() - start));
-        System.out.println(totalLength);
-
     }
 
 }
