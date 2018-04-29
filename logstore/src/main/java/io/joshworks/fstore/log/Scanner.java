@@ -7,7 +7,7 @@ import io.joshworks.fstore.core.io.Storage;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public abstract class Scanner<T> implements Iterable<T>, Iterator<T> {
+public abstract class Scanner<T> implements Iterator<T> {
 
     protected final Storage storage;
     protected final DataReader reader;
@@ -55,11 +55,6 @@ public abstract class Scanner<T> implements Iterable<T>, Iterator<T> {
 
     public long position() {
         return position;
-    }
-
-    @Override
-    public Iterator<T> iterator() {
-        return this;
     }
 
 }

@@ -10,4 +10,8 @@ public class BitUtil {
         return (long) Math.pow(2, numBits) - 1;
     }
 
+    public static long maxBitsForNumber(long number) {
+        return (long) (Math.log(number) / Math.log(2)) + 1;
+    }
+
 }

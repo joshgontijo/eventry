@@ -24,6 +24,8 @@
             <artifactId>slf4j-api</artifactId>
         </dependency>
 
+
+
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
@@ -38,7 +40,7 @@
         <dependency>
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>snappy</artifactId>
-            <scope>test</scope>
+
         </dependency>
     </dependencies>
 

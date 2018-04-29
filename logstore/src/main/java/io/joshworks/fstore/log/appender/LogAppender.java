@@ -443,11 +443,6 @@ public class LogAppender<T> implements Closeable {
         }
 
         @Override
-        public Iterator<T> iterator() {
-            return this;
-        }
-
-        @Override
         protected T readAndVerify() {
             return null;
         }

@@ -1,11 +1,15 @@
 package io.joshworks.fstore.log.appender;
 
+import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.appender.naming.UUIDNamingStrategy;
+import io.joshworks.fstore.log.block.Block;
+import io.joshworks.fstore.log.block.BlockAppender;
+import io.joshworks.fstore.log.block.CompressedBlockSerializer;
 import io.joshworks.fstore.log.reader.FixedBufferDataReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +33,7 @@ public final class Builder<T> {
     boolean mmap;
     boolean asyncFlush;
     private NamingStrategy namingStrategy = new UUIDNamingStrategy();
+    private int blockSize = 4096; //only for block appender
 
     Builder(File directory, Serializer<T> serializer) {
         Objects.requireNonNull(directory, "directory cannot be null");
@@ -68,15 +73,29 @@ public final class Builder<T> {
         return this;
     }
 
+    public Builder<T> blockSize(int blockSize) {
+        if(blockSize < 4096) {
+            throw new IllegalArgumentException("BlockSize must be greater or equals than 4096 bytes");
+        }
+        this.blockSize = blockSize;
+        return this;
+    }
 
     public LogAppender<T> open() {
         if (!LogFileUtils.metadataExists(directory)) {
-            return createSimpleLog();
+            return createSimpleLog(serializer);
         }
-        return openSimpleLog();
+        return openSimpleLog(serializer);
     }
 
-    private LogAppender<T> createSimpleLog() {
+    public BlockAppender<T> openBlockLog(Codec codec) {
+        Serializer<Block<T>> blockSerializer = new CompressedBlockSerializer<>(codec, serializer);
+        LogAppender<Block<T>> appender = LogFileUtils.metadataExists(directory) ? createSimpleLog(blockSerializer) : openSimpleLog(blockSerializer);
+
+        return new BlockAppender<>(appender, serializer, blockSize);
+    }
+
+    private <E> LogAppender<E> createSimpleLog(Serializer<E> serializer) {
         logger.info("Creating LogAppender");
 
         LogFileUtils.createRoot(directory);
@@ -85,24 +104,7 @@ public final class Builder<T> {
         return new LogAppender<>(directory, serializer, metadata, State.empty(), reader, namingStrategy);
     }
 
-    //FIXME - ON PREVIOUSLY HALTED
-    //java.io.EOFException
-    //	at java.io.DataInputStream.readFully(DataInputStream.java:197)
-    //	at java.io.DataInputStream.readLong(DataInputStream.java:416)
-    //	at io.joshworks.fstore.log.appender.State.readFrom(State.java:23)
-    //	at io.joshworks.fstore.log.LogFileUtils.readState(LogFileUtils.java:133)
-    //	at io.joshworks.fstore.log.appender.LogAppender.openSimpleLog(LogAppender.java:93)
-    //	at io.joshworks.fstore.log.appender.LogAppender.simpleLog(LogAppender.java:65)
-    //	at io.joshworks.fstore.benchmark.LogAppenderBench.segmentAppender(LogAppenderBench.java:32)
-    //	at io.joshworks.fstore.benchmark.LogAppenderBench.main(LogAppenderBench.java:26)
-    //Exception in thread "main" io.joshworks.fstore.core.RuntimeIOException
-    //	at io.joshworks.fstore.core.RuntimeIOException.of(RuntimeIOException.java:17)
-    //	at io.joshworks.fstore.log.LogFileUtils.readState(LogFileUtils.java:135)
-    //	at io.joshworks.fstore.log.appender.LogAppender.openSimpleLog(LogAppender.java:93)
-    //	at io.joshworks.fstore.log.appender.LogAppender.simpleLog(LogAppender.java:65)
-    //	at io.joshworks.fstore.benchmark.LogAppenderBench.segmentAppender(LogAppenderBench.java:32)
-    //	at io.joshworks.fstore.benchmark.LogAppenderBench.main(LogAppenderBench.java:26)
-    private LogAppender<T> openSimpleLog() {
+    private <E> LogAppender<E> openSimpleLog(Serializer<E> serializer) {
         logger.info("Opening LogAppender");
 
         Metadata metadata = LogFileUtils.readBaseMetadata(directory);
