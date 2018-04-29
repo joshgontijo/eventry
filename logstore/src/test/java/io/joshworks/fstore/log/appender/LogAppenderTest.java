@@ -100,8 +100,10 @@ public class LogAppenderTest {
         Scanner<String> scanner = appender.scanner();
 
         String lastValue = null;
-        for (String value : scanner) {
-            lastValue = value;
+
+        while(scanner.hasNext()) {
+            lastValue = scanner.next();
+
         }
 
         assertEquals(lastEntry, lastValue);

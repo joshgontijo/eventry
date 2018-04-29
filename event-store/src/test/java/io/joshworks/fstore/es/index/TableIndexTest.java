@@ -36,11 +36,11 @@ public class TableIndexTest {
         long stream = 1;
 
         tableIndex.add(stream, 1, 0);
-        tableIndex.flush(testDirectory, "yolo1");
+        tableIndex.flush(testDirectory);
         tableIndex.add(stream, 2, 0);
-        tableIndex.flush(testDirectory, "yolo2");
+        tableIndex.flush(testDirectory);
         tableIndex.add(stream, 3, 0);
-        tableIndex.flush(testDirectory, "yolo3");
+        tableIndex.flush(testDirectory);
         tableIndex.add(stream, 4, 0); //memory
 
         Iterator<IndexEntry> it = tableIndex.iterator();
@@ -73,7 +73,7 @@ public class TableIndexTest {
         int version = 1;
         tableIndex.add(stream, version, 0);
 
-        tableIndex.flush(testDirectory, "yolo");
+        tableIndex.flush(testDirectory);
 
         Optional<IndexEntry> indexEntry = tableIndex.get(stream, version);
 
@@ -99,7 +99,7 @@ public class TableIndexTest {
         int version = 1;
         tableIndex.add(stream, version, 0);
 
-        tableIndex.flush(testDirectory, "yolo");
+        tableIndex.flush(testDirectory);
 
         int foundVersion = tableIndex.version(stream);
 
@@ -111,7 +111,7 @@ public class TableIndexTest {
         long stream = 1;
         tableIndex.add(stream, 1, 0);
 
-        tableIndex.flush(testDirectory, "yolo");
+        tableIndex.flush(testDirectory);
 
         tableIndex.add(stream, 2, 0);
 
@@ -125,7 +125,7 @@ public class TableIndexTest {
         long stream = 1;
         tableIndex.add(stream, 1, 0);
 
-        tableIndex.flush(testDirectory, "yolo");
+        tableIndex.flush(testDirectory);
 
         tableIndex.add(stream, 2, 0);
 
@@ -144,7 +144,7 @@ public class TableIndexTest {
         long stream = 1;
 
         tableIndex.add(stream, 1, 0);
-        tableIndex.flush(testDirectory, "yolo");
+        tableIndex.flush(testDirectory);
         tableIndex.add(stream, 2, 0);
 
         Stream<IndexEntry> dataStream = tableIndex.stream(Range.allOf(stream));

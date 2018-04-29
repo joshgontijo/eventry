@@ -94,7 +94,9 @@ public class Store<K extends Comparable<K>, V> implements Closeable {
         Scanner<LogEntry<K, V>> scanner = log.scanner();
 
         long position = scanner.position();
-        for (LogEntry<K, V> entry : scanner) {
+
+        while(scanner.hasNext()) {
+            LogEntry<K, V> entry = scanner.next();
             if (entry.op == LogEntry.OP_DELETE)
                 index.delete(entry.key);
             else
@@ -102,6 +104,7 @@ public class Store<K extends Comparable<K>, V> implements Closeable {
 
             position = scanner.position();
         }
+
         System.out.println("Reindexing seal in " + (System.currentTimeMillis() - start) + "ms");
     }
 

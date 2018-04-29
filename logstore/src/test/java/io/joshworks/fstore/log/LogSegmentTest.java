@@ -180,8 +180,10 @@ public abstract class LogSegmentTest {
         appender.flush();
 
         int i =0;
-        for (String s : appender.scanner()) {
-            assertEquals("Failed on iteration " + i, values.get(i), s);
+
+        Scanner<String> scanner = appender.scanner();
+        while(scanner.hasNext()) {
+            assertEquals("Failed on iteration " + i, values.get(i), scanner.next());
             i++;
         }
         assertEquals(items, i);
