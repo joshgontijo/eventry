@@ -1,6 +1,7 @@
 package io.joshworks.fstore.es.index;
 
 import io.joshworks.fstore.es.index.filter.BloomFilter;
+import io.joshworks.fstore.es.index.midpoint.Midpoint;
 import io.joshworks.fstore.index.filter.Hash;
 import io.joshworks.fstore.serializer.Serializers;
 import org.junit.Before;

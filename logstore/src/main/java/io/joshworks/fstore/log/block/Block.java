@@ -19,7 +19,7 @@ public class Block<T> implements Iterable<T> {
     private boolean readOnly;
     private List<Integer> lengths = new ArrayList<>();
 
-    private Block(Serializer<T> serializer, int maxSize) {
+    public Block(Serializer<T> serializer, int maxSize) {
         this.serializer = serializer;
         this.maxSize = maxSize;
         int blockSize = (int) (maxSize + (maxSize * BLOCK_SIZE_EXTRA));
@@ -101,7 +101,7 @@ public class Block<T> implements Iterable<T> {
         return readEntry(readOnlyBb, serializer, lengths.get(pos));
     }
 
-    int uncompressedSize() {
+    public int size() {
         return Integer.BYTES + (Integer.BYTES * lengths.size()) + buffer.limit();
     }
 

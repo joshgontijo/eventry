@@ -1,5 +1,7 @@
-package io.joshworks.fstore.es.index;
+package io.joshworks.fstore.es.index.midpoint;
 
+
+import io.joshworks.fstore.es.index.IndexEntry;
 
 import java.util.Objects;
 

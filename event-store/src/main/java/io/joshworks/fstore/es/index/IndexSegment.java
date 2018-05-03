@@ -5,6 +5,8 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.MMapStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.es.index.filter.BloomFilter;
+import io.joshworks.fstore.es.index.midpoint.Midpoint;
+import io.joshworks.fstore.es.index.midpoint.MidpointSerializer;
 import io.joshworks.fstore.es.utils.Iterators;
 import io.joshworks.fstore.es.utils.Memory;
 import io.joshworks.fstore.index.filter.Hash;

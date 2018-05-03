@@ -7,6 +7,7 @@ import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.index.SortedIndex;
 import io.joshworks.fstore.log.Log;
 import io.joshworks.fstore.log.Scanner;
+import io.joshworks.fstore.log.appender.Appender;
 import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.io.Closeable;
@@ -26,7 +27,7 @@ public class Store<K extends Comparable<K>, V> implements Closeable {
     }
 
     public static <K extends Comparable<K>, V> Store<K, V> open(File directory, Serializer<K> keySerializer, Serializer<V> valueSerializer) {
-        Store<K, V> kvStore = new Store<>(new HeapTreeIndex<>(), LogAppender.builder(directory, LogEntry.serializer(keySerializer, valueSerializer)).open());
+        Store<K, V> kvStore = new Store<>(new HeapTreeIndex<>(), Appender.builder(directory, LogEntry.serializer(keySerializer, valueSerializer)).open());
         kvStore.reindex();
         return kvStore;
     }
@@ -105,7 +106,7 @@ public class Store<K extends Comparable<K>, V> implements Closeable {
             position = scanner.position();
         }
 
-        System.out.println("Reindexing seal in " + (System.currentTimeMillis() - start) + "ms");
+        System.out.println("Reindexing roll in " + (System.currentTimeMillis() - start) + "ms");
     }
 
     @Override

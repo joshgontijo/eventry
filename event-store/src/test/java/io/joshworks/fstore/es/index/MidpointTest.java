@@ -1,5 +1,6 @@
 package io.joshworks.fstore.es.index;
 
+import io.joshworks.fstore.es.index.midpoint.Midpoint;
 import org.junit.Test;
 
 import static org.junit.Assert.*;

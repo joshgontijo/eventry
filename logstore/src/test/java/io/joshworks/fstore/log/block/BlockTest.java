@@ -96,7 +96,7 @@ public class BlockTest {
         Block<String> block = Block.newBlock(Serializers.STRING, 4);
         assertFalse(block.add("a"));
 
-        assertEquals(12, block.uncompressedSize());
+        assertEquals(12, block.size());
     }
 
     @Test

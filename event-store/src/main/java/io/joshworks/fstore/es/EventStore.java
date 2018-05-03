@@ -9,6 +9,7 @@ import io.joshworks.fstore.es.index.TableIndex;
 import io.joshworks.fstore.es.log.Event;
 import io.joshworks.fstore.es.log.EventLog;
 import io.joshworks.fstore.es.log.EventSerializer;
+import io.joshworks.fstore.log.appender.Appender;
 import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.io.Closeable;
@@ -42,7 +43,7 @@ public class EventStore implements Closeable {
     }
 
     public static EventStore open(File directory) {
-        LogAppender<Event> appender = LogAppender.builder(directory, new EventSerializer()).segmentSize(524288000).open();
+        LogAppender<Event> appender = Appender.builder(directory, new EventSerializer()).segmentSize(524288000).open();
         return new EventStore(appender);
     }
 

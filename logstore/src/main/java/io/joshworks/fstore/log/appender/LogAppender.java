@@ -3,15 +3,13 @@ package io.joshworks.fstore.log.appender;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
-import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.MMapStorage;
+import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.Log;
 import io.joshworks.fstore.log.LogFileUtils;
-import io.joshworks.fstore.log.LogSegment;
-import io.joshworks.fstore.log.ReadOnlySegment;
 import io.joshworks.fstore.log.Scanner;
 import io.joshworks.fstore.log.appender.merge.SegmentCombiner;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
@@ -25,7 +23,6 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -46,7 +43,7 @@ import java.util.stream.StreamSupport;
  * |------------ 64bits -------------|
  * [SEGMENT_IDX] [POSITION_ON_SEGMENT]
  */
-public class LogAppender<T> implements Closeable {
+public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(LogAppender.class);
 
@@ -62,8 +59,8 @@ public class LogAppender<T> implements Closeable {
     final long maxSegments;
     final long maxAddressPerSegment;
 
-    final List<Log<T>> rolledSegments;
-    private Log<T> currentSegment;
+    final List<L> rolledSegments;
+    private L currentSegment;
 
     //state
     private State state;
@@ -73,16 +70,31 @@ public class LogAppender<T> implements Closeable {
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
 
-    LogAppender(File directory, Serializer<T> serializer, Metadata metadata, State state, DataReader dataReader, NamingStrategy namingStrategy) {
-        this.directory = directory;
-        this.serializer = serializer;
-        this.mmap = metadata.mmap;
-        this.state = state;
-        this.metadata = metadata;
+    protected LogAppender(Builder<T> builder) {
+
+        this.directory = builder.directory;
+        this.serializer = builder.serializer;
+        this.mmap = builder.mmap;
+        this.dataReader = builder.reader;
+        this.namingStrategy = builder.namingStrategy;
+
+        if (!LogFileUtils.metadataExists(directory)) {
+            logger.info("Creating LogAppender");
+
+            LogFileUtils.createRoot(directory);
+            Metadata newMetadata = new Metadata(builder.segmentSize, builder.segmentBitShift, builder.mmap, builder.asyncFlush);
+            LogFileUtils.tryCreateMetadata(directory, newMetadata);
+            this.metadata = newMetadata;
+            this.state = State.empty();
+        } else {
+            logger.info("Opening LogAppender");
+            this.metadata = LogFileUtils.readBaseMetadata(directory);
+            this.state = LogFileUtils.readState(directory);
+        }
+
+
         this.maxSegments = BitUtil.maxValueForBits(Long.SIZE - metadata.segmentBitShift);
         this.maxAddressPerSegment = BitUtil.maxValueForBits(metadata.segmentBitShift);
-        this.dataReader = dataReader;
-        this.namingStrategy = namingStrategy;
 
         if (metadata.segmentBitShift >= Long.SIZE || metadata.segmentBitShift < 0) {
             //just a numeric validation, values near 64 and 0 are still nonsense
@@ -108,25 +120,28 @@ public class LogAppender<T> implements Closeable {
         return new Builder<>(directory, serializer);
     }
 
-    private Log<T> createSegment(String name) {
+    protected abstract L createSegment(Storage storage, Serializer<T> serializer, DataReader reader);
+    protected abstract L openSegment(Storage storage, Serializer<T> serializer, DataReader reader, long position, boolean readonly);
+
+    private L createSegmentInternal(String name) {
         File segmentFile = LogFileUtils.newSegmentFile(directory, name, segments());
         Storage storage = createStorage(segmentFile, metadata.segmentSize);
 
-        return LogSegment.create(storage, serializer, dataReader);
+        return createSegment(storage, serializer, dataReader);
     }
 
-    private Log<T> loadCurrentSegment(State state) {
+    private L loadCurrentSegment(State state) {
         if (state.currentSegment == null) {
             logger.info("No rolledSegments available creating");
 
-            Log<T> segment = createSegment(nextSegmentName());
+            L segment = createSegmentInternal(nextSegmentName());
             this.state.currentSegment = segment.name();
             LogFileUtils.writeState(directory, this.state);
             return segment;
         }
 
         File segmentFile = LogFileUtils.loadSegment(directory, state.currentSegment);
-        Log<T> segment = loadSegment(segmentFile, state.position, false);
+        L segment = loadSegment(segmentFile, state.position, false);
 
         long logPos = segment.checkIntegrity(state.position);
         this.state.position = toSegmentedPosition(rolledSegments.size(), logPos);
@@ -141,21 +156,20 @@ public class LogAppender<T> implements Closeable {
         return namingStrategy.name(allSegmentNames);
     }
 
-    private List<Log<T>> loadRolledSegments(final File directory, final State state) {
-        List<Log<T>> segments = new LinkedList<>();
+    private List<L> loadRolledSegments(final File directory, final State state) {
+        List<L> segments = new LinkedList<>();
         for (String rolledSegment : state.rolledSegments) {
             File segmentFile = LogFileUtils.loadSegment(directory, rolledSegment);
-            Log<T> segment = loadSegment(segmentFile, 0, true);
+            L segment = loadSegment(segmentFile, 0, true);
             segments.add(segment);
         }
 
         return segments;
     }
 
-    private Log<T> loadSegment(File segmentFile, long position, boolean readonly) {
+    private L loadSegment(File segmentFile, long position, boolean readonly) {
         Storage storage = openStorage(segmentFile);
-        Log<T> segment = LogSegment.open(storage, serializer, dataReader, position);
-        return readonly ? new ReadOnlySegment<>(segment) : segment;
+        return openSegment(storage, serializer, dataReader, position, readonly);
     }
 
     private Storage openStorage(File file) {
@@ -164,8 +178,8 @@ public class LogAppender<T> implements Closeable {
         return new RafStorage(file, file.length());
     }
 
-    private List<Log<T>> withCurrentSegment() {
-        List<Log<T>> allSegments = new LinkedList<>(rolledSegments);
+    private List<L> withCurrentSegment() {
+        List<L> allSegments = new LinkedList<>(rolledSegments);
         if (currentSegment != null) {
             allSegments.add(currentSegment);
         }
@@ -185,11 +199,11 @@ public class LogAppender<T> implements Closeable {
             logger.info("Rolling appender");
             flush();
 
-            Log<T> newSegment = createSegment(nextSegmentName());
-            Log<T> readOnly = currentSegment.seal();
+            L newSegment = createSegmentInternal(nextSegmentName());
+            currentSegment.roll();
 
-            rolledSegments.add(readOnly);
-            state.rolledSegments.add(readOnly.name());
+            rolledSegments.add(currentSegment);
+            state.rolledSegments.add(currentSegment.name());
 
             currentSegment = newSegment;
             state.currentSegment = newSegment.name();
@@ -229,7 +243,7 @@ public class LogAppender<T> implements Closeable {
         return (position & mask);
     }
 
-    private boolean shouldRoll(Log<T> currentSegment) {
+    private boolean shouldRoll(L currentSegment) {
         return currentSegment.size() > metadata.segmentSize && currentSegment.size() > 0;
     }
 
@@ -237,13 +251,13 @@ public class LogAppender<T> implements Closeable {
 
         List<String> segments = segments().subList(from, to + 1);
 
-        List<Log<T>> foundSegments = new ArrayList<>();
+        List<L> foundSegments = new ArrayList<>();
         long totalSize = 0;
         for (String segmentName : segments) {
             if (segmentName.equals(currentSegment.name())) {
                 throw new IllegalStateException("Cannot merge segment " + currentSegment.name() + " as it still opened for writes");
             }
-            Log<T> log = this.rolledSegments.stream().filter(l -> l.name().equals(segmentName)).findFirst().orElseThrow(() -> new IllegalArgumentException("No segment found: " + segmentName));
+            L log = this.rolledSegments.stream().filter(l -> l.name().equals(segmentName)).findFirst().orElseThrow(() -> new IllegalArgumentException("No segment found: " + segmentName));
 
             foundSegments.add(log);
             totalSize += log.size();
@@ -255,10 +269,10 @@ public class LogAppender<T> implements Closeable {
         }
 
         File newSegmentFile = new File(directory, newSegmentName);
-        Log<T> newSegment = null;
+        L newSegment = null;
         try {
             Storage storage = createStorage(newSegmentFile, totalSize);
-            newSegment = LogSegment.create(storage, serializer, dataReader);
+            newSegment = createSegment(storage, serializer, dataReader);
 
             combiner.merge(foundSegments.stream().map(Log::stream).collect(Collectors.toList()), newSegment::append);
 
@@ -266,14 +280,14 @@ public class LogAppender<T> implements Closeable {
             //TODO investigate level and position tiered merges
 
             //TODO update segment position
-            newSegment.seal();
+            newSegment.roll();
 
 
-            List<Log<T>> newSegmentOrder = new LinkedList<>();
+            List<L> newSegmentOrder = new LinkedList<>();
             for (int i = 0; i < from; i++) {
                 newSegmentOrder.add(rolledSegments.get(i));
             }
-            newSegmentOrder.add(new ReadOnlySegment<>(newSegment));
+            newSegmentOrder.add(newSegment);
 
             for (int i = to + 1; i <= rolledSegments.size() - 1; i++) {
                 newSegmentOrder.add(rolledSegments.get(i));
@@ -336,7 +350,7 @@ public class LogAppender<T> implements Closeable {
             return null;
         }
         long positionOnSegment = getPositionOnSegment(position);
-        Log<T> segment = segmentIdx == rolledSegments.size() ? currentSegment : rolledSegments.get(segmentIdx);
+        L segment = segmentIdx == rolledSegments.size() ? currentSegment : rolledSegments.get(segmentIdx);
         if (segment != null) {
             return segment.get(positionOnSegment);
         }
@@ -364,7 +378,7 @@ public class LogAppender<T> implements Closeable {
             IOUtils.closeQuietly(currentSegment);
         }
 
-        for (Log<T> segment : rolledSegments) {
+        for (L segment : rolledSegments) {
             logger.info("Closing segment {}", segment.name());
             IOUtils.closeQuietly(segment);
         }
@@ -414,8 +428,8 @@ public class LogAppender<T> implements Closeable {
             throw new IllegalStateException("Cannot delete current writing segment");
         }
 
-        Optional<Log<T>> found = rolledSegments.stream().filter(l -> l.name().equals(segment)).findFirst();
-        Log<T> log = found.orElseThrow(() -> new IllegalArgumentException("Segment not found for name " + segment));
+        Optional<L> found = rolledSegments.stream().filter(l -> l.name().equals(segment)).findFirst();
+        L log = found.orElseThrow(() -> new IllegalArgumentException("Segment not found for name " + segment));
 
         state.rolledSegments.remove(segment);
         LogFileUtils.writeState(directory, state);
@@ -425,11 +439,11 @@ public class LogAppender<T> implements Closeable {
 
     private class RollingSegmentReader extends Scanner<T> {
 
-        private final List<Log<T>> segments;
+        private final List<L> segments;
         private Scanner<T> current;
         private int segmentIdx;
 
-        RollingSegmentReader(List<Log<T>> segments, long position) {
+        RollingSegmentReader(List<L> segments, long position) {
             super(null, null, null, position);
             this.segments = segments;
             this.segmentIdx = getSegment(position);

@@ -1,31 +1,34 @@
 package io.joshworks.fstore.log.block;
 
-import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CompressedBlockSerializer<T> implements Serializer<Block<T>> {
+public class BlockSerializer<T> implements Serializer<Block<T>> {
 
-    private final Codec codec;
     private final Serializer<T> serializer;
 
-    public CompressedBlockSerializer(Codec codec, Serializer<T> serializer) {
-        this.codec = codec;
+    public BlockSerializer(Serializer<T> serializer) {
         this.serializer = serializer;
     }
 
     @Override
     public ByteBuffer toBytes(Block<T> data) {
-        ByteBuffer dest = ByteBuffer.allocate(data.uncompressedSize() + 16);
+        ByteBuffer dest = ByteBuffer.allocate(data.size() + 16);
         writeTo(data, dest);
         return (ByteBuffer) dest.flip();
     }
 
     @Override
     public void writeTo(Block<T> block, ByteBuffer dest) {
+        ByteBuffer buffer = createBuffer(block);
+        dest.put(buffer);
+    }
+
+
+    protected ByteBuffer createBuffer(Block<T> block) {
         if (block.readOnly()) {
             throw new IllegalStateException("Block is read only");
         }
@@ -37,7 +40,7 @@ public class CompressedBlockSerializer<T> implements Serializer<Block<T>> {
             throw new IllegalStateException("Block is empty");
         }
 
-        ByteBuffer withLength = ByteBuffer.allocate(block.uncompressedSize());
+        ByteBuffer withLength = ByteBuffer.allocate(block.size());
         withLength.putInt(entryCount);
         for (int i = 0; i < entryCount; i++) {
             withLength.putInt(lengths.get(i));
@@ -45,22 +48,18 @@ public class CompressedBlockSerializer<T> implements Serializer<Block<T>> {
         withLength.put(buffer);
 
         withLength.flip();
-        ByteBuffer compressed = codec.compress(withLength);
-        if (dest.remaining() < compressed.remaining()) {
-            throw new IllegalStateException("Not enough space to store block");
-        }
-        dest.put(compressed);
+        return withLength;
     }
 
     @Override
     public Block<T> fromBytes(ByteBuffer data) {
-        ByteBuffer decompressed = codec.decompress(data);
-        int entryCount = decompressed.getInt();
+        int entryCount = data.getInt();
         List<Integer> lengths = new ArrayList<>(entryCount);
         for (int i = 0; i < entryCount; i++) {
-            lengths.add(decompressed.getInt());
+            lengths.add(data.getInt());
         }
+        return new Block<>(serializer, lengths, data.slice().asReadOnlyBuffer());
 
-        return new Block<>(serializer, lengths, decompressed.slice().asReadOnlyBuffer());
     }
+
 }

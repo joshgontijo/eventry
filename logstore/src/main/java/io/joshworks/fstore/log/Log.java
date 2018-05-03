@@ -26,6 +26,8 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     void delete();
 
-    Log<T> seal();
+    void roll();
+
+    boolean readOnly();
 
 }

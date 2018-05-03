@@ -23,28 +23,14 @@ public class LogSegment<T> implements Log<T> {
     private final Serializer<T> serializer;
     private final Storage storage;
     private final DataReader reader;
+    private final boolean readOnly;
 
-    public static <T> Log<T> create(Storage storage, Serializer<T> serializer, DataReader reader) {
-        return new LogSegment<>(storage, serializer, reader);
-    }
-
-    public static <T> Log<T> open(Storage storage, Serializer<T> serializer, DataReader reader, long position) {
-        LogSegment<T> appender = null;
-        try {
-
-            appender = new LogSegment<>(storage, serializer, reader);
-            appender.position(position);
-            return appender;
-        } catch (CorruptedLogException e) {
-            IOUtils.closeQuietly(appender);
-            throw e;
-        }
-    }
-
-    private LogSegment(Storage storage, Serializer<T> serializer, DataReader reader) {
+    public LogSegment(Storage storage, Serializer<T> serializer, DataReader reader, long position, boolean readOnly) {
         this.serializer = serializer;
         this.storage = storage;
         this.reader = reader;
+        this.position(position);
+        this.readOnly = readOnly;
     }
 
     private void position(long position) {
@@ -142,9 +128,13 @@ public class LogSegment<T> implements Log<T> {
     }
 
     @Override
-    public Log<T> seal() {
+    public void roll() {
         storage.shrink();
-        return new ReadOnlySegment<>(this);
+    }
+
+    @Override
+    public boolean readOnly() {
+        return readOnly;
     }
 
 
