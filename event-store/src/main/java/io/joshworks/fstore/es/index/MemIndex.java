@@ -20,7 +20,7 @@ public class MemIndex implements Index {
     private final Map<Long, SortedSet<IndexEntry>> index = new ConcurrentHashMap<>();
     private final AtomicInteger size = new AtomicInteger();
 
-    void add(long stream, int version, long position) {
+    public void add(long stream, int version, long position) {
         index.compute(stream, (k, v) -> {
             if (v == null)
                 v = new TreeSet<>();
@@ -40,7 +40,6 @@ public class MemIndex implements Index {
         return entries.last().version;
     }
 
-    @Override
     public int size() {
         return size.get();
     }
@@ -61,7 +60,6 @@ public class MemIndex implements Index {
         return Collections.unmodifiableSet(entries.subSet(range.start(), range.end())).iterator();
     }
 
-    @Override
     public Stream<IndexEntry> stream() {
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(), Spliterator.ORDERED), false);
     }

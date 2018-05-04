@@ -5,9 +5,9 @@ import io.joshworks.fstore.log.block.Block;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
+import java.util.Queue;
 
 class FixedSizeEntryBlock<T> extends Block<T> {
 
@@ -18,41 +18,29 @@ class FixedSizeEntryBlock<T> extends Block<T> {
         this.entrySize = entrySize;
     }
 
-    FixedSizeEntryBlock(Serializer<T> serializer, ByteBuffer data, int entrySize) {
-        this(serializer, -1, entrySize);
-        this.data = data;
-        this.readOnly = true;
+    FixedSizeEntryBlock(Serializer<T> serializer, List<Integer> lengths, ByteBuffer data, int entrySize) {
+        super(serializer, lengths, data);
+        this.entrySize = entrySize;
     }
 
-    @Override
-    protected ByteBuffer serialize(T data) {
-        ByteBuffer serialized = super.serialize(data);
-        if (serialized.limit() != entrySize) {
-            throw new IllegalArgumentException("Entry must have " + entrySize + " bytes");
+    public Queue<T> queueEntries() {
+        int entryCount = entryCount();
+        Queue<T> entries = new LinkedList<>();
+        ByteBuffer readBuffer = readOnlyBuffer();
+
+        for (int i = 0; i < entryCount; i++) {
+            T entry = readEntry(readBuffer, serializer, entrySize);
+            entries.add(entry);
         }
-        return serialized;
-    }
 
-    public int entrySize() {
-        return entrySize;
-    }
-
-    @Override
-    public ByteBuffer buffer() {
-        return (ByteBuffer) data.asReadOnlyBuffer().position(0);
-    }
-
-    @Override
-    public int entryCount() {
-        return data.position() / entrySize;
+        return entries;
     }
 
     @Override
     public List<T> entries() {
         int entryCount = entryCount();
         List<T> entries = new ArrayList<>(entryCount);
-        ByteBuffer readBuffer = data.asReadOnlyBuffer();
-        readBuffer.position(0);
+        ByteBuffer readBuffer = readOnlyBuffer();
 
         for (int i = 0; i < entryCount; i++) {
             T entry = readEntry(readBuffer, serializer, entrySize);
@@ -68,21 +56,9 @@ class FixedSizeEntryBlock<T> extends Block<T> {
             return null;
         }
 
-        ByteBuffer readOnlyBb = data.asReadOnlyBuffer();
+        ByteBuffer readOnlyBb = pack();
         readOnlyBb.position(idx * entrySize);
         return readEntry(readOnlyBb, serializer, entrySize);
     }
 
-    @Override
-    protected int currentHeaderOverhead() {
-        return 0;
-    }
-
-    @Override
-    protected List<Integer> entriesLength() {
-        return IntStream.range(0, entryCount())
-                .boxed()
-                .map(i -> this.entrySize)
-                .collect(Collectors.toList());
-    }
 }

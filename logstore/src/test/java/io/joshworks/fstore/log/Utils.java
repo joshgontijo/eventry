@@ -7,7 +7,7 @@ import java.nio.file.Path;
 
 public class Utils {
 
-    //terrible work around for waiting the mapped buffer to release file lock
+    //terrible work around for waiting the mapped pack to release file lock
     public static void tryDelete(File file) {
         int maxTries = 5;
         int counter = 0;

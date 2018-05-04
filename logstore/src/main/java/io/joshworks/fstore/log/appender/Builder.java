@@ -76,6 +76,9 @@ public final class Builder<T> {
         return this;
     }
 
+    public SimpleLogAppender<T> open() {
+        return new SimpleLogAppender<>(this);
+    }
 
 
 }

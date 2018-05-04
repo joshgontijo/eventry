@@ -30,12 +30,12 @@ public abstract class LogSegmentTest {
 
     private Log<String> create() {
         Storage storage = getStorage(testFile.toFile(), FILE_SIZE);
-        return LogSegment.create(storage, new StringSerializer(), new FixedBufferDataReader());
+        return new LogSegment<>(storage, new StringSerializer(), new FixedBufferDataReader(), 0, false);
     }
 
     private Log<String> open(long pos) {
         Storage storage = getStorage(testFile.toFile(), FILE_SIZE);
-        return LogSegment.open(storage, new StringSerializer(), new FixedBufferDataReader(), pos);
+        return new LogSegment<>(storage, new StringSerializer(), new FixedBufferDataReader(), pos, false);
     }
 
     @Before

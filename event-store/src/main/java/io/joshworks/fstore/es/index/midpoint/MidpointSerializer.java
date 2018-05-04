@@ -2,13 +2,13 @@ package io.joshworks.fstore.es.index.midpoint;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.es.index.IndexEntry;
-import io.joshworks.fstore.es.index.IndexKeySerializer;
+import io.joshworks.fstore.es.index.IndexEntrySerializer;
 
 import java.nio.ByteBuffer;
 
 public class MidpointSerializer implements Serializer<Midpoint> {
 
-    private final Serializer<IndexEntry> indexEntrySerializer = new IndexKeySerializer();
+    private final Serializer<IndexEntry> indexEntrySerializer = new IndexEntrySerializer();
 
     @Override
     public ByteBuffer toBytes(Midpoint data) {

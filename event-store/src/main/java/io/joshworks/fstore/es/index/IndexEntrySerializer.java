@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
 
-public class IndexKeySerializer implements Serializer<IndexEntry> {
+public class IndexEntrySerializer implements Serializer<IndexEntry> {
 
     @Override
     public ByteBuffer toBytes(IndexEntry data) {

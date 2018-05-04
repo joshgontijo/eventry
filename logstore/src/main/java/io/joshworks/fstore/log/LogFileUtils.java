@@ -71,7 +71,7 @@ public final class LogFileUtils {
                     .map(p -> loadSegment(directory, p.toFile().getName()))
                     .collect(Collectors.toList());
         } catch (Exception e) {
-            throw new RuntimeException("Failed to load segments", e);
+            throw new RuntimeException("Failed to load segmentsNames", e);
         }
     }
 
@@ -87,7 +87,7 @@ public final class LogFileUtils {
             }
             return file;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to load segments", e);
+            throw new RuntimeException("Failed to load segmentsNames", e);
         }
     }
 

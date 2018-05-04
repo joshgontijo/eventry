@@ -21,16 +21,17 @@ public class Midpoints {
     private final List<Midpoint> midpoints;
     private final File handler;
 
+    public static final Midpoints EMPTY = new Midpoints(new ArrayList<>(), null);
+
     private Midpoints(List<Midpoint> midpoints, File handler) {
         this.midpoints = midpoints;
-
         this.handler = handler;
     }
 
-    public static Midpoints write(File indexFolder, String segmentName, List<Midpoint> midpoints) {
+    public static Midpoints write(File indexFolder, String segmentFileName, List<Midpoint> midpoints) {
         int size = Midpoint.BYTES * midpoints.size();
 
-        File midpointFile = getFile(indexFolder, segmentName);
+        File midpointFile = getFile(indexFolder, segmentFileName);
 
         try(Storage storage = new MMapStorage(midpointFile, size, FileChannel.MapMode.READ_WRITE)) {
             for (Midpoint midpoint : midpoints) {
@@ -64,10 +65,10 @@ public class Midpoints {
     }
 
     private static File getFile(File indexDir, String segmentName) {
-        return new File(indexDir, segmentName + "-MIDPOINT.mdp");
+        return new File(indexDir, segmentName.split("\\.")[0] + "-MIDPOINT.dat");
     }
 
-    int getMidpointIdx(IndexEntry entry) {
+    public int getMidpointIdx(IndexEntry entry) {
         int idx = Collections.binarySearch(midpoints, entry);
         if (idx < 0) {
             idx = Math.abs(idx) - 2; // -1 for the actual position, -1 for the offset where to start scanning
@@ -79,8 +80,19 @@ public class Midpoints {
         return idx;
     }
 
+    public Midpoint getMidpointFor(IndexEntry entry) {
+        int midpointIdx = getMidpointIdx(entry);
+        if(midpointIdx >= midpoints.size() || midpointIdx < 0) {
+            return null;
+        }
+        return midpoints.get(midpointIdx);
+    }
+
 
     public void delete() {
+        if(handler == null) {
+            return;
+        }
         try {
             Files.delete(handler.toPath());
         } catch (IOException e) {
@@ -88,8 +100,8 @@ public class Midpoints {
         }
     }
 
-    private boolean inRange(Range range) {
-        return range.start().compareTo(last()) > 0 || range.end().compareTo(first()) < 0;
+    public boolean inRange(Range range) {
+        return !(range.start().compareTo(last()) > 0 || range.end().compareTo(first()) < 0);
     }
 
     public IndexEntry first() {

@@ -9,14 +9,10 @@ public interface Index extends Closeable, Iterable<IndexEntry> {
 
     Iterator<IndexEntry> iterator(Range range);
 
-    Stream<IndexEntry> stream();
-
     Stream<IndexEntry> stream(Range range);
 
     Optional<IndexEntry> get(long stream, int version);
 
     int version(long stream);
-
-    int size();
 
 }

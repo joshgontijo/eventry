@@ -5,6 +5,7 @@ import io.joshworks.fstore.log.Scanner;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.Builder;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.appender.SimpleLogAppender;
 import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.serializer.StringSerializer;
 import org.junit.After;
@@ -25,9 +26,9 @@ import static org.junit.Assert.fail;
 
 public abstract class LogAppenderIT {
 
-    private LogAppender<String> appender;
+    private SimpleLogAppender<String> appender;
 
-    protected abstract LogAppender<String> appender(Builder<String> builder);
+    protected abstract SimpleLogAppender<String> appender(Builder<String> builder);
 
     protected File testDirectory;
     private static String directoryPath;
@@ -121,7 +122,7 @@ public abstract class LogAppenderIT {
 
         assertEquals(position, f.length());
 
-        try (LogAppender<String> appender = appender(LogAppender.builder(testDirectory, Serializers.STRING))) {
+        try (SimpleLogAppender<String> appender = appender(LogAppender.builder(testDirectory, Serializers.STRING))) {
             Scanner<String> scanner = appender.scanner();
             assertTrue(scanner.hasNext());
             assertEquals(data, scanner.next());
@@ -176,7 +177,7 @@ public abstract class LogAppenderIT {
 
         Long lastPosition = null;
         for (int i = 0; i < iterations; i++) {
-            try (LogAppender<String> appender = appender(LogAppender.builder(testDirectory, Serializers.STRING))) {
+            try (SimpleLogAppender<String> appender = appender(LogAppender.builder(testDirectory, Serializers.STRING))) {
                 if (lastPosition != null) {
                     assertEquals(lastPosition, Long.valueOf(appender.position()));
                 }
@@ -186,7 +187,7 @@ public abstract class LogAppenderIT {
             }
         }
 
-        try (LogAppender<String> appender = appender(LogAppender.builder(testDirectory, Serializers.STRING))) {
+        try (SimpleLogAppender<String> appender = appender(LogAppender.builder(testDirectory, Serializers.STRING))) {
             assertEquals(iterations, appender.stream().count());
             assertEquals(iterations, appender.entries());
         }
@@ -198,7 +199,7 @@ public abstract class LogAppenderIT {
         String name = appender.currentSegment();
         appender.delete(name);
 
-        assertEquals(1, appender.segments().size());
+        assertEquals(1, appender.segmentsNames().size());
         assertNotEquals(name, appender.currentSegment());
 
 
@@ -239,7 +240,7 @@ public abstract class LogAppenderIT {
         long lastUpdate = System.currentTimeMillis();
         long written = 0;
 
-        while (appender.segments().size() < numSegments) {
+        while (appender.segmentsNames().size() < numSegments) {
             if (System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
                 avg = (avg + written) / 2;
                 System.out.println("TOTAL WRITTEN: " + appender.entries() + " - LAST SECOND: " + written + " - AVG: " + avg);

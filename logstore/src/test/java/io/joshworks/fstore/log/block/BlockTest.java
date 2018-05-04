@@ -1,10 +1,10 @@
 package io.joshworks.fstore.log.block;
 
-import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.appender.SimpleLogAppender;
 import io.joshworks.fstore.serializer.Serializers;
 import org.junit.After;
 import org.junit.Before;
@@ -23,14 +23,14 @@ import static org.junit.Assert.assertTrue;
 public class BlockTest {
 
     private Path tempFile;
-    private LogAppender<Block<String>> appender;
+    private SimpleLogAppender<Block<String>> appender;
 
 
     @Before
     public void setUp() throws Exception {
         tempFile = Files.createTempDirectory(null);
 
-        Serializer<Block<String>> blockSerializer = new CompressedBlockSerializer<>(new SnappyCodec(), Serializers.STRING);
+        Serializer<Block<String>> blockSerializer = new BlockSerializer<>(Serializers.STRING);
         appender = LogAppender.builder(tempFile.toFile(), blockSerializer).segmentSize(5242880).open();
     }
 

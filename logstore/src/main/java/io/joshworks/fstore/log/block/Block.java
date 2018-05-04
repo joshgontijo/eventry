@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.block;
 
+import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
@@ -12,12 +13,12 @@ public class Block<T> implements Iterable<T> {
 
     private static final double BLOCK_SIZE_EXTRA = 0.1; //10% of the size to avoid resizing
 
-    private final Serializer<T> serializer;
-    private final int maxSize;
-    private ByteBuffer buffer;
+    protected final Serializer<T> serializer;
+    protected final int maxSize;
+    protected ByteBuffer buffer;
 
-    private boolean readOnly;
-    private List<Integer> lengths = new ArrayList<>();
+    protected boolean readOnly;
+    protected List<Integer> lengths = new ArrayList<>();
 
     public Block(Serializer<T> serializer, int maxSize) {
         this.serializer = serializer;
@@ -26,7 +27,7 @@ public class Block<T> implements Iterable<T> {
         this.buffer = ByteBuffer.allocate(blockSize);
     }
 
-    Block(Serializer<T> serializer, List<Integer> lengths, ByteBuffer data) {
+    protected Block(Serializer<T> serializer, List<Integer> lengths, ByteBuffer data) {
         this.serializer = serializer;
         this.lengths = lengths;
         this.buffer = data;
@@ -53,8 +54,19 @@ public class Block<T> implements Iterable<T> {
         return buffer.position() >= maxSize;
     }
 
-    ByteBuffer buffer() {
-        return (ByteBuffer) buffer.asReadOnlyBuffer().position(0);
+    public ByteBuffer readOnlyBuffer() {
+        ByteBuffer readOnlyBuffer = buffer.asReadOnlyBuffer();
+        //if not readonly, this block is being written to, flip it
+        return readOnly ? readOnlyBuffer : (ByteBuffer) readOnlyBuffer.flip();
+    }
+
+    public ByteBuffer pack() {
+        return (ByteBuffer) buffer.asReadOnlyBuffer().flip();
+    }
+
+    public ByteBuffer pack(Codec codec) {
+        ByteBuffer original = pack();
+        return codec.compress(original);
     }
 
     public int entryCount() {
@@ -72,7 +84,7 @@ public class Block<T> implements Iterable<T> {
         return entries;
     }
 
-    private static <T> T readEntry(ByteBuffer data, Serializer<T> serializer, int length) {
+    protected static <T> T readEntry(ByteBuffer data, Serializer<T> serializer, int length) {
         byte[] entryData = new byte[length];
         data.get(entryData);
         return serializer.fromBytes(ByteBuffer.wrap(entryData));
@@ -87,7 +99,7 @@ public class Block<T> implements Iterable<T> {
     }
 
     public T get(int pos) {
-        if (pos > lengths.size() || lengths.get(pos) < 0) {
+        if (pos >= lengths.size() || lengths.get(pos) < 0) {
             return null;
         }
 
@@ -122,6 +134,10 @@ public class Block<T> implements Iterable<T> {
 
     public boolean readOnly() {
         return readOnly;
+    }
+
+    public boolean isEmpty() {
+        return lengths.isEmpty();
     }
 
     List<Integer> entriesLength() {

@@ -23,6 +23,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
@@ -59,7 +60,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     final long maxSegments;
     final long maxAddressPerSegment;
 
-    final List<L> rolledSegments;
+    final LinkedList<L> rolledSegments;
     private L currentSegment;
 
     //state
@@ -121,10 +122,11 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     protected abstract L createSegment(Storage storage, Serializer<T> serializer, DataReader reader);
+
     protected abstract L openSegment(Storage storage, Serializer<T> serializer, DataReader reader, long position, boolean readonly);
 
     private L createSegmentInternal(String name) {
-        File segmentFile = LogFileUtils.newSegmentFile(directory, name, segments());
+        File segmentFile = LogFileUtils.newSegmentFile(directory, name, segmentsNames());
         Storage storage = createStorage(segmentFile, metadata.segmentSize);
 
         return createSegment(storage, serializer, dataReader);
@@ -156,8 +158,8 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return namingStrategy.name(allSegmentNames);
     }
 
-    private List<L> loadRolledSegments(final File directory, final State state) {
-        List<L> segments = new LinkedList<>();
+    private LinkedList<L> loadRolledSegments(final File directory, final State state) {
+        LinkedList<L> segments = new LinkedList<>();
         for (String rolledSegment : state.rolledSegments) {
             File segmentFile = LogFileUtils.loadSegment(directory, rolledSegment);
             L segment = loadSegment(segmentFile, 0, true);
@@ -178,8 +180,8 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return new RafStorage(file, file.length());
     }
 
-    private List<L> withCurrentSegment() {
-        List<L> allSegments = new LinkedList<>(rolledSegments);
+    private LinkedList<L> withCurrentSegment() {
+        LinkedList<L> allSegments = new LinkedList<>(rolledSegments);
         if (currentSegment != null) {
             allSegments.add(currentSegment);
         }
@@ -249,7 +251,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     public void merge(String newSegmentName, SegmentCombiner<T> combiner, int from, int to) {
 
-        List<String> segments = segments().subList(from, to + 1);
+        List<String> segments = segmentsNames().subList(from, to + 1);
 
         List<L> foundSegments = new ArrayList<>();
         long totalSize = 0;
@@ -292,7 +294,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             for (int i = to + 1; i <= rolledSegments.size() - 1; i++) {
                 newSegmentOrder.add(rolledSegments.get(i));
             }
-            //delete the merged segments
+            //delete the merged segmentsNames
             foundSegments.stream().map(Log::name).forEach(this::delete);
             this.rolledSegments.clear();
             this.rolledSegments.addAll(newSegmentOrder);
@@ -403,12 +405,19 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         }
     }
 
-    public List<String> segments() {
+    public List<String> segmentsNames() {
         List<String> names = rolledSegments.stream().map(Log::name).collect(Collectors.toList());
         if (currentSegment != null) {
             names.add(currentSegment.name());
         }
         return names;
+    }
+
+    public void add(L segment) {
+        IOUtils.flush(segment);
+        this.rolledSegments.addFirst(segment);
+        this.state.rolledSegments.addFirst(segment.name());
+        LogFileUtils.writeState(directory, this.state);
     }
 
     public long entries() {
@@ -417,6 +426,18 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     public String currentSegment() {
         return currentSegment.name();
+    }
+
+    public L current() {
+        return currentSegment;
+    }
+
+    public Iterator<L> segments() {
+        return withCurrentSegment().iterator();
+    }
+
+    public Iterator<L> segmentsReverse() {
+        return withCurrentSegment().descendingIterator();
     }
 
     public Path directory() {

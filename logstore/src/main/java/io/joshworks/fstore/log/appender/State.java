@@ -5,7 +5,6 @@ import java.io.DataOutput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedList;
-import java.util.List;
 
 public class State {
 
@@ -13,7 +12,7 @@ public class State {
     long entryCount;
     long lastRollTime;
     String currentSegment;
-    List<String> rolledSegments;
+    LinkedList<String> rolledSegments;
 
     private State(long position, long entryCount, long lastRollTime, String currentSegment, String[] rolledSegments) {
         this.position = position;

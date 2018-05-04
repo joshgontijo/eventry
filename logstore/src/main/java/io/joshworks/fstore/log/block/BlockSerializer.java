@@ -32,7 +32,7 @@ public class BlockSerializer<T> implements Serializer<Block<T>> {
         if (block.readOnly()) {
             throw new IllegalStateException("Block is read only");
         }
-        ByteBuffer buffer = block.buffer();
+        ByteBuffer buffer = block.pack();
         int entryCount = block.entryCount();
         List<Integer> lengths = block.entriesLength();
 

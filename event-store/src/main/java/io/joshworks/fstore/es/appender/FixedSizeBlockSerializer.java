@@ -5,6 +5,9 @@ import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
 
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class FixedSizeBlockSerializer<T> implements Serializer<FixedSizeEntryBlock<T>> {
 
@@ -20,7 +23,7 @@ public class FixedSizeBlockSerializer<T> implements Serializer<FixedSizeEntryBlo
 
     @Override
     public ByteBuffer toBytes(FixedSizeEntryBlock<T> data) {
-        return codec.compress(data.buffer());
+        return data.pack(codec);
     }
 
     @Override
@@ -31,6 +34,7 @@ public class FixedSizeBlockSerializer<T> implements Serializer<FixedSizeEntryBlo
     @Override
     public FixedSizeEntryBlock<T> fromBytes(ByteBuffer buffer) {
         ByteBuffer data = codec.decompress(buffer);
-        return new FixedSizeEntryBlock<>(serializer, data, entrySize);
+        List<Integer> lengths = IntStream.range(0, data.limit() / entrySize).boxed().map(i -> entrySize).collect(Collectors.toList());
+        return new FixedSizeEntryBlock<>(serializer, lengths, data, entrySize);
     }
 }
