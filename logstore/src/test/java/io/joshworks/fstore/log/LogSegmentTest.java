@@ -76,10 +76,10 @@ public abstract class LogSegmentTest {
         String data = "hello";
         appender.append(data);
 
-        Scanner<String> scanner = appender.scanner();
-        assertTrue(scanner.hasNext());
-        assertEquals(data, scanner.next());
-        assertEquals(4 + 4 + data.length(), scanner.position()); // 4 + 4 (heading) + data length
+        LogIterator<String> logIterator = appender.iterator();
+        assertTrue(logIterator.hasNext());
+        assertEquals(data, logIterator.next());
+        assertEquals(4 + 4 + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
     }
     
     @Test
@@ -87,19 +87,19 @@ public abstract class LogSegmentTest {
         String data = "hello";
         appender.append(data);
 
-        Scanner<String> scanner = appender.scanner();
-        assertTrue(scanner.hasNext());
-        assertEquals(data, scanner.next());
+        LogIterator<String> logIterator = appender.iterator();
+        assertTrue(logIterator.hasNext());
+        assertEquals(data, logIterator.next());
 
         long position = appender.position();
         appender.close();
 
         appender = open(position);
 
-        scanner = appender.scanner();
-        assertTrue(scanner.hasNext());
-        assertEquals(data, scanner.next());
-        assertEquals(4 + 4 + data.length(), scanner.position()); // 4 + 4 (heading) + data length
+        logIterator = appender.iterator();
+        assertTrue(logIterator.hasNext());
+        assertEquals(data, logIterator.next());
+        assertEquals(4 + 4 + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -107,15 +107,15 @@ public abstract class LogSegmentTest {
         String data = "hello";
         appender.append(data);
 
-        Scanner<String> scanner1 = appender.scanner();
-        assertTrue(scanner1.hasNext());
-        assertEquals(data, scanner1.next());
-        assertEquals(4 + 4 + data.length(), scanner1.position()); // 4 + 4 (heading) + data length
+        LogIterator<String> logIterator1 = appender.iterator();
+        assertTrue(logIterator1.hasNext());
+        assertEquals(data, logIterator1.next());
+        assertEquals(4 + 4 + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
 
-        Scanner<String> scanner2 = appender.scanner();
-        assertTrue(scanner2.hasNext());
-        assertEquals(data, scanner2.next());
-        assertEquals(4 + 4 + data.length(), scanner1.position()); // 4 + 4 (heading) + data length
+        LogIterator<String> logIterator2 = appender.iterator();
+        assertTrue(logIterator2.hasNext());
+        assertEquals(data, logIterator2.next());
+        assertEquals(4 + 4 + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -127,10 +127,10 @@ public abstract class LogSegmentTest {
         String data = sb.toString();
         appender.append(data);
 
-        Scanner<String> scanner1 = appender.scanner();
-        assertTrue(scanner1.hasNext());
-        assertEquals(data, scanner1.next());
-        assertEquals(Log.ENTRY_HEADER_SIZE + data.length(), scanner1.position()); // 4 + 4 (heading) + data length
+        LogIterator<String> logIterator1 = appender.iterator();
+        assertTrue(logIterator1.hasNext());
+        assertEquals(data, logIterator1.next());
+        assertEquals(Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
 
     }
 
@@ -181,9 +181,9 @@ public abstract class LogSegmentTest {
 
         int i =0;
 
-        Scanner<String> scanner = appender.scanner();
-        while(scanner.hasNext()) {
-            assertEquals("Failed on iteration " + i, values.get(i), scanner.next());
+        LogIterator<String> logIterator = appender.iterator();
+        while(logIterator.hasNext()) {
+            assertEquals("Failed on iteration " + i, values.get(i), logIterator.next());
             i++;
         }
         assertEquals(items, i);

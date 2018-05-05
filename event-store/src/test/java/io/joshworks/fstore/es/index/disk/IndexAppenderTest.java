@@ -1,8 +1,6 @@
-package io.joshworks.fstore.es.appender;
+package io.joshworks.fstore.es.index.disk;
 
 import io.joshworks.fstore.es.index.IndexEntry;
-import io.joshworks.fstore.es.index.IndexEntrySerializer;
-import io.joshworks.fstore.es.index.MemIndex;
 import io.joshworks.fstore.log.appender.Builder;
 import io.joshworks.fstore.log.appender.LogAppender;
 import org.junit.After;
@@ -22,10 +20,9 @@ public class IndexAppenderTest {
     @Before
     public void setUp() {
 
-        Builder<FixedSizeEntryBlock<IndexEntry>> builder = LogAppender
+        Builder<IndexEntry> builder = LogAppender
                 .builder(new File("J:\\EVENT-STORE\\" + UUID.randomUUID().toString().substring(0,8)),
-                        new FixedSizeBlockSerializer<>(new IndexEntrySerializer(), IndexEntry.BYTES))
-                .mmap();
+                        new IndexEntrySerializer()).mmap();
         appender = new IndexAppender(builder);
     }
 
@@ -37,13 +34,11 @@ public class IndexAppenderTest {
     @Test
     public void write() {
 
-        MemIndex memIndex = new MemIndex();
-        for (int i = 0; i < 1000000; i++) {
-            memIndex.add(i, 0, 0);
-        }
-
         long start = System.currentTimeMillis();
-        appender.write(memIndex);
+        for (int i = 0; i < 1000000; i++) {
+            appender.append(IndexEntry.of(i, 1, 0));
+        }
+        appender.flush();
         System.out.println("WRITE " + (System.currentTimeMillis() - start));
 
 

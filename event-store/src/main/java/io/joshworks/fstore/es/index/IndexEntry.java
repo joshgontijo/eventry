@@ -11,6 +11,12 @@ public class IndexEntry implements Comparable<IndexEntry> {
     public final long position;
 
     private IndexEntry(long stream, int version, long position) {
+        if(version <= 0) {
+            throw new IllegalArgumentException("Version must be greater than zero");
+        }
+        if(position < 0) {
+            throw new IllegalArgumentException("Position must be positive");
+        }
         this.stream = stream;
         this.version = version;
         this.position = position;

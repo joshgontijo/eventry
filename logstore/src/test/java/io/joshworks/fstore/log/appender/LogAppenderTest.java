@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Log;
-import io.joshworks.fstore.log.Scanner;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.merge.ConcatenateCombiner;
 import io.joshworks.fstore.serializer.Serializers;
@@ -97,12 +97,12 @@ public class LogAppenderTest {
 
         assertEquals(1, appender.rolledSegments.size());
 
-        Scanner<String> scanner = appender.scanner();
+        LogIterator<String> logIterator = appender.scanner();
 
         String lastValue = null;
 
-        while(scanner.hasNext()) {
-            lastValue = scanner.next();
+        while(logIterator.hasNext()) {
+            lastValue = logIterator.next();
 
         }
 
@@ -144,18 +144,18 @@ public class LogAppenderTest {
         long pos3 = appender.append("3");
 
         appender.flush();
-        Scanner<String> scanner = appender.scanner();
+        LogIterator<String> logIterator = appender.scanner();
 
-        assertEquals(pos1, scanner.position());
-        String found = scanner.next();
+        assertEquals(pos1, logIterator.position());
+        String found = logIterator.next();
         assertEquals("1", found);
 
-        assertEquals(pos2, scanner.position());
-        found = scanner.next();
+        assertEquals(pos2, logIterator.position());
+        found = logIterator.next();
         assertEquals("2", found);
 
-        assertEquals(pos3, scanner.position());
-        found = scanner.next();
+        assertEquals(pos3, logIterator.position());
+        found = logIterator.next();
         assertEquals("3", found);
     }
 
@@ -172,10 +172,10 @@ public class LogAppenderTest {
 
         appender.flush();
 
-        Scanner<String> scanner = appender.scanner(lastWrittenPosition);
+        LogIterator<String> logIterator = appender.scanner(lastWrittenPosition);
 
-        assertTrue(scanner.hasNext());
-        assertEquals(lastEntry, scanner.next());
+        assertTrue(logIterator.hasNext());
+        assertEquals(lastEntry, logIterator.next());
     }
 
     @Test

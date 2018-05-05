@@ -36,7 +36,7 @@
 //    public void events_have_stream_and_version() {
 //        int numStreams = 1000;
 //        for (int i = 0; i < numStreams; i++) {
-//            store.add("stream-" + i, Event.create(String.valueOf(i), "data-" + i));
+//            store.add("stream-" + i, Event.open(String.valueOf(i), "data-" + i));
 //        }
 //
 //        for (int i = 0; i < numStreams; i++) {
@@ -55,7 +55,7 @@
 //        //given
 //        int numEvents = 10000;
 //        for (int i = 0; i < numEvents; i++) {
-//            store.add("test-" + i, Event.create(String.valueOf(i), "data-" + i));
+//            store.add("test-" + i, Event.open(String.valueOf(i), "data-" + i));
 //        }
 //
 //        //when
@@ -82,7 +82,7 @@
 //        int numVersions = 50;
 //        for (int stream = 0; stream < numStreams; stream++) {
 //            for (int version = 1; version <= numVersions; version++) {
-//                store.add("test-" + stream, Event.create(String.valueOf("type"), "data-" + stream));
+//                store.add("test-" + stream, Event.open(String.valueOf("type"), "data-" + stream));
 //            }
 //        }
 //
@@ -105,7 +105,7 @@
 //
 //        int size = 1000;
 //        for (int i = 0; i < size; i++) {
-//            store.add("stream-" + i, Event.create("test", "data"));
+//            store.add("stream-" + i, Event.open("test", "data"));
 //        }
 //
 //        Iterator<Event> it = store.iterateAll();
@@ -131,7 +131,7 @@
 //        for (int stream = 0; stream < numStreams; stream++) {
 //            for (int version = 1; version <= numVersions; version++) {
 //                String streamName = "test-" + stream;
-//                store.add(streamName, Event.create(streamName, "data-" + stream));
+//                store.add(streamName, Event.open(streamName, "data-" + stream));
 //            }
 //        }
 //
@@ -152,7 +152,7 @@
 //    public void get() {
 //        int size = 1000;
 //        for (int i = 0; i < size; i++) {
-//            store.add("stream-" + i, Event.create("test", "data"));
+//            store.add("stream-" + i, Event.open("test", "data"));
 //        }
 //
 //        for (int i = 0; i < size; i++) {

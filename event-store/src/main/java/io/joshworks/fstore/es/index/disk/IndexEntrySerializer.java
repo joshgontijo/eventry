@@ -1,6 +1,7 @@
-package io.joshworks.fstore.es.index;
+package io.joshworks.fstore.es.index.disk;
 
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.es.index.IndexEntry;
 
 import java.nio.ByteBuffer;
 

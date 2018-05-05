@@ -20,6 +20,8 @@ public class Block<T> implements Iterable<T> {
     protected boolean readOnly;
     protected List<Integer> lengths = new ArrayList<>();
 
+    private final List<T> cached = new ArrayList<>();
+
     public Block(Serializer<T> serializer, int maxSize) {
         this.serializer = serializer;
         this.maxSize = maxSize;
@@ -74,17 +76,22 @@ public class Block<T> implements Iterable<T> {
     }
 
     public List<T> entries() {
-        List<T> entries = new ArrayList<>(lengths.size());
+        if(!cached.isEmpty()) {
+            return new ArrayList<>(cached);
+        }
         ByteBuffer readBuffer = buffer.asReadOnlyBuffer();
         readBuffer.position(0);
         for (Integer length : lengths) {
             T entry = readEntry(readBuffer, serializer, length);
-            entries.add(entry);
+            cached.add(entry);
         }
-        return entries;
+        return new ArrayList<>(cached);
     }
 
     protected static <T> T readEntry(ByteBuffer data, Serializer<T> serializer, int length) {
+        if(data.remaining() == 0 || data.remaining() < length) {
+            return null;
+        }
         byte[] entryData = new byte[length];
         data.get(entryData);
         return serializer.fromBytes(ByteBuffer.wrap(entryData));

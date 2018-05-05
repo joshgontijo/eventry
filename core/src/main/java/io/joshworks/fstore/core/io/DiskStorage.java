@@ -24,6 +24,7 @@ public abstract class DiskStorage implements Storage {
 
     public DiskStorage(File target, long length) {
         Objects.requireNonNull(target, "File must specified");
+        logger.info("Opening {}", target.getName());
         if (length <= 0) {
             throw new StorageException("File length must be specified");
         }
@@ -32,13 +33,12 @@ public abstract class DiskStorage implements Storage {
         }
 
         if (length < target.length()) {
-            logger.error("The specified ({})is less than the actual file length ({}), this may cause loss of data, use 'shrink()' instead", length, target.length());
+            logger.error("The specified ({}) is less than the actual file length ({}), this may cause loss of data, use 'shrink()' instead", length, target.length());
             throw new StorageException("The specified length (" + length + ") is less than the actual file length (" + target.length() + ")");
         }
 
         this.raf = IOUtils.readWriteRandomAccessFile(target);
         try {
-            logger.info("Opening {}", target.getName());
             this.raf.setLength(length);
             this.file = target;
             this.raf.setLength(length);
@@ -97,7 +97,9 @@ public abstract class DiskStorage implements Storage {
     @Override
     public void close() {
         flush();
-        IOUtils.releaseLock(lock);
+        if (channel.isOpen()) {
+            IOUtils.releaseLock(lock);
+        }
         IOUtils.closeQuietly(channel);
         IOUtils.closeQuietly(raf);
     }

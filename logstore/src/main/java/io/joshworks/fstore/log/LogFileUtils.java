@@ -33,7 +33,7 @@ public final class LogFileUtils {
         checkCreatePreConditions(directory);
         try {
             if (!directory.exists()) {
-                Files.createDirectory(directory.toPath());
+                Files.createDirectories(directory.toPath());
             }
             if (!new File(directory, METADATA_FILE).createNewFile()) {
                 throw new RuntimeException("Failed to create metadata file");

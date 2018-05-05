@@ -10,7 +10,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.Log;
 import io.joshworks.fstore.log.LogFileUtils;
-import io.joshworks.fstore.log.Scanner;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.merge.SegmentCombiner;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import org.slf4j.Logger;
@@ -330,7 +330,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return directory.getName();
     }
 
-    public Scanner<T> scanner() {
+    public LogIterator<T> scanner() {
         return new RollingSegmentReader(withCurrentSegment(), 0);
     }
 
@@ -338,7 +338,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(scanner(), Spliterator.ORDERED), false);
     }
 
-    public Scanner<T> scanner(long position) {
+    public LogIterator<T> scanner(long position) {
         return new RollingSegmentReader(new LinkedList<>(withCurrentSegment()), position);
     }
 
@@ -387,6 +387,9 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     public void flush() {
+        if(closed.get()) {
+            return;
+        }
         logger.info("Flushing");
         if (metadata.asyncFlush)
             executor.execute(this::flushInternal);
@@ -396,6 +399,9 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     private void flushInternal() {
+        if(closed.get()) {
+            return;
+        }
         try {
             long start = System.currentTimeMillis();
             currentSegment.flush();
@@ -436,6 +442,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return withCurrentSegment().iterator();
     }
 
+    //TODO use enum as parameter instead
     public Iterator<L> segmentsReverse() {
         return withCurrentSegment().descendingIterator();
     }
@@ -458,28 +465,22 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         log.delete();
     }
 
-    private class RollingSegmentReader extends Scanner<T> {
+    private class RollingSegmentReader implements LogIterator<T> {
 
         private final List<L> segments;
-        private Scanner<T> current;
+        private LogIterator<T> current;
         private int segmentIdx;
 
         RollingSegmentReader(List<L> segments, long position) {
-            super(null, null, null, position);
             this.segments = segments;
             this.segmentIdx = getSegment(position);
             long positionOnSegment = getPositionOnSegment(position);
-            this.current = segments.get(segmentIdx).scanner(positionOnSegment);
+            this.current = segments.get(segmentIdx).iterator(positionOnSegment);
         }
 
         @Override
         public long position() {
             return toSegmentedPosition(segmentIdx, current.position());
-        }
-
-        @Override
-        protected T readAndVerify() {
-            return null;
         }
 
         @Override
@@ -492,7 +493,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
                 if (++segmentIdx >= segments.size()) {
                     return false;
                 }
-                current = segments.get(segmentIdx).scanner();
+                current = segments.get(segmentIdx).iterator();
                 return current.hasNext();
             }
             return true;

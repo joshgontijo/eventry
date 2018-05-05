@@ -10,11 +10,11 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     String name();
 
-    Scanner<T> scanner();
+    LogIterator<T> iterator();
 
     Stream<T> stream();
 
-    Scanner<T> scanner(long position);
+    LogIterator<T> iterator(long position);
 
     long position();
 

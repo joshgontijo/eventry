@@ -20,11 +20,11 @@ public class MemIndex implements Index {
     private final Map<Long, SortedSet<IndexEntry>> index = new ConcurrentHashMap<>();
     private final AtomicInteger size = new AtomicInteger();
 
-    public void add(long stream, int version, long position) {
-        index.compute(stream, (k, v) -> {
+    public void add(IndexEntry entry) {
+        index.compute(entry.stream, (k, v) -> {
             if (v == null)
                 v = new TreeSet<>();
-            v.add(IndexEntry.of(stream, version, position));
+            v.add(entry);
             size.incrementAndGet();
             return v;
         });

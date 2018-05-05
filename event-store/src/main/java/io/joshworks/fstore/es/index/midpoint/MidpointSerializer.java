@@ -2,7 +2,7 @@ package io.joshworks.fstore.es.index.midpoint;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.es.index.IndexEntry;
-import io.joshworks.fstore.es.index.IndexEntrySerializer;
+import io.joshworks.fstore.es.index.disk.IndexEntrySerializer;
 
 import java.nio.ByteBuffer;
 

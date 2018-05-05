@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.appender.it;
 
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.log.Scanner;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.Builder;
 import io.joshworks.fstore.log.appender.LogAppender;
@@ -94,9 +94,9 @@ public abstract class LogAppenderIT {
 
         assertEquals(lastPos, f.length()); //header + data + EOF;
 
-        Scanner<String> scanner = appender.scanner();
-        assertTrue(scanner.hasNext());
-        assertEquals(data, scanner.next());
+        LogIterator<String> logIterator = appender.scanner();
+        assertTrue(logIterator.hasNext());
+        assertEquals(data, logIterator.next());
 
     }
 
@@ -123,9 +123,9 @@ public abstract class LogAppenderIT {
         assertEquals(position, f.length());
 
         try (SimpleLogAppender<String> appender = appender(LogAppender.builder(testDirectory, Serializers.STRING))) {
-            Scanner<String> scanner = appender.scanner();
-            assertTrue(scanner.hasNext());
-            assertEquals(data, scanner.next());
+            LogIterator<String> logIterator = appender.scanner();
+            assertTrue(logIterator.hasNext());
+            assertEquals(data, logIterator.next());
         }
     }
 
@@ -257,21 +257,21 @@ public abstract class LogAppenderIT {
 
     private void scanAllAssertingSameValue(String expected) {
         long start = System.currentTimeMillis();
-        Scanner<String> scanner = appender.scanner();
+        LogIterator<String> logIterator = appender.scanner();
 
         long avg = 0;
         long lastUpdate = System.currentTimeMillis();
         long read = 0;
         long totalRead = 0;
 
-        while (scanner.hasNext()) {
+        while (logIterator.hasNext()) {
             if (System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
                 avg = (avg + read) / 2;
                 System.out.println("TOTAL READ: " + totalRead + " - LAST SECOND: " + read + " - AVG: " + avg);
                 read = 0;
                 lastUpdate = System.currentTimeMillis();
             }
-            String found = scanner.next();
+            String found = logIterator.next();
             assertEquals(expected, found);
             read++;
             totalRead++;

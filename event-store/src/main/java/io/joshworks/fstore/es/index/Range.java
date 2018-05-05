@@ -7,6 +7,9 @@ public class Range {
     public final int endVersionExclusive;
 
     private Range(long stream, int startVersionInclusive, int endVersionExclusive) {
+        if(startVersionInclusive <= 0) {
+            throw new IllegalArgumentException("Version range must be greater than zero");
+        }
         this.stream = stream;
         this.startVersionInclusive = startVersionInclusive;
         this.endVersionExclusive = endVersionExclusive;

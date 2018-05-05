@@ -6,7 +6,7 @@ import io.joshworks.fstore.index.HeapTreeIndex;
 import io.joshworks.fstore.index.Range;
 import io.joshworks.fstore.index.SortedIndex;
 import io.joshworks.fstore.log.Log;
-import io.joshworks.fstore.log.Scanner;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.Appender;
 import io.joshworks.fstore.log.appender.LogAppender;
 
@@ -92,18 +92,18 @@ public class Store<K extends Comparable<K>, V> implements Closeable {
     private void reindex() {
         long start = System.currentTimeMillis();
         System.out.println("Reindexing...");
-        Scanner<LogEntry<K, V>> scanner = log.scanner();
+        LogIterator<LogEntry<K, V>> logIterator = log.scanner();
 
-        long position = scanner.position();
+        long position = logIterator.position();
 
-        while(scanner.hasNext()) {
-            LogEntry<K, V> entry = scanner.next();
+        while(logIterator.hasNext()) {
+            LogEntry<K, V> entry = logIterator.next();
             if (entry.op == LogEntry.OP_DELETE)
                 index.delete(entry.key);
             else
                 index.put(entry.key, position);
 
-            position = scanner.position();
+            position = logIterator.position();
         }
 
         System.out.println("Reindexing roll in " + (System.currentTimeMillis() - start) + "ms");

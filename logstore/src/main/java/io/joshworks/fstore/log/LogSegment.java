@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.NoSuchElementException;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.stream.Stream;
@@ -72,17 +73,17 @@ public class LogSegment<T> implements Log<T> {
     }
 
     @Override
-    public Scanner<T> scanner() {
+    public LogIterator<T> iterator() {
         return new LogReader<>(storage, reader, serializer);
     }
 
     @Override
     public Stream<T> stream() {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(scanner(), Spliterator.ORDERED), false);
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(), Spliterator.ORDERED), false);
     }
 
     @Override
-    public Scanner<T> scanner(long position) {
+    public LogIterator<T> iterator(long position) {
         return new LogReader<>(storage, reader, serializer, position);
     }
 
@@ -105,14 +106,14 @@ public class LogSegment<T> implements Log<T> {
         long position = lastKnownPosition;
         try {
             logger.info("Restoring log state and checking consistency from position {}", lastKnownPosition);
-            Scanner<T> scanner = scanner(lastKnownPosition);
-            while (scanner.hasNext()) {
-                T next = scanner.next();
+            LogIterator<T> logIterator = iterator(lastKnownPosition);
+            while (logIterator.hasNext()) {
+                T next = logIterator.next();
                 if (next == null) {
                     logger.warn("Found inconsistent entry on position {}, segment '{}'", position, name());
                     break;
                 }
-                position = scanner.position();
+                position = logIterator.position();
             }
         } catch (Exception e) {
             logger.warn("Found inconsistent entry on position {}, segment '{}'", position, name());
@@ -137,37 +138,6 @@ public class LogSegment<T> implements Log<T> {
         return readOnly;
     }
 
-
-    //NOT THREAD SAFE
-    private static class LogReader<T> extends Scanner<T> {
-
-        private LogReader(Storage storage, DataReader reader, Serializer<T> serializer) {
-            this(storage, reader, serializer, 0);
-        }
-
-        private LogReader(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition) {
-            super(storage, reader, serializer, initialPosition);
-        }
-
-        @Override
-        protected T readAndVerify() {
-            long currentPos = position;
-
-            ByteBuffer data = reader.read(storage, currentPos);
-            if (data.remaining() == 0) { //EOF
-                return null;
-            }
-            position += data.limit();
-            return serializer.fromBytes(data);
-        }
-
-        @Override
-        public long position() {
-            return position;
-        }
-
-    }
-
     static long write(Storage storage, ByteBuffer bytes) {
         ByteBuffer bb = ByteBuffer.allocate(ENTRY_HEADER_SIZE + bytes.remaining());
         bb.putInt(bytes.remaining());
@@ -176,5 +146,59 @@ public class LogSegment<T> implements Log<T> {
 
         bb.flip();
         return storage.write(bb);
+    }
+
+    //NOT THREAD SAFE
+    private static class LogReader<T> implements LogIterator<T> {
+
+        private final Storage storage;
+        private final DataReader reader;
+        private final Serializer<T> serializer;
+
+        private T data;
+        protected long position;
+
+        private LogReader(Storage storage, DataReader reader, Serializer<T> serializer) {
+            this(storage, reader, serializer, 0);
+        }
+
+        private LogReader(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition) {
+            this.storage = storage;
+            this.reader = reader;
+            this.serializer = serializer;
+            position = initialPosition;
+            this.data = readData();
+        }
+
+        @Override
+        public long position() {
+            return position;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return data != null;
+        }
+
+        @Override
+        public T next() {
+            if(data == null) {
+                throw new NoSuchElementException();
+            }
+            T current = data;
+            data = readData();
+            return current;
+        }
+
+        private T readData() {
+            long currentPos = position;
+
+            ByteBuffer bb = reader.read(storage, currentPos);
+            if (bb.remaining() == 0) { //EOF
+                return null;
+            }
+            position += bb.limit();
+            return serializer.fromBytes(bb);
+        }
     }
 }

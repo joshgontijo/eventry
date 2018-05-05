@@ -25,7 +25,7 @@
 //
 //        long lastInsert = System.currentTimeMillis();
 //        for (int i = 0; i < size; i++) {
-//            store.add("test-fromStream", Event.create("" + i, "data-" + i));
+//            store.add("test-fromStream", Event.open("" + i, "data-" + i));
 ////            if(i % 1000 == 0) {
 ////                long now = System.currentTimeMillis();
 ////                System.out.println("Batch insertion took: " + (now - lastInsert));
@@ -56,7 +56,7 @@
 //
 //
 //        for (int i = 0; i < size; i++) {
-//            store.add("test-fromStream-" + i, Event.create("" + i, "data-" + i));
+//            store.add("test-fromStream-" + i, Event.open("" + i, "data-" + i));
 //        }
 //        System.out.println("WRITE: " + (System.currentTimeMillis() - start));
 //

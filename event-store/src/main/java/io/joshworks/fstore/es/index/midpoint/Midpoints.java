@@ -14,54 +14,58 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 public class Midpoints {
 
     private static final Serializer<Midpoint> midpointSerializer = new MidpointSerializer();
-    private final List<Midpoint> midpoints;
+    private final List<Midpoint> midpoints = new ArrayList<>();
     private final File handler;
 
-    public static final Midpoints EMPTY = new Midpoints(new ArrayList<>(), null);
-
-    private Midpoints(List<Midpoint> midpoints, File handler) {
-        this.midpoints = midpoints;
-        this.handler = handler;
+    public Midpoints(File indexDir, String segmentFileName) {
+        this.handler = getFile(indexDir, segmentFileName);
+        if (handler.exists()) {
+            load();
+        }
     }
 
-    public static Midpoints write(File indexFolder, String segmentFileName, List<Midpoint> midpoints) {
+    public void add(Midpoint midpoint) {
+        Objects.requireNonNull(midpoint, "Midpoint cannot be null");
+        Objects.requireNonNull(midpoint.key, "Midpoint entry cannot be null");
+        this.midpoints.add(midpoint);
+    }
+
+    public void write() {
+        if(midpoints.isEmpty()) {
+            return;
+        }
         int size = Midpoint.BYTES * midpoints.size();
 
-        File midpointFile = getFile(indexFolder, segmentFileName);
-
-        try(Storage storage = new MMapStorage(midpointFile, size, FileChannel.MapMode.READ_WRITE)) {
+        try (Storage storage = new MMapStorage(handler, size, FileChannel.MapMode.READ_WRITE)) {
             for (Midpoint midpoint : midpoints) {
                 ByteBuffer data = midpointSerializer.toBytes(midpoint);
                 storage.write(data);
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Failed to write midpoints", e);
         }
-
-        return new Midpoints(midpoints, midpointFile);
     }
 
-    public static Midpoints load(File indexFolder, String segmentName) throws IOException {
-
-        File midpointFile = getFile(indexFolder, segmentName);
-        List<Midpoint> loaded = new ArrayList<>();
-        try(Storage storage = new MMapStorage(midpointFile, midpointFile.length(), FileChannel.MapMode.READ_WRITE)) {
+    private void load() {
+        try (Storage storage = new MMapStorage(handler, handler.length(), FileChannel.MapMode.READ_WRITE)) {
             long pos = 0;
             ByteBuffer data = ByteBuffer.allocate(Midpoint.BYTES);
 
-            while(storage.read(pos, data) > 0) {
+            while (storage.read(pos, data) > 0) {
+                data.flip();
                 Midpoint midpoint = midpointSerializer.fromBytes(data);
-                loaded.add(midpoint);
+                midpoints.add(midpoint);
                 pos += Midpoint.BYTES;
                 data.clear();
             }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load midpoints", e);
         }
-
-        return new Midpoints(loaded, midpointFile);
     }
 
     private static File getFile(File indexDir, String segmentName) {
@@ -82,7 +86,7 @@ public class Midpoints {
 
     public Midpoint getMidpointFor(IndexEntry entry) {
         int midpointIdx = getMidpointIdx(entry);
-        if(midpointIdx >= midpoints.size() || midpointIdx < 0) {
+        if (midpointIdx >= midpoints.size() || midpointIdx < 0) {
             return null;
         }
         return midpoints.get(midpointIdx);
@@ -90,9 +94,6 @@ public class Midpoints {
 
 
     public void delete() {
-        if(handler == null) {
-            return;
-        }
         try {
             Files.delete(handler.toPath());
         } catch (IOException e) {
@@ -101,25 +102,43 @@ public class Midpoints {
     }
 
     public boolean inRange(Range range) {
+        if(midpoints.isEmpty()) {
+            return false;
+        }
         return !(range.start().compareTo(last()) > 0 || range.end().compareTo(first()) < 0);
     }
 
+    public int size() {
+        return midpoints.size();
+    }
+
     public IndexEntry first() {
+        if(midpoints.isEmpty()) {
+            return null;
+        }
         return firstMidpoint().key;
     }
 
     public IndexEntry last() {
+        if(midpoints.isEmpty()) {
+            return null;
+        }
         return lastMidpoint().key;
     }
 
     private Midpoint firstMidpoint() {
+        if(midpoints.isEmpty()) {
+            return null;
+        }
         return midpoints.get(0);
     }
 
     private Midpoint lastMidpoint() {
+        if(midpoints.isEmpty()) {
+            return null;
+        }
         return midpoints.get(midpoints.size() - 1);
     }
-
 
 
 }

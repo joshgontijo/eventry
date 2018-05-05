@@ -16,8 +16,8 @@ public class MemIndexTest {
 
         int numEntries = 10000;
         long stream = 123;
-        for (int i = 0; i < numEntries; i++) {
-            index.add(stream, i, 0);
+        for (int i = 1; i <= numEntries; i++) {
+            index.add(IndexEntry.of(stream, i, 0));
         }
 
         assertEquals(numEntries, index.stream().count());
@@ -31,7 +31,7 @@ public class MemIndexTest {
         int streams = 50;
         for (int stream = 0; stream < streams; stream++) {
             for (int version = 1; version <= versions; version++) {
-                index.add(stream, version, 0);
+                index.add(IndexEntry.of(stream, version, 0));
             }
         }
 
@@ -51,7 +51,7 @@ public class MemIndexTest {
         long streams = 123;
         for (int stream = 0; stream < streams; stream++) {
             for (int version = 1; version <= versions; version++) {
-                index.add(stream, version, 0);
+                index.add(IndexEntry.of(stream, version, 0));
             }
         }
 
@@ -80,7 +80,7 @@ public class MemIndexTest {
         int streams = 50;
         for (int stream = 0; stream < streams; stream++) {
             for (int version = 1; version <= versions; version++) {
-                index.add(stream, version, 0);
+                index.add(IndexEntry.of(stream, version, 0));
             }
         }
 

@@ -1,4 +1,4 @@
-package io.joshworks.fstore.es.appender;
+package io.joshworks.fstore.es.index.disk;
 
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
