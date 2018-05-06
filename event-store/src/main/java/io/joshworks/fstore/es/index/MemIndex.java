@@ -87,8 +87,7 @@ public class MemIndex implements Index {
             return Optional.empty();
         }
         if (entries.size() > 1) {
-            //TODO improve message
-            throw new IllegalStateException("Found more than one index entry");
+            throw new IllegalStateException("Found more than one index entry for stream " + stream + ", version " + version);
         }
         return Optional.of(entries.first());
     }

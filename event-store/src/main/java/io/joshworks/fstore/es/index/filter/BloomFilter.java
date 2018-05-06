@@ -1,43 +1,50 @@
 package io.joshworks.fstore.es.index.filter;
 
+import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.MMapStorage;
+import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.index.filter.Hash;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.BitSet;
+import java.util.Objects;
 
 public class BloomFilter<T> {
+    private final File handler;
     private BitSet hashes;
     private Hash<T> hash;
     private int noHashes; // Number of hash functions
     private static final double LN2 = 0.6931471805599453; // ln(2)
+    private boolean dirty;
 
     /**
      * Create a new bloom filter.
      *
      * @param numberOfBits Desired position of the container in bits
      **/
-    public BloomFilter(int numberOfBits, Hash<T> hash) {
-        if (noHashes <= 0) noHashes = 1;
-        this.hashes = new BitSet(numberOfBits);
+    public BloomFilter(File indexDir, String segmentFileName, int numberOfBits, Hash<T> hash) {
+        this.handler = getFile(indexDir, segmentFileName);
         this.hash = hash;
+        if (noHashes <= 0) noHashes = 1;
+        this.hashes = handler.exists() ? load() : new BitSet(numberOfBits);
     }
 
-    public BloomFilter(int elementSize, double probabilityOfFalsePositives, Hash<T> hash) {
+    public BloomFilter(File indexDir, String segmentFileName, int elementSize, double probabilityOfFalsePositives, Hash<T> hash) {
+        this.handler = getFile(indexDir, segmentFileName);
         noHashes = getNumberOfBits(probabilityOfFalsePositives, elementSize);
         if (noHashes <= 0) noHashes = 1;
         int numberOfBits = getNumberOfBits(probabilityOfFalsePositives, elementSize);
         noHashes = getOptimalNumberOfHashesByBits(elementSize, numberOfBits);
-        this.hashes = new BitSet(numberOfBits);
         this.hash = hash;
+        this.hashes = handler.exists() ? load() : new BitSet(numberOfBits);
     }
 
-//    /**
-//     * Create a bloom filter of 1Mib.
-//     *
-//     * @param n Expected number of elements
-//     **/
-//    public BloomFilter(int n) {
-//        this(n, 1024 * 1024 * 8);
-//    }
+    private static File getFile(File indexDir, String segmentName) {
+        return new File(indexDir, segmentName.split("\\.")[0] + "-FILTER.dat");
+    }
 
     /**
      * Add an element to the container
@@ -45,6 +52,7 @@ public class BloomFilter<T> {
     public void add(T key) {
         for (int h : hash.hash(hashes.size(), noHashes, key))
             hashes.set(h);
+        dirty = true;
     }
 
     /**
@@ -84,6 +92,7 @@ public class BloomFilter<T> {
             throw new IllegalArgumentException("Incompatible bloom filters");
         }
         this.hashes.or(other.hashes);
+        dirty = true;
     }
 
     /**
@@ -110,4 +119,36 @@ public class BloomFilter<T> {
         return (int) (Math.abs(elementSize * Math.log(probabilityOfFalsePositives)) / (Math.pow(Math.log(2), 2)));
     }
 
+    public void write() {
+        if(!dirty) {
+            return;
+        }
+
+        byte[] bytes = hashes.toByteArray();
+        try (Storage storage = new MMapStorage(handler, bytes.length, FileChannel.MapMode.READ_WRITE)) {
+            storage.write(ByteBuffer.wrap(bytes));
+        } catch (IOException e) {
+            throw RuntimeIOException.of("Failed to write filter", e);
+        }
+        dirty = false;
+    }
+
+    private BitSet load() {
+
+        try (Storage storage = new MMapStorage(handler, handler.length(), FileChannel.MapMode.READ_WRITE)) {
+            ByteBuffer data = ByteBuffer.allocate((int) handler.length());
+            storage.read(0, data);
+            return BitSet.valueOf(data.array());
+        } catch (IOException e) {
+            throw RuntimeIOException.of("Failed to write filter", e);
+        }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BloomFilter<?> that = (BloomFilter<?>) o;
+        return Objects.equals(hashes, that.hashes);
+    }
 }

@@ -28,7 +28,7 @@ import java.util.stream.StreamSupport;
 
 public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<IndexEntry>> implements Index {
 
-    BloomFilter<Long> filter = new BloomFilter<>(10000, new Hash.Murmur64<>(Serializers.LONG));
+    final BloomFilter<Long> filter;
     final Midpoints midpoints;
 
     public IndexSegment(Storage storage,
@@ -36,9 +36,11 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
                         DataReader reader,
                         long position,
                         boolean readOnly,
-                        File directory) {
+                        File directory,
+                        int numElements) {
         super(storage, serializer, reader, position, readOnly);
         this.midpoints = new Midpoints(directory, name());
+        this.filter = new BloomFilter<>(directory, name(), numElements, 0.02, new Hash.Murmur64<>(Serializers.LONG));
     }
 
     @Override
@@ -63,21 +65,10 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     }
 
     @Override
-    public void roll() {
-        flush();
-        super.roll();
-    }
-
-    @Override
     public void flush() {
-        //TODO add bloom filter
         super.flush(); //flush super first, so writeBlock is called
         midpoints.write();
-    }
-
-    @Override
-    public void close() {
-        super.close();
+        filter.write();
     }
 
     @Override

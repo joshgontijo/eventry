@@ -27,6 +27,7 @@ public class IndexSegmentTest {
     private File indexDir;
 
     private IndexSegment segment;
+    private static final int NUMBER_OF_ELEMENTS = 1000000; //bloom filter
 
     @Before
     public void setUp() throws IOException {
@@ -43,7 +44,14 @@ public class IndexSegmentTest {
 
     public IndexSegment open(File location) {
         long size = location.length() == 0 ? 1048576 : location.length();
-        return new IndexSegment(new RafStorage(location, size), new FixedSizeBlockSerializer<>(new IndexEntrySerializer(), IndexEntry.BYTES), new HeaderLengthDataReader(), 0, false, indexDir);
+        return new IndexSegment(
+                new RafStorage(location, size),
+                new FixedSizeBlockSerializer<>(new IndexEntrySerializer(), IndexEntry.BYTES),
+                new HeaderLengthDataReader(),
+                0,
+                false,
+                indexDir,
+                NUMBER_OF_ELEMENTS);
     }
 
     @Test
@@ -91,6 +99,30 @@ public class IndexSegmentTest {
             assertEquals(diskIndex.midpoints.size(), loaded.midpoints.size());
             assertEquals(diskIndex.midpoints.first(), loaded.midpoints.first());
             assertEquals(diskIndex.midpoints.last(), loaded.midpoints.last());
+        }
+    }
+
+    @Test
+    public void loaded_segmentIndex_has_the_same_filter_items() {
+        //given
+
+        IndexSegment diskIndex = indexWithStreamRanging(1, 1000000);
+
+        //when
+        assertFalse(diskIndex.filter.contains(0L));
+        assertFalse(diskIndex.filter.contains(1000001L));
+        diskIndex.close();
+        try (IndexSegment loaded = open(segmentFile)) {
+            //then
+
+            assertEquals(diskIndex.filter, loaded.filter);
+
+            assertTrue(loaded.filter.contains(1L));
+            assertFalse(loaded.filter.contains(-1L));
+
+            loaded.append(IndexEntry.of(999999999L, 1, 0));
+            assertTrue(loaded.filter.contains(999999999L));
+
         }
     }
 
@@ -342,7 +374,6 @@ public class IndexSegmentTest {
             assertEquals(lastVersion + 1, next.version);
             lastVersion = next.version;
         }
-
     }
 
     @Test

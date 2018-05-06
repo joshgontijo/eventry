@@ -6,6 +6,11 @@ import static org.junit.Assert.*;
 
 public class IndexEntryTest {
 
+    @Test(expected = IllegalArgumentException.class)
+    public void version_must_start_from_one() {
+        IndexEntry.of(0, 0, 0);
+    }
+
     @Test
     public void higher_stream_version_is_greater() {
 
@@ -25,7 +30,7 @@ public class IndexEntryTest {
     }
 
     @Test
-    public void position_isnt_used_in_compareTo() {
+    public void position_is_not_considered_in_compareTo() {
 
         IndexEntry first = IndexEntry.of(1, 1, 0);
         IndexEntry second = IndexEntry.of(1, 1, 1);

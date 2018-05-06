@@ -28,9 +28,6 @@ public abstract class DiskStorage implements Storage {
         if (length <= 0) {
             throw new StorageException("File length must be specified");
         }
-        if (length < 5242880) {
-            logger.warn("File is less then 5mb, frequent remapping / resizing might impact performance");
-        }
 
         if (length < target.length()) {
             logger.error("The specified ({}) is less than the actual file length ({}), this may cause loss of data, use 'shrink()' instead", length, target.length());
@@ -43,7 +40,6 @@ public abstract class DiskStorage implements Storage {
             this.file = target;
             this.raf.setLength(length);
             this.channel = raf.getChannel();
-            logger.info("Acquiring lock on {}", target.getName());
             this.lock = this.channel.lock();
 
         } catch (Exception e) {

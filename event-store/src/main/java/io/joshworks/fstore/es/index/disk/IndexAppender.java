@@ -22,18 +22,21 @@ import java.util.stream.StreamSupport;
 
 public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> implements Index {
 
-    public IndexAppender(Builder<IndexEntry> builder) {
+    private final int numElements;
+
+    public IndexAppender(Builder<IndexEntry> builder, int numElements) {
         super(builder);
+        this.numElements = numElements;
     }
 
     @Override
     protected IndexSegment createSegment(Storage storage, Serializer<IndexEntry> serializer, DataReader reader) {
-        return new IndexSegment(storage, new FixedSizeBlockSerializer<>(serializer, IndexEntry.BYTES), reader, 0, false, directory().toFile());
+        return new IndexSegment(storage, new FixedSizeBlockSerializer<>(serializer, IndexEntry.BYTES), reader, 0, false, directory().toFile(), numElements);
     }
 
     @Override
     protected IndexSegment openSegment(Storage storage, Serializer<IndexEntry> serializer, DataReader reader, long position, boolean readonly) {
-        return new IndexSegment(storage, new FixedSizeBlockSerializer<>(serializer, IndexEntry.BYTES), reader, position, readonly, directory().toFile());
+        return new IndexSegment(storage, new FixedSizeBlockSerializer<>(serializer, IndexEntry.BYTES), reader, position, readonly, directory().toFile(), numElements);
     }
 
     @Override

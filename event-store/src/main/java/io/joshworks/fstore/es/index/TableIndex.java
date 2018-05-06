@@ -35,7 +35,7 @@ public class TableIndex implements Index, Flushable {
         diskIndex = new IndexAppender(LogAppender
                 .builder(new File(rootDirectory, INDEX_DIR), new IndexEntrySerializer())
                 .namingStrategy(new IndexAppender.IndexNaming())
-                .mmap());
+                .mmap(), flushThreshold);
 
         this.flushThreshold = flushThreshold;
     }

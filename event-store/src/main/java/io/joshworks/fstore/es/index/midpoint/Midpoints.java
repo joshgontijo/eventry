@@ -19,14 +19,13 @@ import java.util.Objects;
 public class Midpoints {
 
     private static final Serializer<Midpoint> midpointSerializer = new MidpointSerializer();
-    private final List<Midpoint> midpoints = new ArrayList<>();
+    private final List<Midpoint> midpoints;
     private final File handler;
+    private boolean dirty;
 
     public Midpoints(File indexDir, String segmentFileName) {
         this.handler = getFile(indexDir, segmentFileName);
-        if (handler.exists()) {
-            load();
-        }
+        this.midpoints = load(handler);
     }
 
     public void add(Midpoint start, Midpoint end) {
@@ -37,19 +36,22 @@ public class Midpoints {
         }
         midpoints.set(midpoints.size() - 1, start);
         midpoints.add(end);
+        dirty = true;
     }
 
     public void add(Midpoint midpoint) {
         Objects.requireNonNull(midpoint, "Midpoint cannot be null");
         Objects.requireNonNull(midpoint.key, "Midpoint entry cannot be null");
         this.midpoints.add(midpoint);
+        dirty = true;
     }
 
     public void write() {
-        if(midpoints.isEmpty()) {
+        if(!dirty) {
             return;
         }
-        int size = Midpoint.BYTES * midpoints.size();
+
+        long size = Math.max(Midpoint.BYTES * midpoints.size(), handler.length());
 
         try (Storage storage = new MMapStorage(handler, size, FileChannel.MapMode.READ_WRITE)) {
             for (Midpoint midpoint : midpoints) {
@@ -59,20 +61,26 @@ public class Midpoints {
         } catch (IOException e) {
             throw new RuntimeException("Failed to write midpoints", e);
         }
+        dirty = false;
     }
 
-    private void load() {
+    private List<Midpoint> load(File handler) {
+        if(!handler.exists()) {
+            return new ArrayList<>();
+        }
         try (Storage storage = new MMapStorage(handler, handler.length(), FileChannel.MapMode.READ_WRITE)) {
             long pos = 0;
             ByteBuffer data = ByteBuffer.allocate(Midpoint.BYTES);
 
+            List<Midpoint> loaded = new ArrayList<>();
             while (storage.read(pos, data) > 0) {
                 data.flip();
                 Midpoint midpoint = midpointSerializer.fromBytes(data);
-                midpoints.add(midpoint);
+                loaded.add(midpoint);
                 pos += Midpoint.BYTES;
                 data.clear();
             }
+            return loaded;
         } catch (Exception e) {
             throw new RuntimeException("Failed to load midpoints", e);
         }
