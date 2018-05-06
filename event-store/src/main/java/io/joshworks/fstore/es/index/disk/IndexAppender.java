@@ -9,6 +9,7 @@ import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.es.utils.Iterators;
 import io.joshworks.fstore.log.appender.Builder;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -32,13 +33,13 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
 
     @Override
     protected IndexSegment openSegment(Storage storage, Serializer<IndexEntry> serializer, DataReader reader, long position, boolean readonly) {
-        return new IndexSegment(storage, new FixedSizeBlockSerializer<IndexEntry>(serializer, IndexEntry.BYTES), reader, position, readonly, directory().toFile());
+        return new IndexSegment(storage, new FixedSizeBlockSerializer<>(serializer, IndexEntry.BYTES), reader, position, readonly, directory().toFile());
     }
 
     @Override
     public Iterator<IndexEntry> iterator(Range range) {
         List<Iterator<IndexEntry>> iterators = new ArrayList<>();
-        Iterator<IndexSegment> iter = segmentsReverse();
+        Iterator<IndexSegment> iter = segments();
         while (iter.hasNext()) {
             IndexSegment next = iter.next();
             iterators.add(next.iterator(range));
@@ -69,10 +70,10 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
     public int version(long stream) {
         Iterator<IndexSegment> reverseSegments = segmentsReverse();
 
-        while(reverseSegments.hasNext()) {
+        while (reverseSegments.hasNext()) {
             IndexSegment segment = reverseSegments.next();
             int version = segment.version(stream);
-            if(version > 0) {
+            if (version > 0) {
                 return version;
             }
         }
@@ -82,12 +83,19 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
     @Override
     public Iterator<IndexEntry> iterator() {
         List<Iterator<IndexEntry>> iterators = new ArrayList<>();
-        Iterator<IndexSegment> iter = segmentsReverse();
+        Iterator<IndexSegment> iter = segments();
         while (iter.hasNext()) {
             IndexSegment next = iter.next();
             iterators.add(next.iterator());
         }
         return Iterators.concat(iterators);
+    }
+
+    public static class IndexNaming extends ShortUUIDNamingStrategy {
+        @Override
+        public String name(List<String> currentSegments) {
+            return "index-" + super.name(currentSegments);
+        }
     }
 
 }

@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.Flushable;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Optional;
@@ -16,17 +17,27 @@ import java.util.Spliterators;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-public class TableIndex implements Index {
+public class TableIndex implements Index, Flushable {
 
     private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
-    public static final int FLUSH_THRESHOLD = 500000;
+    public static final int DEFAULT_FLUSH_THRESHOLD = 500000;
     private static final String INDEX_DIR = "index";
+    private final int flushThreshold;
 
     private MemIndex memIndex = new MemIndex();
     private final IndexAppender diskIndex;
 
     public TableIndex(File rootDirectory) {
-        diskIndex = new IndexAppender(LogAppender.builder(new File(rootDirectory, INDEX_DIR), new IndexEntrySerializer()).mmap());
+        this(rootDirectory, DEFAULT_FLUSH_THRESHOLD);
+    }
+
+    public TableIndex(File rootDirectory, int flushThreshold) {
+        diskIndex = new IndexAppender(LogAppender
+                .builder(new File(rootDirectory, INDEX_DIR), new IndexEntrySerializer())
+                .namingStrategy(new IndexAppender.IndexNaming())
+                .mmap());
+
+        this.flushThreshold = flushThreshold;
     }
 
     public void add(long stream, int version, long position) {
@@ -38,12 +49,16 @@ public class TableIndex implements Index {
         }
         IndexEntry entry = IndexEntry.of(stream, version, position);
         memIndex.add(entry);
-        if(memIndex.size() >= FLUSH_THRESHOLD) {
-            writeDiskIndex();
+        if(memIndex.size() >= flushThreshold) {
+            writeToDisk();
         }
     }
 
-    private void writeDiskIndex() {
+    private void writeToDisk() {
+        logger.info("Writing index to disk");
+        if(memIndex.isEmpty()) {
+            return;
+        }
         for (IndexEntry indexEntry : memIndex) {
             diskIndex.append(indexEntry);
         }
@@ -77,6 +92,11 @@ public class TableIndex implements Index {
     }
 
     @Override
+    public Stream<IndexEntry> stream() {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(), Spliterator.ORDERED), false);
+    }
+
+    @Override
     public Iterator<IndexEntry> iterator(Range range) {
         Iterator<IndexEntry> cacheIterator = memIndex.iterator(range);
         Iterator<IndexEntry> diskIterator = diskIndex.iterator(range);
@@ -96,5 +116,10 @@ public class TableIndex implements Index {
     @Override
     public Iterator<IndexEntry> iterator() {
         return Iterators.concat(Arrays.asList(diskIndex.iterator(), memIndex.iterator()));
+    }
+
+    @Override
+    public void flush()  {
+        writeToDisk();
     }
 }

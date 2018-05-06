@@ -101,4 +101,26 @@ public class MemIndexTest {
             assertEquals(versions, lastVersion);
         }
     }
+
+    @Test
+    public void iterator() {
+        //given
+        int streams = 50;
+        for (int stream = 0; stream < streams; stream++) {
+            index.add(IndexEntry.of(stream, 1, 0));
+        }
+
+        int count = 0;
+        IndexEntry last = null;
+        for (IndexEntry next : index) {
+            if(last != null) {
+                assertEquals(last.stream + 1, next.stream);
+            }
+            last = next;
+            count++;
+
+        }
+
+        assertEquals(streams, count);
+    }
 }

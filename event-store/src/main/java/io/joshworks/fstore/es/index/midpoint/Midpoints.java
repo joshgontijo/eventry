@@ -29,6 +29,16 @@ public class Midpoints {
         }
     }
 
+    public void add(Midpoint start, Midpoint end) {
+        if(midpoints.isEmpty()) {
+            midpoints.add(start);
+            midpoints.add(end);
+            return;
+        }
+        midpoints.set(midpoints.size() - 1, start);
+        midpoints.add(end);
+    }
+
     public void add(Midpoint midpoint) {
         Objects.requireNonNull(midpoint, "Midpoint cannot be null");
         Objects.requireNonNull(midpoint.key, "Midpoint entry cannot be null");
@@ -117,6 +127,10 @@ public class Midpoints {
             return null;
         }
         return firstMidpoint().key;
+    }
+
+    public boolean isEmpty() {
+        return midpoints.isEmpty();
     }
 
     public IndexEntry last() {

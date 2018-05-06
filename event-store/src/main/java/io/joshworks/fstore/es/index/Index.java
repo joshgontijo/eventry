@@ -11,6 +11,8 @@ public interface Index extends Closeable, Iterable<IndexEntry> {
 
     Stream<IndexEntry> stream(Range range);
 
+    Stream<IndexEntry> stream();
+
     Optional<IndexEntry> get(long stream, int version);
 
     int version(long stream);

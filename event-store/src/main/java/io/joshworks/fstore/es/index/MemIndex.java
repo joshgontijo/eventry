@@ -45,6 +45,10 @@ public class MemIndex implements Index {
     }
 
 
+    public boolean isEmpty() {
+        return size.get() == 0;
+    }
+
     @Override
     public void close() {
         index.clear();
@@ -60,6 +64,7 @@ public class MemIndex implements Index {
         return Collections.unmodifiableSet(entries.subSet(range.start(), range.end())).iterator();
     }
 
+    @Override
     public Stream<IndexEntry> stream() {
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(), Spliterator.ORDERED), false);
     }

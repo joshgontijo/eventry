@@ -24,7 +24,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
-import java.util.UUID;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -38,19 +37,14 @@ public class EventStore implements Closeable {
     private final EventLog eventLog;
 
     private EventStore(File rootDir) {
-        this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer()).segmentSize(20971520));
+        this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer()).segmentSize(209715200));
         this.index = new TableIndex(rootDir);
         this.hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
-        this.streamVersion = new LRUCache<>(1000, this.index::version);
+        this.streamVersion = new LRUCache<>(100000, this.index::version);
     }
 
-    public static void main(String[] args) {
-        try (EventStore eventStore = new EventStore(new File("J:\\EVENT-STORE\\" + UUID.randomUUID().toString().substring(0,8)))) {
-            eventStore.add("test-1", Event.create("test", "data"));
-
-            Optional<Event> event = eventStore.get("test-1", 1);
-            System.out.println(event.get());
-        }
+    public static EventStore open(File rootDir) {
+        return new EventStore(rootDir);
     }
 
     public Iterator<Event> iterator(String stream) {
@@ -126,8 +120,11 @@ public class EventStore implements Closeable {
             //TODO return result, no need for exception here
         }
 
+        int newVersion = currentVersion + 1;
+
         long position = eventLog.append(event);
-        index.add(streamHash, currentVersion + 1, position);
+        index.add(streamHash, newVersion, position);
+        streamVersion.set(streamHash, newVersion);
     }
 
     @Override

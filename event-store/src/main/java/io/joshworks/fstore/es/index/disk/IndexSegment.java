@@ -28,8 +28,6 @@ import java.util.stream.StreamSupport;
 
 public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<IndexEntry>> implements Index {
 
-    private IndexEntry lastInserted;
-
     BloomFilter<Long> filter = new BloomFilter<>(10000, new Hash.Murmur64<>(Serializers.LONG));
     final Midpoints midpoints;
 
@@ -46,32 +44,28 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     @Override
     protected long writeBlock() {
         FixedSizeEntryBlock<IndexEntry> block = currentBlock();
+        long position = position();
         if (block.isEmpty()) {
-            return position();
+            return position;
         }
-        midpoints.add(new Midpoint(block.first(), position()));
+
+        Midpoint head = new Midpoint(block.first(), position);
+        Midpoint tail = new Midpoint(block.last(), position);
+        midpoints.add(head, tail);
+
         return super.writeBlock();
     }
 
     @Override
     public long append(IndexEntry data) {
-        lastInserted = data;
         filter.add(data.stream);
         return super.append(data);
     }
 
     @Override
     public void roll() {
-        FixedSizeEntryBlock<IndexEntry> block = currentBlock();
-        long position = position();
-        if (!block.isEmpty()) {
-            midpoints.add(new Midpoint(block.first(), position));
-            writeBlock();
-        }
-        if (lastInserted != null) {
-            midpoints.add(new Midpoint(lastInserted, position));
-            midpoints.write();
-        }
+        flush();
+        super.roll();
     }
 
     @Override
@@ -79,7 +73,6 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
         //TODO add bloom filter
         super.flush(); //flush super first, so writeBlock is called
         midpoints.write();
-
     }
 
     @Override
@@ -115,15 +108,28 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     @Override
     public Optional<IndexEntry> get(long stream, int version) {
         Range range = Range.of(stream, version, version + 1);
-        Iterator<IndexEntry> found = iterator(range);
-        if (!found.hasNext()) {
+        if (!hasEntries(range)) {
             return Optional.empty();
         }
-        IndexEntry next = found.next();
-        if (found.hasNext()) {
-            throw new IllegalStateException("More than one event found for stream " + stream + ", version " + version);
+
+        IndexEntry start = range.start();
+        Midpoint lowBound = midpoints.getMidpointFor(start);
+        if (lowBound == null) {//false positive on the bloom filter and entry was within range of this segment
+            return Optional.empty();
         }
-        return Optional.of(next);
+
+        FixedSizeEntryBlock<IndexEntry> block = getBlock(lowBound.position);
+        List<IndexEntry> entries = block.entries();
+        int idx = Collections.binarySearch(entries, start);
+        if(idx < 0) { //if not exact match, wasn't found
+            return Optional.empty();
+        }
+        IndexEntry found = entries.get(idx);
+        if (found == null || found.stream != stream && found.version != version) { //sanity check
+            throw new IllegalStateException("Inconsistent index");
+        }
+        return Optional.of(found);
+
     }
 
     @Override
@@ -145,7 +151,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
         idx = idx >= 0 ? idx : Math.abs(idx) - 2;
         IndexEntry lastVersion = entries.get(idx);
         if (lastVersion.stream != stream) {
-            throw new IllegalStateException("Found entry with wrong stream");
+            throw new IllegalStateException("Expected stream " + stream + ", Got " + lastVersion.stream);
         }
         return lastVersion.version;
     }

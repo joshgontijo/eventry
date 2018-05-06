@@ -31,12 +31,9 @@ public class MidpointsTest {
     public void midpoint_return_the_previous_index_for_non_exact_match() {
 
         //given
-        Midpoint m1 = new Midpoint(IndexEntry.of(1, 1, 0), 0);
-        Midpoint m2 = new Midpoint(IndexEntry.of(10, 1, 0), 0);
-        Midpoint m3 = new Midpoint(IndexEntry.of(100, 1, 0), 0);
-        midpoints.add(m1);
-        midpoints.add(m2);
-        midpoints.add(m3);
+        midpoints.add(midpoint(1, 1));
+        midpoints.add(midpoint(10, 1));
+        midpoints.add(midpoint(100, 1));
 
         IndexEntry key = IndexEntry.of(2, 1, 0);
 
@@ -51,12 +48,9 @@ public class MidpointsTest {
     public void midpoint_return_the_previous_index_for_exact_match() {
 
         //given
-        Midpoint m1 = new Midpoint(IndexEntry.of(1, 1, 0), 0);
-        Midpoint m2 = new Midpoint(IndexEntry.of(10, 1, 0), 0);
-        Midpoint m3 = new Midpoint(IndexEntry.of(100, 1, 0), 0);
-        midpoints.add(m1);
-        midpoints.add(m2);
-        midpoints.add(m3);
+        midpoints.add(midpoint(1, 1));
+        midpoints.add(midpoint(10, 1));
+        midpoints.add(midpoint(100, 1));
 
         IndexEntry key = IndexEntry.of(1, 1, 0);
 
@@ -65,6 +59,15 @@ public class MidpointsTest {
 
         //then
         assertEquals(0, idx);
+    }
+
+
+    private Midpoint midpoint(long stream, int version) {
+        return midpoint(stream, version, 0);
+    }
+
+    private Midpoint midpoint(long stream, int version, long pos) {
+        return new Midpoint(IndexEntry.of(stream, version, pos), 0);
     }
 
     @Test

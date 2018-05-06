@@ -3,7 +3,6 @@ package io.joshworks.fstore.es;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 
 public class Utils {
 
@@ -15,14 +14,18 @@ public class Utils {
             try {
                 if (file.isDirectory()) {
                     String[] list = file.list();
-                    if (list != null)
+                    if (list != null) {
                         for (String f : list) {
-                            Path path = new File(file, f).toPath();
-                            System.out.println("Deleting " + path);
-                            if (!Files.deleteIfExists(path)) {
+                            File item = new File(file, f);
+                            if (item.isDirectory()) {
+                                tryDelete(item);
+                            }
+                            System.out.println("Deleting " + item);
+                            if (!Files.deleteIfExists(item.toPath())) {
                                 throw new RuntimeException("Failed to delete file");
                             }
                         }
+                    }
                 }
                 if (!Files.deleteIfExists(file.toPath())) {
                     throw new RuntimeException("Failed to delete file");
@@ -53,7 +56,6 @@ public class Utils {
             e1.printStackTrace();
         }
     }
-
 
 
 //    private static void deleteDirectory(File dir) throws IOException {

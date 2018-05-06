@@ -10,7 +10,6 @@ import io.joshworks.fstore.log.appender.LogAppender;
 
 public class EventLog extends LogAppender<Event, LogSegment<Event>> {
 
-
     public EventLog(Builder<Event> builder) {
         super(builder);
     }

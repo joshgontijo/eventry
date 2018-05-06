@@ -192,11 +192,11 @@ public class IndexSegmentTest {
     }
 
     @Test
-    public void stream_version_with_index_100000_streams() {
+    public void stream_version_with_index_10000_streams() {
 
         //given
         int startStream = 1;
-        int endStream = 100000;
+        int endStream = 10000;
         IndexSegment diskIndex = indexWithStreamRanging(startStream, endStream);
 
         //when
@@ -285,13 +285,13 @@ public class IndexSegmentTest {
         Iterator<IndexEntry> iterator = diskIndex.iterator();
 
         int count = 0;
-        IndexEntry preciousEntry = null;
+        IndexEntry previousEntry = null;
         while (iterator.hasNext()) {
             IndexEntry current = iterator.next();
-            if (preciousEntry != null) {
-                assertTrue(current.greaterThan(preciousEntry));
+            if (previousEntry != null) {
+                assertTrue(current.greaterThan(previousEntry));
             }
-            preciousEntry = current;
+            previousEntry = current;
             count++;
         }
 
