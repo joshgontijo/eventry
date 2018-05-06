@@ -14,8 +14,10 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public final class LogFileUtils {
 
@@ -65,8 +67,8 @@ public final class LogFileUtils {
 //    }
 
     public static List<File> loadSegments(File directory) {
-        try {
-            return Files.list(directory.toPath())
+        try (Stream<Path> files = Files.list(directory.toPath())) {
+            return files
                     .filter(p -> isSegmentFile(p.getFileName().toFile().getName()))
                     .map(p -> loadSegment(directory, p.toFile().getName()))
                     .collect(Collectors.toList());
@@ -79,7 +81,7 @@ public final class LogFileUtils {
         try {
             String fileName = name.endsWith(SEGMENT_EXTENSION) ? name : name + SEGMENT_EXTENSION;
             File file = new File(directory, fileName);
-            if(!Files.exists(file.toPath())) {
+            if(!file.exists()) {
                 throw new RuntimeIOException("Segment file " + fileName + " doesn't exist");
             }
             if(!isSegmentFile(fileName)) {
@@ -87,13 +89,13 @@ public final class LogFileUtils {
             }
             return file;
         } catch (Exception e) {
-            throw new RuntimeException("Failed to load segmentsNames", e);
+            throw new RuntimeException("Failed to load segment " + name, e);
         }
     }
 
     public static void deleteSegment(File directory, String segmentName) {
         File segment = new File(directory, segmentName);
-        if (!Files.exists(segment.toPath())) {
+        if (!segment.exists()) {
             throw new IllegalStateException("Segment " + segmentName + " doesn't exist");
         }
         try {

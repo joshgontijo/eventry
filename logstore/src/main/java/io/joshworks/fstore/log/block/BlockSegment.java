@@ -36,7 +36,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     }
 
     protected long writeBlock() {
-        if(block.isEmpty()) {
+        if (block.isEmpty()) {
             return delegate.position();
         }
         long position = delegate.append(block);
@@ -85,7 +85,11 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     }
 
     public B getBlock(long position) {
-        return delegate.get(position);
+        B block = delegate.get(position);
+        if (block == null) {
+            throw new IllegalStateException("Block not found on address " + position);
+        }
+        return block;
     }
 
     @Override

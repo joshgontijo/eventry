@@ -387,7 +387,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     public void flush() {
-        if(closed.get()) {
+        if (closed.get()) {
             return;
         }
         logger.info("Flushing");
@@ -399,7 +399,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     private void flushInternal() {
-        if(closed.get()) {
+        if (closed.get()) {
             return;
         }
         try {
@@ -444,7 +444,10 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     //TODO use enum as parameter instead
     public Iterator<L> segmentsReverse() {
-        return withCurrentSegment().descendingIterator();
+        LinkedList<L> allSegments = new LinkedList<>();
+        allSegments.add(currentSegment);
+        allSegments.addAll(rolledSegments);
+        return allSegments.descendingIterator();
     }
 
     public Path directory() {
