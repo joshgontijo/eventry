@@ -1,4 +1,4 @@
-package io.joshworks.fstore.es.index.testing;
+package io.joshworks.fstore.es;
 
 import java.util.Iterator;
 import java.util.LinkedHashMap;

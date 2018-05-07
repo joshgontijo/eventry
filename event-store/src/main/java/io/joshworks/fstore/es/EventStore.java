@@ -6,7 +6,6 @@ import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.es.index.StreamHasher;
 import io.joshworks.fstore.es.index.TableIndex;
-import io.joshworks.fstore.es.index.testing.LRUCache;
 import io.joshworks.fstore.es.log.Event;
 import io.joshworks.fstore.es.log.EventLog;
 import io.joshworks.fstore.es.log.EventSerializer;
