@@ -74,8 +74,10 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
         Iterator<IndexSegment> reverseSegments = segmentsReverse();
 
         while (reverseSegments.hasNext()) {
+
             IndexSegment segment = reverseSegments.next();
             int version = segment.version(stream);
+
             if (version > 0) {
                 return version;
             }

@@ -39,7 +39,7 @@ public class EventStore implements Closeable {
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer()).segmentSize(209715200).mmap());
         this.index = new TableIndex(rootDir);
         this.hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
-        this.streamVersion = new LRUCache<>(100000, this.index::version);
+        this.streamVersion = new LRUCache<>(1000000, this.index::version);
     }
 
     public static EventStore open(File rootDir) {
@@ -80,6 +80,11 @@ public class EventStore implements Closeable {
         return new MultiStreamIterator(mappings, indexes, eventLog);
     }
 
+    public int version(String stream) {
+        long streamHash = hasher.hash(stream);
+        return streamVersion.get(streamHash);
+    }
+
     public Stream<Event> fromStream(String stream) {
         return fromStream(stream, 1);
     }
@@ -112,7 +117,6 @@ public class EventStore implements Closeable {
 
     public void add(String stream, Event event, int expectedVersion) {
         long streamHash = hasher.hash(stream);
-
         int currentVersion = streamVersion.get(streamHash);
 
         if (expectedVersion > 0 && currentVersion != expectedVersion) {

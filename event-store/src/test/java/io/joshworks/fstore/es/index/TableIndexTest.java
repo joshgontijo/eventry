@@ -6,7 +6,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.nio.file.Files;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.stream.Stream;
@@ -21,8 +20,8 @@ public class TableIndexTest {
     private static final int FLUSH_THRESHOLD = 1000;
 
     @Before
-    public void setUp() throws Exception {
-        testDirectory = Files.createTempDirectory(null).toFile();
+    public void setUp() {
+        testDirectory = Utils.testFolder();
         tableIndex = new TableIndex(testDirectory, FLUSH_THRESHOLD);
     }
 
@@ -224,11 +223,11 @@ public class TableIndexTest {
 
         tableIndex = new TableIndex(testDirectory, FLUSH_THRESHOLD);
 
-        Stream<IndexEntry> dataStream = tableIndex.stream(Range.of(stream, 1, 10));
+        Stream<IndexEntry> dataStream = tableIndex.stream(Range.of(stream, 1, 11));
 
         assertEquals(10, dataStream.count());
 
-        Iterator<IndexEntry> it = tableIndex.stream(Range.of(stream, 1, 10)).iterator();
+        Iterator<IndexEntry> it = tableIndex.stream(Range.of(stream, 1, 11)).iterator();
 
         assertEquals(1, it.next().version);
         assertEquals(2, it.next().version);
@@ -243,4 +242,28 @@ public class TableIndexTest {
 
     }
 
+    @Test
+    public void version_is_returned() {
+
+        tableIndex.close();
+
+        //given
+        int streams = 1000000;
+        try(TableIndex index = new TableIndex(testDirectory, 500000)) {
+
+            for (int i = 0; i < streams; i++) {
+                index.add(i, 1, 0);
+            }
+
+            for (int i = 0; i < streams; i++) {
+                //when
+                int version = index.version(i);
+                //then
+                assertEquals(1, version);
+            }
+        }
+
+
+
+    }
 }

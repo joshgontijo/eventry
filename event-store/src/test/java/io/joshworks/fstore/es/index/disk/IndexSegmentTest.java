@@ -461,6 +461,43 @@ public class IndexSegmentTest {
 
     }
 
+
+    @Test
+    public void version_of_large_items() {
+
+        //given
+        int numStreams = 1000000;
+        IndexSegment testSegment = indexWithStreamRanging(0, numStreams);
+
+        for (int i = 0; i < numStreams; i++) {
+            //when
+            int version = testSegment.version(i);
+
+            //then
+            assertEquals("Failed on iteration " + i, 1, version);
+        }
+
+    }
+
+    @Test
+    public void version_of_inexistent_stream_returns_zero() {
+
+        //given
+        int numStreams = 1000;
+        int numOfQueries = 100000;
+        IndexSegment testSegment = indexWithStreamRanging(0, numStreams);
+
+        for (int i = numStreams + 1; i < numOfQueries; i++) {
+            //when
+            int version = testSegment.version(i);
+
+            //then
+            assertEquals("Failed on iteration " + i, 0, version);
+        }
+
+    }
+
+
     private void assertIteratorHasAllEntries(long stream, int latestVersion, Iterator<IndexEntry> iterator) {
         int previousVersion = 0;
         int count = 0;

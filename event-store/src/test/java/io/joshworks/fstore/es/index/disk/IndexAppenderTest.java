@@ -89,4 +89,33 @@ public class IndexAppenderTest {
         assertEquals(1000000, count);
 
     }
+
+    @Test
+    public void version_with_multiple_segments_returns_correct_version() {
+
+        //given
+        int streams = 1000000;
+        int numSegments = 2;
+        int itemsPerSegment = streams / numSegments;
+        for (int i = 0; i < streams; i++) {
+            appender.append(IndexEntry.of(i, 1, 0));
+            if(i % itemsPerSegment == 0) {
+                appender.roll();
+            }
+        }
+        appender.flush();
+
+        long start = System.currentTimeMillis();
+        for (int i = 0; i < streams; i++) {
+
+            int version = appender.version(i);
+            if(i % 100000 == 0) {
+                System.out.println((System.currentTimeMillis() - start));
+                start = System.currentTimeMillis();
+            }
+            assertEquals("Failed on iteration " + i, 1, version);
+
+        }
+
+    }
 }

@@ -157,6 +157,8 @@ public class LogSegment<T> implements Log<T> {
 
         private T data;
         protected long position;
+        private long readAheadPosition;
+        private long lastReadSize;
 
         private LogReader(Storage storage, DataReader reader, Serializer<T> serializer) {
             this(storage, reader, serializer, 0);
@@ -166,8 +168,9 @@ public class LogSegment<T> implements Log<T> {
             this.storage = storage;
             this.reader = reader;
             this.serializer = serializer;
-            position = initialPosition;
-            this.data = readData();
+            this.position = initialPosition;
+            this.readAheadPosition = initialPosition;
+            this.data = readAhead();
         }
 
         @Override
@@ -186,18 +189,18 @@ public class LogSegment<T> implements Log<T> {
                 throw new NoSuchElementException();
             }
             T current = data;
-            data = readData();
+            position += lastReadSize;
+            data = readAhead();
             return current;
         }
 
-        private T readData() {
-            long currentPos = position;
-
-            ByteBuffer bb = reader.read(storage, currentPos);
+        private T readAhead() {
+            ByteBuffer bb = reader.read(storage, readAheadPosition);
             if (bb.remaining() == 0) { //EOF
                 return null;
             }
-            position += bb.limit();
+            lastReadSize = bb.limit();
+            readAheadPosition += bb.limit();
             return serializer.fromBytes(bb);
         }
     }

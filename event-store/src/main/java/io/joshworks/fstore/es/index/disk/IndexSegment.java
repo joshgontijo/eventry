@@ -40,7 +40,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
                         long position,
                         boolean readOnly,
                         File directory,
-                        int numElements) {
+                        int numElements) { //FIXME cannot use this with current LogAppender constructor, static need to be used atm.
         super(storage, serializer, reader, position, readOnly);
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), TableIndex.DEFAULT_FLUSH_THRESHOLD, FALSE_POSITIVE_PROB, new Hash.Murmur64<>(Serializers.LONG));
@@ -76,7 +76,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
 
     @Override
     public Iterator<IndexEntry> iterator(Range range) {
-        if (!hasEntries(range)) {
+        if (!mightHaveEntries(range)) {
             return Iterators.empty();
         }
 
@@ -89,7 +89,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
         return new RangeIndexEntryIterator(range, logIterator);
     }
 
-    private boolean hasEntries(Range range) {
+    private boolean mightHaveEntries(Range range) {
         return midpoints.inRange(range) && filter.contains(range.stream);
     }
 
@@ -102,7 +102,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     @Override
     public Optional<IndexEntry> get(long stream, int version) {
         Range range = Range.of(stream, version, version + 1);
-        if (!hasEntries(range)) {
+        if (!mightHaveEntries(range)) {
             return Optional.empty();
         }
 
@@ -129,7 +129,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     @Override
     public int version(long stream) {
         Range range = Range.allOf(stream);
-        if (!hasEntries(range)) {
+        if (!mightHaveEntries(range)) {
             return 0;
         }
 
@@ -144,8 +144,8 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
         int idx = Collections.binarySearch(entries, end);
         idx = idx >= 0 ? idx : Math.abs(idx) - 2;
         IndexEntry lastVersion = entries.get(idx);
-        if (lastVersion.stream != stream) {
-            throw new IllegalStateException("Expected stream " + stream + ", Got " + lastVersion.stream);
+        if (lastVersion.stream != stream) { //false positive on the bloom filter
+            return 0;
         }
         return lastVersion.version;
     }
