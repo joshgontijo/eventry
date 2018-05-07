@@ -37,7 +37,7 @@ public class EventStore implements Closeable {
     private final EventLog eventLog;
 
     private EventStore(File rootDir) {
-        this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer()).segmentSize(209715200));
+        this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer()).segmentSize(209715200).mmap());
         this.index = new TableIndex(rootDir);
         this.hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
         this.streamVersion = new LRUCache<>(100000, this.index::version);

@@ -390,7 +390,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         if (closed.get()) {
             return;
         }
-        logger.info("Flushing");
+//        logger.info("Flushing");
         if (metadata.asyncFlush)
             executor.execute(this::flushInternal);
         else

@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.es.index.Index;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
+import io.joshworks.fstore.es.index.TableIndex;
 import io.joshworks.fstore.es.index.filter.BloomFilter;
 import io.joshworks.fstore.es.index.midpoint.Midpoint;
 import io.joshworks.fstore.es.index.midpoint.Midpoints;
@@ -31,7 +32,9 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     final BloomFilter<Long> filter;
     final Midpoints midpoints;
 
-    public IndexSegment(Storage storage,
+    private static final double FALSE_POSITIVE_PROB = 0.01;
+
+    IndexSegment(Storage storage,
                         Serializer<FixedSizeEntryBlock<IndexEntry>> serializer,
                         DataReader reader,
                         long position,
@@ -40,7 +43,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
                         int numElements) {
         super(storage, serializer, reader, position, readOnly);
         this.midpoints = new Midpoints(directory, name());
-        this.filter = new BloomFilter<>(directory, name(), numElements, 0.02, new Hash.Murmur64<>(Serializers.LONG));
+        this.filter = BloomFilter.openOrCreate(directory, name(), TableIndex.DEFAULT_FLUSH_THRESHOLD, FALSE_POSITIVE_PROB, new Hash.Murmur64<>(Serializers.LONG));
     }
 
     @Override

@@ -36,4 +36,5 @@ public class MidpointTest {
         Midpoint midpoint = new Midpoint(IndexEntry.of(1L, 1, 0), 0);
         assertTrue(midpoint.compareTo(IndexEntry.of(2L, 1, 0)) < 0);
     }
+
 }

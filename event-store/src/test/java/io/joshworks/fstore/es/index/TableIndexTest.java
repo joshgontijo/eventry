@@ -18,7 +18,7 @@ public class TableIndexTest {
 
     private TableIndex tableIndex;
     private File testDirectory;
-    private static final int FLUSH_THRESHOLD = 100;
+    private static final int FLUSH_THRESHOLD = 1000;
 
     @Before
     public void setUp() throws Exception {
@@ -180,6 +180,66 @@ public class TableIndexTest {
 
         assertEquals(1, it.next().version);
         assertEquals(2, it.next().version);
+
+    }
+
+    @Test
+    public void reopened_index_returns_all_items() {
+
+        //given
+        long stream = 1;
+        //1 segment + in memory
+        int size = FLUSH_THRESHOLD + (FLUSH_THRESHOLD / 2);
+        for (int i = 1; i <= size; i++) {
+            tableIndex.add(stream, i, 0);
+        }
+
+        tableIndex.close();
+
+        tableIndex = new TableIndex(testDirectory, FLUSH_THRESHOLD);
+
+        Stream<IndexEntry> dataStream = tableIndex.stream();
+
+        assertEquals(size, dataStream.count());
+
+        Iterator<IndexEntry> it = tableIndex.stream().iterator();
+
+        assertEquals(1, it.next().version);
+        assertEquals(2, it.next().version);
+
+    }
+
+    @Test
+    public void reopened_index_returns_all_items_for_stream_rang() {
+
+        //given
+        long stream = 1;
+        //1 segment + in memory
+        int size = FLUSH_THRESHOLD + (FLUSH_THRESHOLD / 2);
+        for (int i = 1; i <= size; i++) {
+            tableIndex.add(stream, i, 0);
+        }
+
+        tableIndex.close();
+
+        tableIndex = new TableIndex(testDirectory, FLUSH_THRESHOLD);
+
+        Stream<IndexEntry> dataStream = tableIndex.stream(Range.of(stream, 1, 10));
+
+        assertEquals(10, dataStream.count());
+
+        Iterator<IndexEntry> it = tableIndex.stream(Range.of(stream, 1, 10)).iterator();
+
+        assertEquals(1, it.next().version);
+        assertEquals(2, it.next().version);
+        assertEquals(3, it.next().version);
+        assertEquals(4, it.next().version);
+        assertEquals(5, it.next().version);
+        assertEquals(6, it.next().version);
+        assertEquals(7, it.next().version);
+        assertEquals(8, it.next().version);
+        assertEquals(9, it.next().version);
+        assertEquals(10, it.next().version);
 
     }
 

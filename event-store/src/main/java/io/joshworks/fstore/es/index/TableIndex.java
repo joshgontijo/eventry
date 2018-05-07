@@ -20,7 +20,7 @@ import java.util.stream.StreamSupport;
 public class TableIndex implements Index, Flushable {
 
     private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
-    public static final int DEFAULT_FLUSH_THRESHOLD = 500000;
+    public static final int DEFAULT_FLUSH_THRESHOLD = 100000;
     private static final String INDEX_DIR = "index";
     private final int flushThreshold;
 
@@ -32,6 +32,9 @@ public class TableIndex implements Index, Flushable {
     }
 
     public TableIndex(File rootDirectory, int flushThreshold) {
+        if(flushThreshold < 1000) {//arbitrary number
+            throw new IllegalArgumentException("Flush threshold must be at least 1000");
+        }
         diskIndex = new IndexAppender(LogAppender
                 .builder(new File(rootDirectory, INDEX_DIR), new IndexEntrySerializer())
                 .namingStrategy(new IndexAppender.IndexNaming())
@@ -82,6 +85,7 @@ public class TableIndex implements Index, Flushable {
 
     @Override
     public void close() {
+        this.flush();
         memIndex.close();
         diskIndex.close();
     }

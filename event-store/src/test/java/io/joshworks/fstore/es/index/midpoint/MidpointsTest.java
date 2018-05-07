@@ -9,6 +9,8 @@ import java.io.File;
 import java.nio.file.Files;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class MidpointsTest {
 
@@ -61,6 +63,20 @@ public class MidpointsTest {
         assertEquals(0, idx);
     }
 
+
+    @Test
+    public void mark_as_dirty_when_first_pair_of_midpoins_is_added() {
+        assertFalse(midpoints.dirty);
+        midpoints.add(midpoint(1, 1), midpoint(1,2));
+        assertTrue(midpoints.dirty);
+    }
+
+    @Test
+    public void mark_as_dirty_when_first_midpoin_is_added() {
+        assertFalse(midpoints.dirty);
+        midpoints.add(midpoint(1, 1));
+        assertTrue(midpoints.dirty);
+    }
 
     private Midpoint midpoint(long stream, int version) {
         return midpoint(stream, version, 0);

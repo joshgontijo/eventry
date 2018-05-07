@@ -4,6 +4,8 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.MMapStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.index.filter.Hash;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -14,32 +16,56 @@ import java.util.Objects;
 
 public class BloomFilter<T> {
     private final File handler;
-    private BitSet hashes;
+
+    BitSet hashes;
     private Hash<T> hash;
-    private int noHashes; // Number of hash functions
-    private static final double LN2 = 0.6931471805599453; // ln(2)
+    private final int m; // The number of bits in the filter
+    private int k; // Number of hash functions
+
     private boolean dirty;
 
+    private static final Logger logger = LoggerFactory.getLogger(BloomFilter.class);
+
     /**
-     * Create a new bloom filter.
-     *
-     * @param numberOfBits Desired position of the container in bits
-     **/
-    public BloomFilter(File indexDir, String segmentFileName, int numberOfBits, Hash<T> hash) {
-        this.handler = getFile(indexDir, segmentFileName);
+     * @param handler The target file
+     * @param n       The expected number of elements in the filter
+     * @param p       The acceptable false positive rate
+     * @param hash    The hash implementation
+     */
+    private BloomFilter(File handler, int n, double p, Hash<T> hash) {
+        Objects.requireNonNull(handler, "Handler");
+        Objects.requireNonNull(hash, "Hash");
+
+        this.handler = handler;
+        this.m = getNumberOfBits(p, n);
+        this.k = getOptimalNumberOfHashesByBits(n, this.m);
         this.hash = hash;
-        if (noHashes <= 0) noHashes = 1;
-        this.hashes = handler.exists() ? load() : new BitSet(numberOfBits);
+        this.hashes = new BitSet(this.m);
     }
 
-    public BloomFilter(File indexDir, String segmentFileName, int elementSize, double probabilityOfFalsePositives, Hash<T> hash) {
-        this.handler = getFile(indexDir, segmentFileName);
-        noHashes = getNumberOfBits(probabilityOfFalsePositives, elementSize);
-        if (noHashes <= 0) noHashes = 1;
-        int numberOfBits = getNumberOfBits(probabilityOfFalsePositives, elementSize);
-        noHashes = getOptimalNumberOfHashesByBits(elementSize, numberOfBits);
+    /**
+     * Used to load from file only
+     *
+     * @param handler The file handler of this filter
+     * @param hashes  The table containing the data
+     * @param hash    The hash implementation (must remain the same)
+     * @param m       The number of bits in the 'hashes'
+     * @param k       The number of hash functions
+     */
+    private BloomFilter(File handler, BitSet hashes, Hash<T> hash, int m, int k) {
+        this.handler = handler;
+        this.hashes = hashes;
         this.hash = hash;
-        this.hashes = handler.exists() ? load() : new BitSet(numberOfBits);
+        this.m = m;
+        this.k = k;
+    }
+
+    public static <T> BloomFilter<T> openOrCreate(File indexDir, String segmentFileName, int n, double p, Hash<T> hash) {
+        File handler = getFile(indexDir, segmentFileName);
+        if (handler.exists()) {
+            return load(handler, hash);
+        }
+        return new BloomFilter<>(handler, n, p, hash);
     }
 
     private static File getFile(File indexDir, String segmentName) {
@@ -48,9 +74,9 @@ public class BloomFilter<T> {
 
     /**
      * Add an element to the container
-     **/
+     */
     public void add(T key) {
-        for (int h : hash.hash(hashes.size(), noHashes, key))
+        for (int h : hash.hash(hashes.size(), k, key))
             hashes.set(h);
         dirty = true;
     }
@@ -61,7 +87,7 @@ public class BloomFilter<T> {
      * if the element is not in the container.
      **/
     public boolean contains(T key) {
-        for (int h : hash.hash(hashes.size(), noHashes, key))
+        for (int h : hash.hash(hashes.size(), k, key))
             if (!hashes.get(h))
                 return false;
         return true;
@@ -79,7 +105,7 @@ public class BloomFilter<T> {
      **/
     @Override
     public int hashCode() {
-        return hashes.hashCode() ^ noHashes;
+        return hashes.hashCode() ^ k;
     }
 
     /**
@@ -88,7 +114,7 @@ public class BloomFilter<T> {
      * other.
      **/
     public void merge(BloomFilter other) {
-        if (other.noHashes != this.noHashes || other.hashes.size() != this.hashes.size()) {
+        if (other.k != this.k || other.hashes.size() != this.hashes.size()) {
             throw new IllegalArgumentException("Incompatible bloom filters");
         }
         this.hashes.or(other.hashes);
@@ -96,14 +122,14 @@ public class BloomFilter<T> {
     }
 
     /**
-     * noHashes = (m / n) ln 2 from wikipedia.
+     * k = (m / n) ln 2 from wikipedia.
      *
-     * @param elementSize  the number of elements expected.
-     * @param numberOfBits the number of bytes allowed.
+     * @param n the number of elements expected.
+     * @param m the number of bytes allowed.
      * @return the best number of hashes.
      */
-    private int getOptimalNumberOfHashesByBits(long elementSize, long numberOfBits) {
-        return (int) Math.ceil(Math.log(2) * ((double) numberOfBits / elementSize));
+    private int getOptimalNumberOfHashesByBits(long n, long m) {
+        return (int) Math.ceil(Math.log(2) * ((double) m / n));
     }
 
 
@@ -111,34 +137,74 @@ public class BloomFilter<T> {
      * Calculate the number of bits needed to produce the provided probability of false
      * positives with the given element position.
      *
-     * @param probabilityOfFalsePositives the probability of false positives.
-     * @param elementSize                 the estimated element position.
-     * @return the number of bytes.
+     * @param p The probability of false positives.
+     * @param n The estimated number of elements.
+     * @return The number of bits.
      */
-    private static int getNumberOfBits(double probabilityOfFalsePositives, long elementSize) {
-        return (int) (Math.abs(elementSize * Math.log(probabilityOfFalsePositives)) / (Math.pow(Math.log(2), 2)));
+    private static int getNumberOfBits(double p, long n) {
+        return (int) (Math.abs(n * Math.log(p)) / (Math.pow(Math.log(2), 2)));
     }
 
-    public void write() {
-        if(!dirty) {
+    private static int HEADER_SIZE = Integer.BYTES * 3;
+    public synchronized void write() {
+        if (!dirty) {
             return;
         }
 
-        byte[] bytes = hashes.toByteArray();
-        try (Storage storage = new MMapStorage(handler, bytes.length, FileChannel.MapMode.READ_WRITE)) {
-            storage.write(ByteBuffer.wrap(bytes));
+        long[] items = hashes.toLongArray();
+        int dataLength = items.length * Long.BYTES;
+        int totalSie = dataLength + HEADER_SIZE;
+        try (Storage storage = new MMapStorage(handler, totalSie, FileChannel.MapMode.READ_WRITE)) {
+
+            //Format
+            //Length -> 4bytes
+            //Number of bits (m) -> 4bytes
+            //Number of hash (k) -> 4bytes
+            //Data -> long[]
+            ByteBuffer bb = ByteBuffer.allocate(totalSie);
+            bb.putInt(dataLength);
+            bb.putInt(this.m);
+            bb.putInt(this.k);
+            for (long item : items) {
+                bb.putLong(item);
+            }
+
+            bb.flip();
+            storage.write(bb);
+            dirty = false;
+
         } catch (IOException e) {
             throw RuntimeIOException.of("Failed to write filter", e);
         }
-        dirty = false;
     }
 
-    private BitSet load() {
-
+    private static <T> BloomFilter<T> load(File handler, Hash<T> hash) {
         try (Storage storage = new MMapStorage(handler, handler.length(), FileChannel.MapMode.READ_WRITE)) {
-            ByteBuffer data = ByteBuffer.allocate((int) handler.length());
-            storage.read(0, data);
-            return BitSet.valueOf(data.array());
+            ByteBuffer header = ByteBuffer.allocate(HEADER_SIZE);
+            storage.read(0, header);
+            header.flip();
+
+            int length = header.getInt();
+            int m = header.getInt();
+            int k = header.getInt();
+
+            ByteBuffer data = ByteBuffer.allocate(length);
+            storage.read(HEADER_SIZE, data);
+
+            data.flip();
+
+
+            long[] longs = new long[data.remaining() / Long.BYTES];
+            int i = 0;
+            while(data.hasRemaining()) {
+                longs[i++]= data.getLong();
+            }
+
+            BitSet bitSet = new BitSet(m);
+            bitSet.or(BitSet.valueOf(longs));
+
+            return new BloomFilter<>(handler, bitSet, hash, m, k);
+
         } catch (IOException e) {
             throw RuntimeIOException.of("Failed to write filter", e);
         }

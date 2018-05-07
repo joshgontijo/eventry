@@ -85,11 +85,11 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     }
 
     public B getBlock(long position) {
-        B block = delegate.get(position);
-        if (block == null) {
+        B found = delegate.get(position);
+        if (found == null) {
             throw new IllegalStateException("Block not found on address " + position);
         }
-        return block;
+        return found;
     }
 
     @Override

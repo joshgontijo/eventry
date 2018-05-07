@@ -2,6 +2,7 @@ package io.joshworks.fstore.es.index.disk;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.RafStorage;
+import io.joshworks.fstore.es.Utils;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.log.LogIterator;
@@ -11,9 +12,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Iterator;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
@@ -30,8 +31,8 @@ public class IndexSegmentTest {
     private static final int NUMBER_OF_ELEMENTS = 1000000; //bloom filter
 
     @Before
-    public void setUp() throws IOException {
-        indexDir = Files.createTempDirectory(null).toFile();
+    public void setUp() {
+        indexDir = Utils.testFolder();
         segmentFile = new File(indexDir, "test-index");
         segment = open(segmentFile);
     }
@@ -144,7 +145,42 @@ public class IndexSegmentTest {
             assertEquals(4, items);
 
         }
+    }
 
+    @Test
+    public void reopened_segment_returns_correct_data() {
+
+        //given
+        IndexEntry e1 = IndexEntry.of(1L, 1, 0);
+        IndexEntry e2 = IndexEntry.of(1L, 2, 0);
+        IndexEntry e3 = IndexEntry.of(1L, 3, 0);
+        IndexEntry e4 = IndexEntry.of(1L, 4, 0);
+
+        segment.append(e1);
+        segment.append(e2);
+        segment.append(e3);
+        segment.append(e4);
+
+        segment.roll();
+
+        Optional<IndexEntry> ie = segment.get(1L, 1);
+        assertTrue(ie.isPresent());
+        assertEquals(e1, ie.get());
+
+        //when
+        segment.close();
+        try (IndexSegment opened = open(segmentFile)) {
+            //then
+            long items = opened.stream().count();
+            assertEquals(4, items);
+
+            Optional<IndexEntry> found = opened.get(1L, 1);
+            assertTrue(found.isPresent());
+            assertEquals(e1, found.get());
+
+            Stream<IndexEntry> stream = opened.stream(Range.allOf(1L));
+            assertEquals(4, stream.count());
+        }
     }
 
     @Test

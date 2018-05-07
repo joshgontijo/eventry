@@ -3,12 +3,13 @@ package io.joshworks.fstore.es;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.UUID;
 
 public class Utils {
 
     //terrible work around for waiting the mapped data to release file lock
     public static void tryDelete(File file) {
-        int maxTries = 5;
+        int maxTries = 2;
         int counter = 0;
         while (counter++ < maxTries) {
             try {
@@ -57,6 +58,30 @@ public class Utils {
         }
     }
 
+
+    public static File TEST_DIR = new File("J:\\event-store\\");
+
+    public static File testFile() {
+        return testFile(UUID.randomUUID().toString().substring(0, 8));
+    }
+
+    public static File testFile(String name) {
+        return new File(testFolder(), name);
+    }
+
+    public static File testFolder() {
+        return testFolder(UUID.randomUUID().toString().substring(0, 8));
+    }
+
+    public static File testFolder(String name) {
+        try {
+            File file = new File(TEST_DIR, name);
+            Files.createDirectories(file.toPath());
+            return file;
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
 //    private static void deleteDirectory(File dir) throws IOException {
 //        Files.walkFileTree(dir.toPath(), new SimpleFileVisitor<>() {

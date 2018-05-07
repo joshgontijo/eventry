@@ -21,7 +21,7 @@ public class Midpoints {
     private static final Serializer<Midpoint> midpointSerializer = new MidpointSerializer();
     private final List<Midpoint> midpoints;
     private final File handler;
-    private boolean dirty;
+    boolean dirty;
 
     public Midpoints(File indexDir, String segmentFileName) {
         this.handler = getFile(indexDir, segmentFileName);
@@ -29,14 +29,15 @@ public class Midpoints {
     }
 
     public void add(Midpoint start, Midpoint end) {
-        if(midpoints.isEmpty()) {
+        if (midpoints.isEmpty()) {
             midpoints.add(start);
             midpoints.add(end);
-            return;
+        } else {
+            midpoints.set(midpoints.size() - 1, start);
+            midpoints.add(end);
         }
-        midpoints.set(midpoints.size() - 1, start);
-        midpoints.add(end);
         dirty = true;
+
     }
 
     public void add(Midpoint midpoint) {
@@ -47,7 +48,7 @@ public class Midpoints {
     }
 
     public void write() {
-        if(!dirty) {
+        if (!dirty) {
             return;
         }
 
@@ -65,7 +66,7 @@ public class Midpoints {
     }
 
     private List<Midpoint> load(File handler) {
-        if(!handler.exists()) {
+        if (!handler.exists()) {
             return new ArrayList<>();
         }
         try (Storage storage = new MMapStorage(handler, handler.length(), FileChannel.MapMode.READ_WRITE)) {
@@ -120,7 +121,7 @@ public class Midpoints {
     }
 
     public boolean inRange(Range range) {
-        if(midpoints.isEmpty()) {
+        if (midpoints.isEmpty()) {
             return false;
         }
         return !(range.start().compareTo(last()) > 0 || range.end().compareTo(first()) < 0);
@@ -131,7 +132,7 @@ public class Midpoints {
     }
 
     public IndexEntry first() {
-        if(midpoints.isEmpty()) {
+        if (midpoints.isEmpty()) {
             return null;
         }
         return firstMidpoint().key;
@@ -142,21 +143,21 @@ public class Midpoints {
     }
 
     public IndexEntry last() {
-        if(midpoints.isEmpty()) {
+        if (midpoints.isEmpty()) {
             return null;
         }
         return lastMidpoint().key;
     }
 
     private Midpoint firstMidpoint() {
-        if(midpoints.isEmpty()) {
+        if (midpoints.isEmpty()) {
             return null;
         }
         return midpoints.get(0);
     }
 
     private Midpoint lastMidpoint() {
-        if(midpoints.isEmpty()) {
+        if (midpoints.isEmpty()) {
             return null;
         }
         return midpoints.get(midpoints.size() - 1);

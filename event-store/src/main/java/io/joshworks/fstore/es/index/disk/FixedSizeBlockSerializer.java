@@ -15,7 +15,7 @@ public class FixedSizeBlockSerializer<T> implements Serializer<FixedSizeEntryBlo
     private Serializer<T> serializer;
     private final int entrySize;
 
-    public FixedSizeBlockSerializer(Serializer<T> serializer, int entrySize) {
+    FixedSizeBlockSerializer(Serializer<T> serializer, int entrySize) {
         this.codec = new SnappyCodec();
         this.serializer = serializer;
         this.entrySize = entrySize;
