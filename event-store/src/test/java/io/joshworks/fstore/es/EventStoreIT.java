@@ -15,6 +15,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
@@ -35,8 +36,8 @@ public class EventStoreIT {
     @After
     public void tearDown() {
         store.close();
-        Utils.tryDelete(new File(directory, "index"));
-        Utils.tryDelete(directory);
+//        Utils.tryDelete(new File(directory, "index"));
+//        Utils.tryDelete(directory);
     }
 
     @Test
@@ -303,6 +304,31 @@ public class EventStoreIT {
         }
 
         assertEquals(numVersions, eventCounter);
+    }
+
+    @Test
+    public void linkTo() {
+        int size = 10000000;
+        for (int i = 0; i < size; i++) {
+            store.add("test-stream", Event.create("test", UUID.randomUUID().toString().substring(0,8)));
+        }
+
+        store.fromStream("test-stream").forEach(e -> {
+            String firstLetter = e.data().substring(0,1);
+            store.linkTo("letter-" + firstLetter, e);
+        });
+
+        store.fromStream("test-stream").forEach(e -> {
+            String firstLetter = e.data().substring(0,2);
+            store.linkTo("letter-" + firstLetter, e);
+        });
+
+        store.fromStream("test-stream").forEach(e -> {
+            String firstLetter = e.data().substring(0,3);
+            store.linkTo("letter-" + firstLetter, e);
+        });
+
+
     }
 
     //This isn't an actual test, it's more a debugging tool

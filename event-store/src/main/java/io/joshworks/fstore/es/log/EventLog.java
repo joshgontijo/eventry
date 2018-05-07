@@ -21,6 +21,8 @@ public class EventLog extends LogAppender<Event, LogSegment<Event>> {
         }
         event.stream(stream);
         event.version(key.version);
+        event.position(key.position);
+
         return event;
     }
 

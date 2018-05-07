@@ -98,8 +98,22 @@ public class EventStore implements Closeable {
         return eventLog.scanner();
     }
 
+    //TODO from won'r return the stream in the event ?
     public Stream<Event> fromAll() {
         return eventLog.stream();
+    }
+
+    public void linkTo(String stream, Event event) {
+        long streamHash = hasher.hash(stream);
+        int currentVersion = streamVersion.get(streamHash);
+
+        int newVersion = currentVersion + 1;
+        index.add(streamHash, newVersion, event.position());
+        streamVersion.set(streamHash, newVersion);
+    }
+
+    public void emit(String stream, Event event) {
+
     }
 
     public Optional<Event> get(String stream, int version) {

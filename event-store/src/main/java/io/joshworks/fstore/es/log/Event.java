@@ -11,6 +11,7 @@ public class Event {
     //from index
     private String stream;
     private int version;
+    private long position; //TODO experimental
 
     private Event(String uuid, String type, String data, long timestamp) {
         this.uuid = uuid;
@@ -33,6 +34,10 @@ public class Event {
 
     void version(int version) {
         this.version = version;
+    }
+
+    public void position(long position) {
+        this.position = position;
     }
 
     public String stream() {
@@ -58,6 +63,11 @@ public class Event {
     public long timestamp() {
         return timestamp;
     }
+
+    public long position() {
+        return position;
+    }
+
 
     @Override
     public String toString() {
