@@ -12,10 +12,10 @@ public class EventSerializer implements Serializer<Event> {
     @Override
     public ByteBuffer toBytes(Event data) {
         int uuidLength = VStringSerializer.sizeOf(data.uuid());
-        int dataLength = VStringSerializer.sizeOf(data.data());
         int typeLength = VStringSerializer.sizeOf(data.type());
 
-        ByteBuffer bb = ByteBuffer.allocate(uuidLength + dataLength + typeLength + Long.BYTES);
+
+        ByteBuffer bb = ByteBuffer.allocate(uuidLength + data.data().length + typeLength + Long.BYTES);
         writeTo(data, bb);
 
         return (ByteBuffer) bb.flip();
@@ -25,8 +25,8 @@ public class EventSerializer implements Serializer<Event> {
     public void writeTo(Event data, ByteBuffer dest) {
         strSerializer.writeTo(data.uuid(), dest);
         strSerializer.writeTo(data.type(), dest);
-        strSerializer.writeTo(data.data(), dest);
         dest.putLong(data.timestamp());
+        dest.put(data.data());
     }
 
 
@@ -34,8 +34,9 @@ public class EventSerializer implements Serializer<Event> {
     public Event fromBytes(ByteBuffer buffer) {
         String uuid = strSerializer.fromBytes(buffer);
         String type = strSerializer.fromBytes(buffer);
-        String data = strSerializer.fromBytes(buffer);
         long timestamp = buffer.getLong();
+        byte[] data = new byte[buffer.remaining()];
+        buffer.get(data);
 
         return Event.load(uuid, type, data, timestamp);
     }

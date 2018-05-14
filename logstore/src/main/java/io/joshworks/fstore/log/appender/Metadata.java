@@ -1,41 +1,66 @@
 package io.joshworks.fstore.log.appender;
 
-import java.io.DataInput;
-import java.io.DataOutput;
+import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.RafStorage;
+import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.log.LogFileUtils;
+
+import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 
 public class Metadata {
 
+    static final int METADATA_SIZE = (Integer.BYTES * 3) + (Byte.BYTES * 2);
+
     final int segmentSize;
     final int segmentBitShift;
+    final int maxSegmentsPerLevel;
     final boolean mmap;
     final boolean asyncFlush;
 
-    Metadata(int segmentSize, int segmentBitShift, boolean mmap, boolean asyncFlush) {
+    private Metadata(int segmentSize, int segmentBitShift, int maxSegmentsPerLevel, boolean mmap, boolean asyncFlush) {
         this.segmentSize = segmentSize;
         this.segmentBitShift = segmentBitShift;
         this.mmap = mmap;
         this.asyncFlush = asyncFlush;
+        this.maxSegmentsPerLevel = maxSegmentsPerLevel;
     }
 
-    public static <T> Metadata readFrom(Builder<T> builder) {
-        return new Metadata(builder.segmentSize, builder.segmentBitShift, builder.mmap, builder.asyncFlush);
+    public static Metadata readFrom(File directory) {
+        try (Storage storage = new RafStorage(new File(directory, LogFileUtils.METADATA_FILE), METADATA_SIZE)) {
+            ByteBuffer bb = ByteBuffer.allocate(METADATA_SIZE);
+            storage.read(0, bb);
+            bb.flip();
+
+            int segmentSize = bb.getInt();
+            int segmentBitShift = bb.getInt();
+            int maxSegmentsPerLevel = bb.getInt();
+            boolean mmap = bb.get() == 1;
+            boolean asyncFlush = bb.get() == 1;
+
+            return new Metadata(segmentSize, segmentBitShift, maxSegmentsPerLevel, mmap, asyncFlush);
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
     }
 
-    public static Metadata readFrom(DataInput in) throws IOException {
-        int segmentSize = in.readInt();
-        int segmentBitShift = in.readInt();
-        boolean mmap = in.readBoolean();
-        boolean asyncFlush = in.readBoolean();
+    public static Metadata create(File directory, int segmentSize, int segmentBitShift, int maxSegmentsPerLevel, boolean mmap, boolean asyncFlush) {
+        try (Storage storage = new RafStorage(new File(directory, LogFileUtils.METADATA_FILE), METADATA_SIZE)) {
+            ByteBuffer bb = ByteBuffer.allocate(METADATA_SIZE);
+            bb.putInt(segmentSize);
+            bb.putInt(segmentBitShift);
+            bb.putInt(maxSegmentsPerLevel);
+            bb.put(mmap ? (byte) 1 : 0);
+            bb.put(asyncFlush ? (byte) 1 : 0);
 
-        return new Metadata(segmentSize, segmentBitShift, mmap, asyncFlush);
-    }
+            bb.flip();
+            storage.write(bb);
+            return new Metadata(segmentSize, segmentBitShift, maxSegmentsPerLevel, mmap, asyncFlush);
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
 
-    public void writeTo(DataOutput out) throws IOException {
-        out.writeInt(segmentSize);
-        out.writeInt(segmentBitShift);
-        out.writeBoolean(mmap);
-        out.writeBoolean(asyncFlush);
     }
 
 

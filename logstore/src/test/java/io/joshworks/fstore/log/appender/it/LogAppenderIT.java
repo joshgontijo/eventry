@@ -10,17 +10,13 @@ import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.serializer.StringSerializer;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -30,34 +26,14 @@ public abstract class LogAppenderIT {
 
     protected abstract SimpleLogAppender<String> appender(Builder<String> builder);
 
-    protected File testDirectory;
-    private static String directoryPath;
-
-
-    @BeforeClass
-    public static void init() {
-        System.setProperty("fstore.dir", "J:\\FSTORE2");
-
-        String fromProps = System.getProperty("fstore.dir");
-        String fromEnv = System.getenv("FSTORE_DIR");
-
-        if (fromProps == null && fromEnv == null) {
-            throw new IllegalStateException("System property 'fstore.dir' or env variable 'FSTORE_DIR' must be provided");
-        }
-        directoryPath = fromProps == null ? fromEnv : fromProps;
-    }
+    private File testDirectory;
 
     @Before
-    public void setUp() throws IOException {
-        testDirectory = new File(directoryPath);
-        if (testDirectory.exists()) {
-            Utils.tryDelete(testDirectory);
-        }
-        testDirectory = Files.createDirectory(Paths.get(directoryPath)).toFile();
+    public void setUp() {
+        testDirectory = Utils.testFolder();
         testDirectory.deleteOnExit();
 
         Builder<String> builder = LogAppender.builder(testDirectory, new StringSerializer());
-
         appender = appender(builder);
     }
 
@@ -191,18 +167,6 @@ public abstract class LogAppenderIT {
             assertEquals(iterations, appender.stream().count());
             assertEquals(iterations, appender.entries());
         }
-    }
-
-    @Test(expected = IllegalStateException.class)
-    public void deleting_the_current_segment_must_throw_exception() {
-
-        String name = appender.currentSegment();
-        appender.delete(name);
-
-        assertEquals(1, appender.segmentsNames().size());
-        assertNotEquals(name, appender.currentSegment());
-
-
     }
 
     private static String stringOfByteLength(int length) {

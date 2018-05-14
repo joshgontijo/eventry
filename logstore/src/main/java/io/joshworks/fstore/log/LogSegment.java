@@ -24,7 +24,7 @@ public class LogSegment<T> implements Log<T> {
     private final Serializer<T> serializer;
     private final Storage storage;
     private final DataReader reader;
-    private final boolean readOnly;
+    private boolean readOnly;
 
     public LogSegment(Storage storage, Serializer<T> serializer, DataReader reader, long position, boolean readOnly) {
         this.serializer = serializer;
@@ -130,7 +130,11 @@ public class LogSegment<T> implements Log<T> {
 
     @Override
     public void roll() {
+        if (readOnly) {
+            throw new IllegalStateException("Cannot roll readOnly segment");
+        }
         storage.shrink();
+        readOnly = true;
     }
 
     @Override
@@ -185,7 +189,7 @@ public class LogSegment<T> implements Log<T> {
 
         @Override
         public T next() {
-            if(data == null) {
+            if (data == null) {
                 throw new NoSuchElementException();
             }
             T current = data;

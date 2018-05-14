@@ -1,6 +1,9 @@
 package io.joshworks.fstore.core.io;
 
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -74,7 +77,10 @@ public class MMapStorage extends DiskStorage {
         }
     }
 
+    private static final Logger logger = LoggerFactory.getLogger(MMapStorage.class);
+
     private MappedByteBuffer grow(long newSize) throws IOException {
+        logger.warn("Remapping ################################");
         raf.setLength(newSize);
         int prevPos = this.mbb.position();
         flush();
@@ -124,6 +130,9 @@ public class MMapStorage extends DiskStorage {
 
     private void unmap() {
         try {
+            if(mbb == null) {
+                return;
+            }
             Class<?> fcClass = channel.getClass();
             Method unmapMethod = fcClass.getDeclaredMethod("unmap", MappedByteBuffer.class);
             unmapMethod.setAccessible(true);

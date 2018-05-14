@@ -9,6 +9,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
@@ -223,7 +225,7 @@ public class EventStoreIT {
             int size = 0;
             while (events.hasNext()) {
                 Event event = events.next();
-                assertEquals("Wrong event data, iteration: " + i, "data-" + i, event.data());
+                assertEquals("Wrong event data, iteration: " + i, "data-" + i, new String(event.data(), StandardCharsets.UTF_8));
                 assertEquals(String.valueOf(i), event.type());
                 size++;
             }
@@ -308,25 +310,25 @@ public class EventStoreIT {
 
     @Test
     public void linkTo() {
-        int size = 10000000;
+        int size = 1000000;
         for (int i = 0; i < size; i++) {
             store.add("test-stream", Event.create("test", UUID.randomUUID().toString().substring(0,8)));
         }
 
-        store.fromStream("test-stream").forEach(e -> {
-            String firstLetter = e.data().substring(0,1);
-            store.linkTo("letter-" + firstLetter, e);
-        });
-
-        store.fromStream("test-stream").forEach(e -> {
-            String firstLetter = e.data().substring(0,2);
-            store.linkTo("letter-" + firstLetter, e);
-        });
-
-        store.fromStream("test-stream").forEach(e -> {
-            String firstLetter = e.data().substring(0,3);
-            store.linkTo("letter-" + firstLetter, e);
-        });
+//        store.fromStream("test-stream").forEach(e -> {
+//            String firstLetter = e.data().substring(0,1);
+//            store.linkTo("letter-" + firstLetter, e);
+//        });
+//
+//        store.fromStream("test-stream").forEach(e -> {
+//            String firstLetter = e.data().substring(0,2);
+//            store.linkTo("letter-" + firstLetter, e);
+//        });
+//
+//        store.fromStream("test-stream").forEach(e -> {
+//            String firstLetter = e.data().substring(0,3);
+//            store.linkTo("letter-" + firstLetter, e);
+//        });
 
 
     }
@@ -361,6 +363,27 @@ public class EventStoreIT {
             assertEquals(stream, event.get().stream());
             assertEquals(1, event.get().version());
         }
+    }
+
+    @Test
+    public void many_streams_linkTo() {
+        int size = 1000000;
+        String allStream = "all";
+        for (int i = 0; i < size; i++) {
+            store.add(allStream, Event.create("test", UUID.randomUUID().toString()));
+        }
+
+        int numOtherIndexes = 1000000;
+
+        AtomicInteger streamName = new AtomicInteger();
+        for (int i = 0; i < numOtherIndexes; i++) {
+            long start = System.currentTimeMillis();
+            store.fromStream(allStream).forEach(e -> store.linkTo(String.valueOf(streamName.incrementAndGet()), e));
+            System.out.println("Created index " + i + " in " + (System.currentTimeMillis() - start));
+        }
+
+        System.out.println("");
+
     }
 
     private void testWith(int streams, int numVersionPerStream) {

@@ -8,6 +8,6 @@ public class ConcatenateCombiner<T> implements SegmentCombiner<T> {
 
     @Override
     public void merge(List<Stream<T>> segments, Consumer<T> writer) {
-        segments.stream().flatMap(l -> l).forEach(writer::accept);
+        segments.stream().flatMap(l -> l).forEach(writer);
     }
 }

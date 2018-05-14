@@ -3,8 +3,10 @@ package io.joshworks.fstore.log.appender;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.log.BitUtil;
+import io.joshworks.fstore.log.appender.merge.ConcatenateCombiner;
+import io.joshworks.fstore.log.appender.merge.SegmentCombiner;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
-import io.joshworks.fstore.log.appender.naming.UUIDNamingStrategy;
+import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.reader.FixedBufferDataReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,13 +24,14 @@ public final class Builder<T> {
     final File directory;
     final Serializer<T> serializer;
     DataReader reader = new FixedBufferDataReader(false, 1);
-    NamingStrategy namingStrategy = new UUIDNamingStrategy();
+    NamingStrategy namingStrategy = new ShortUUIDNamingStrategy();
+    SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
 
     int segmentBitShift = Long.SIZE - SEGMENT_BITS;
     int segmentSize = 10485760; //10mb
     boolean mmap;
     boolean asyncFlush;
-    private int blockSize = 4096; //only for block appender
+    int maxSegmentsPerLevel = 3;
 
     Builder(File directory, Serializer<T> serializer) {
         Objects.requireNonNull(directory, "directory cannot be null");
@@ -46,9 +49,23 @@ public final class Builder<T> {
         return this;
     }
 
+    public Builder<T> maxSegmentsPerLevel(int maxSegmentsPerLevel) {
+        if(maxSegmentsPerLevel <= 0) {
+            throw new IllegalArgumentException("maxSegmentsPerLevel must be greater than zero");
+        }
+        this.maxSegmentsPerLevel = maxSegmentsPerLevel;
+        return this;
+    }
+
     public Builder<T> namingStrategy(NamingStrategy strategy) {
         Objects.requireNonNull(strategy, "NamingStrategy must be provided");
         this.namingStrategy = strategy;
+        return this;
+    }
+
+    public Builder<T> compactionStrategy(SegmentCombiner<T> combiner) {
+        Objects.requireNonNull(combiner, "SegmentCombiner must be provided");
+        this.combiner = combiner;
         return this;
     }
 
@@ -68,17 +85,9 @@ public final class Builder<T> {
         return this;
     }
 
-    public Builder<T> blockSize(int blockSize) {
-        if(blockSize < 4096) {
-            throw new IllegalArgumentException("BlockSize must be greater or equals than 4096 bytes");
-        }
-        this.blockSize = blockSize;
-        return this;
-    }
 
     public SimpleLogAppender<T> open() {
         return new SimpleLogAppender<>(this);
     }
-
 
 }

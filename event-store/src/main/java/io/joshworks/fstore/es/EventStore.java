@@ -61,6 +61,11 @@ public class EventStore implements Closeable {
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
     }
 
+//    public Stream<Event[]> fromStreamsParallel(List<String> streams) {
+//        Iterator<Event> iterator = iterateStreams(streams);
+//        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
+//    }
+
     public Iterator<Event> iterateStreams(List<String> streams) {
         Set<String> uniqueStreams = new LinkedHashSet<>(streams);
 
@@ -98,7 +103,7 @@ public class EventStore implements Closeable {
         return eventLog.scanner();
     }
 
-    //TODO from won'r return the stream in the event ?
+    //TODO from won't return the stream in the event ?
     public Stream<Event> fromAll() {
         return eventLog.stream();
     }

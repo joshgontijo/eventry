@@ -1,6 +1,5 @@
 package io.joshworks.fstore.log.block;
 
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.LogAppender;
@@ -29,9 +28,7 @@ public class BlockTest {
     @Before
     public void setUp() throws Exception {
         tempFile = Files.createTempDirectory(null);
-
-        Serializer<Block<String>> blockSerializer = new BlockSerializer<>(Serializers.STRING);
-        appender = LogAppender.builder(tempFile.toFile(), blockSerializer).segmentSize(5242880).open();
+        appender = LogAppender.builder(tempFile.toFile(), new BlockSerializer<>(Serializers.STRING)).segmentSize(5242880).open();
     }
 
     @After

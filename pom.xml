@@ -15,8 +15,6 @@
         <module>logstore</module>
         <module>codec</module>
         <module>index</module>
-        <module>memlog-db</module>
-        <module>lsm-tree</module>
         <module>event-store</module>
     </modules>
 
@@ -95,8 +93,6 @@
                 <version>1.2.5</version>
                 <scope>test</scope>
             </dependency>
-
-
         </dependencies>
     </dependencyManagement>
 
