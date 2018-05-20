@@ -2,6 +2,7 @@ package io.joshworks.fstore.core;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.utils.Utils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -11,7 +12,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -26,29 +26,29 @@ public abstract class DiskStorageTest {
     protected static final int DEFAULT_LENGTH = 5242880;
     private static final String TEST_DATA = "TEST-DATA";
     private Storage storage;
-    private Path testFile;
+    private File testFile;
 
     protected abstract Storage store(File file, long size);
 
     @Before
     public void setUp() {
-        testFile = new File("storage.db").toPath();
-        storage = store(testFile.toFile(), DEFAULT_LENGTH);
+        testFile = Utils.testFile();
+        storage = store(testFile, DEFAULT_LENGTH);
     }
 
     @After
     public void cleanup() {
         IOUtils.closeQuietly(storage);
-        tryRemoveFile();
+        Utils.tryDelete(testFile);
     }
 
     @Test(expected = IllegalArgumentException.class)
-    public void when_witting_empty_data_throw_exception() {
+    public void when_witting_empty_data_an_exception_is_thrown() {
         storage.write(ByteBuffer.allocate(0));
     }
 
     @Test
-    public void when_data_is_written_return_th_written_length() {
+    public void when_data_is_written_return_the_written_length() {
         ByteBuffer bb = ByteBuffer.wrap(TEST_DATA.getBytes(StandardCharsets.UTF_8));
         int written = storage.write(bb);
         assertEquals(TEST_DATA.length(), written);
@@ -83,11 +83,11 @@ public abstract class DiskStorageTest {
         for (int i = 0; i < items; i++) {
             ByteBuffer bb = ByteBuffer.allocate(entrySize);
             int read = storage.read(offset, bb);
-            assertEquals(entrySize, read);
+            assertEquals("Failed on iteration " + i, entrySize, read);
 
             bb.flip();
             String found = new String(bb.array(), StandardCharsets.UTF_8);
-            assertTrue("Not found: [" + found + "] at offset " + offset + ", item number: " + itemsRead, inserted.contains(found));
+            assertTrue("Not found: [" + found + "] at offset " + offset + ", iteration: " + i, inserted.contains(found));
             itemsRead++;
             offset += entrySize;
         }
@@ -116,35 +116,33 @@ public abstract class DiskStorageTest {
 
     @Test
     public void delete() throws Exception {
-        Storage store = null;
-        try {
-            Path tobeDeleted = Files.createTempFile("tobeDeleted", null);
-            store = store(tobeDeleted.toFile(), DEFAULT_LENGTH);
+
+        File temp = Utils.testFile();
+        try (Storage store = store(temp, DEFAULT_LENGTH)) {
             store.delete();
-            assertFalse(Files.exists(tobeDeleted));
+            assertFalse(Files.exists(temp.toPath()));
         } finally {
-            IOUtils.closeQuietly(store);
+            Utils.tryDelete(temp);
         }
     }
 
     @Test
     public void when_data_is_written_the_size_must_increase() {
-        int newLength = (int) (storage.length() + 4096);
-        ByteBuffer bb = ByteBuffer.wrap(new byte[newLength]);
+        int dataLength = (int) (storage.length() + 4096);
+
+        byte[] data = new byte[dataLength];
+        Arrays.fill(data, (byte) 1);
+        ByteBuffer bb = ByteBuffer.wrap(data);
 
         storage.write(bb);
 
-        assertEquals(newLength, storage.length());
-    }
+        assertTrue(storage.length() >= dataLength);
 
-    @Test
-    public void when_position_is_set_the_size_must_be_the_same() throws IOException {
-        long thePosition = 4;
-        Path temp = Files.createTempFile("tobeDeleted", null);
-        Storage store = store(temp.toFile(), thePosition);
-        store.position(thePosition);
+        ByteBuffer found = ByteBuffer.allocate(dataLength);
+        int read = storage.read(0, found);
 
-        assertEquals(thePosition, store.length());
+        assertEquals(dataLength, read);
+        assertTrue(Arrays.equals(data, found.array()));
     }
 
     @Test
@@ -152,43 +150,27 @@ public abstract class DiskStorageTest {
 
         //given
         int size = 8;
-        Path temp = Files.createTempFile("tobeDeleted", null);
-        Storage store = store(temp.toFile(), size);
-        ByteBuffer data = ByteBuffer.allocate(size);
-        data.putInt(1);
-        data.putInt(2);
-        data.flip();
+        File temp = Utils.testFile();
+        try (Storage store = store(temp, size)) {
+            ByteBuffer data = ByteBuffer.allocate(size);
+            data.putInt(1);
+            data.putInt(2);
+            data.flip();
 
-        store.write(data);
+            store.write(data);
 
-        ByteBuffer result = ByteBuffer.allocate(500);
+            ByteBuffer result = ByteBuffer.allocate(500);
 
-        //when
-        int read = store.read(0, result);
-        result.flip();
+            //when
+            int read = store.read(0, result);
+            result.flip();
 
-        //then
-        assertEquals(size, read);
-        assertEquals(size, result.remaining());
-
-    }
-
-    //terrible work around for waiting the mapped buffer to release file lock
-    private void tryRemoveFile() {
-        int maxTries = 50;
-        int counter = 0;
-        while (counter++ < maxTries) {
-            try {
-                Files.delete(testFile);
-                break;
-            } catch (Exception e) {
-                System.err.println(":: LOCK NOT RELEASED YET ::");
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e1) {
-                    e1.printStackTrace();
-                }
-            }
+            //then
+            assertEquals(size, read);
+            assertEquals(size, result.remaining());
+        } finally {
+            Utils.tryDelete(temp);
         }
     }
+
 }

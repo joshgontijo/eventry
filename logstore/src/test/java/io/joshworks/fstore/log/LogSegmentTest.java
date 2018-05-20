@@ -10,8 +10,6 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -22,32 +20,32 @@ import static org.junit.Assert.assertTrue;
 public abstract class LogSegmentTest {
 
     private Log<String> appender;
-    private Path testFile;
+    private File testFile;
 
     private long FILE_SIZE = 10485760; //10mb
 
     abstract Storage getStorage(File file, long size);
 
-    private Log<String> create() {
-        Storage storage = getStorage(testFile.toFile(), FILE_SIZE);
+    private Log<String> create(File theFile) {
+        Storage storage = getStorage(theFile, FILE_SIZE);
         return new LogSegment<>(storage, new StringSerializer(), new FixedBufferDataReader(), 0, false);
     }
 
     private Log<String> open(long pos) {
-        Storage storage = getStorage(testFile.toFile(), FILE_SIZE);
+        Storage storage = getStorage(testFile, FILE_SIZE);
         return new LogSegment<>(storage, new StringSerializer(), new FixedBufferDataReader(), pos, false);
     }
 
     @Before
-    public void setUp() throws IOException {
-        testFile = Files.createTempFile(UUID.randomUUID().toString().substring(0, 8), ".dat");
-        appender = create();
+    public void setUp() {
+        testFile = Utils.testFile();
+        appender = create(testFile);
     }
 
     @After
     public void cleanup() {
         IOUtils.closeQuietly(appender);
-        Utils.tryDelete(testFile.toFile());
+        Utils.tryDelete(testFile);
     }
 
     @Test

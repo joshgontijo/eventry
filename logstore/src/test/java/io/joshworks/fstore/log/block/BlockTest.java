@@ -9,8 +9,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -21,20 +20,20 @@ import static org.junit.Assert.assertTrue;
 
 public class BlockTest {
 
-    private Path tempFile;
+    private File testFolder;
     private SimpleLogAppender<Block<String>> appender;
 
 
     @Before
     public void setUp() throws Exception {
-        tempFile = Files.createTempDirectory(null);
-        appender = LogAppender.builder(tempFile.toFile(), new BlockSerializer<>(Serializers.STRING)).segmentSize(5242880).open();
+        testFolder = Utils.testFile();
+        appender = LogAppender.builder(testFolder, new BlockSerializer<>(Serializers.STRING)).segmentSize(5242880).open();
     }
 
     @After
     public void tearDown() {
         IOUtils.closeQuietly(appender);
-        Utils.tryDelete(tempFile.toFile());
+        Utils.tryDelete(testFolder);
     }
 
     @Test

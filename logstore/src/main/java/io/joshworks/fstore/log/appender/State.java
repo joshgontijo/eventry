@@ -3,6 +3,7 @@ package io.joshworks.fstore.log.appender;
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.LogFileUtils;
@@ -47,7 +48,7 @@ public class State implements Closeable {
     }
 
     private static Storage createStorage(File directory) {
-        return new RafStorage(new File(directory, LogFileUtils.STATE_FILE), SIZE);
+        return new RafStorage(new File(directory, LogFileUtils.STATE_FILE), SIZE, Mode.READ_WRITE);
     }
 
     public void position(long position) {

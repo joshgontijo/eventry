@@ -9,8 +9,8 @@ import java.nio.ByteBuffer;
 
 public class RafStorage extends DiskStorage {
 
-    public RafStorage(File target, long length) {
-        super(target, length);
+    public RafStorage(File target, long length,  Mode mode) {
+        super(target, length, mode);
     }
 
     /**

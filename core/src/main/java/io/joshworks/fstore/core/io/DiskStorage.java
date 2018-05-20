@@ -16,13 +16,15 @@ public abstract class DiskStorage implements Storage {
 
     private static final Logger logger = LoggerFactory.getLogger(DiskStorage.class);
 
+    protected Mode mode;
     protected RandomAccessFile raf;
     protected FileChannel channel;
     protected File file;
     protected FileLock lock;
     protected long position;
 
-    public DiskStorage(File target, long length) {
+    public DiskStorage(File target, long length, Mode mode) {
+        this.mode = mode;
         Objects.requireNonNull(target, "File must specified");
         logger.info("Opening {}, length: {}", target.getName(), length);
         if (length <= 0) {
@@ -34,13 +36,12 @@ public abstract class DiskStorage implements Storage {
             throw new StorageException("The specified length (" + length + ") is less than the actual file length (" + target.length() + ")");
         }
 
-        this.raf = IOUtils.readWriteRandomAccessFile(target);
+        this.raf = IOUtils.randomAccessFile(target, mode);
         try {
-            if (length != target.length()) {
+            if (length != target.length() && Mode.READ_WRITE.equals(mode)) {
                 this.raf.setLength(length);
             }
             this.file = target;
-            this.raf.setLength(length);
             this.channel = raf.getChannel();
             this.lock = this.channel.lock();
 

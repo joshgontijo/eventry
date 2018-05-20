@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.LogFileUtils;
@@ -28,7 +29,7 @@ public class Metadata {
     }
 
     public static Metadata readFrom(File directory) {
-        try (Storage storage = new RafStorage(new File(directory, LogFileUtils.METADATA_FILE), METADATA_SIZE)) {
+        try (Storage storage = new RafStorage(new File(directory, LogFileUtils.METADATA_FILE), METADATA_SIZE, Mode.READ_WRITE)) {
             ByteBuffer bb = ByteBuffer.allocate(METADATA_SIZE);
             storage.read(0, bb);
             bb.flip();
@@ -46,7 +47,7 @@ public class Metadata {
     }
 
     public static Metadata create(File directory, int segmentSize, int segmentBitShift, int maxSegmentsPerLevel, boolean mmap, boolean asyncFlush) {
-        try (Storage storage = new RafStorage(new File(directory, LogFileUtils.METADATA_FILE), METADATA_SIZE)) {
+        try (Storage storage = new RafStorage(new File(directory, LogFileUtils.METADATA_FILE), METADATA_SIZE, Mode.READ_WRITE)) {
             ByteBuffer bb = ByteBuffer.allocate(METADATA_SIZE);
             bb.putInt(segmentSize);
             bb.putInt(segmentBitShift);

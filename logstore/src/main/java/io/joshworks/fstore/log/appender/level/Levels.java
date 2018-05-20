@@ -16,15 +16,10 @@ public class Levels<T, L extends Log<T>> {
     private final int maxItemsPerLevel;
     private LinkedList<L> flattened;
 
-    private L current;
-
     private Levels(int maxItemsPerLevel, List<List<L>> levels) {
         this.maxItemsPerLevel = maxItemsPerLevel;
         this.items = levels;
         this.flattened = flatten();
-        if(!levels.isEmpty() && !levels.get(0).isEmpty()) {
-            current = items.get(0).get(0);
-        }
     }
 
     public List<L> segments(int level) {
@@ -73,7 +68,6 @@ public class Levels<T, L extends Log<T>> {
 
         items.get(1).add(toBePromoted);
         items.get(0).add(newLevelZero);
-        current = newLevelZero;
 
         this.flattened = flatten();
     }
@@ -84,6 +78,16 @@ public class Levels<T, L extends Log<T>> {
 
     public int numSegments() {
         return flattened.size();
+    }
+
+    public int size(int level) {
+        if(level < 0) {
+            throw new IllegalArgumentException("Level must be at least zero");
+        }
+        if(level >= depth()) {
+            return 0;
+        }
+        return segments(level).size();
     }
 
     public boolean requiresCompaction(int level) {
@@ -99,8 +103,21 @@ public class Levels<T, L extends Log<T>> {
         }
         items.get(level).add(segment);
 
-        current = items.get(0).get(0);
         this.flattened = flatten();
+    }
+
+    public List<L> segmentsForCompaction(int level) {
+        List<L> segments = segments(level);
+        return segments.size() > maxItemsPerLevel ? segments.subList(0, maxItemsPerLevel) : segments;
+    }
+
+    public void removeSegmentsFromCompaction(int level) {
+        Iterator<L> segments = segmentsForCompaction(level).iterator();
+        while(segments.hasNext()) {
+            L segment = segments.next();
+            segment.delete();
+            segments.remove();
+        }
     }
 
     //TODO safely swap segments
@@ -118,11 +135,10 @@ public class Levels<T, L extends Log<T>> {
         }
 
         this.flattened = flatten();
-        current = items.get(0).get(0);
     }
 
     public L current() {
-        return current;
+        return flattened.get(0);
     }
 
     public Iterator<L> segments(Order order) {

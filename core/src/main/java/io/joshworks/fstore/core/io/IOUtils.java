@@ -69,17 +69,9 @@ public final class IOUtils {
         return bytesRead;
     }
 
-    public static RandomAccessFile readWriteRandomAccessFile(File file) {
+    public static RandomAccessFile randomAccessFile(File file, Mode mode) {
         try {
-            return new RandomAccessFile(file, "rw");
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    public static RandomAccessFile readRandomAccessFileRaf(File file) {
-        try {
-            return new RandomAccessFile(file, "r");
+            return new RandomAccessFile(file, Mode.READ_WRITE.equals(mode) ? "rw" : "r");
         } catch (FileNotFoundException e) {
             throw new RuntimeException(e);
         }

@@ -140,7 +140,7 @@ public abstract class LogAppenderIT {
     public void insert_100_segments_of_1GB_with_2kb_entries() {
         String value = stringOfByteLength(2048);
 
-        fillNSegments(value, 100);
+        fillNSegments(value, 99999);
         appender.flush();
         scanAllAssertingSameValue(value);
     }

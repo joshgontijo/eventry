@@ -1,109 +1,196 @@
 package io.joshworks.fstore.core.io;
 
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.ArrayList;
+import java.util.List;
 
 
 public class MMapStorage extends DiskStorage {
 
-    private MappedByteBuffer mbb;
-    private final FileChannel.MapMode mode;
+    private static final int NO_BUFFER = -1;
 
-    public MMapStorage(File file, long length, FileChannel.MapMode mode) {
-        super(file, length);
-        this.mode = mode;
-        this.mbb = map(raf);
+    private final int bufferSize;
+    private MappedByteBuffer current;
+    private final List<MappedByteBuffer> buffers = new ArrayList<>();
+    private int writeBufferIdx;
+
+    public MMapStorage(File file, long length, Mode mode, int bufferSize) {
+        super(file, length, mode);
+        this.bufferSize = bufferSize;
+
+        try {
+            long fileLength = raf.length();
+            if (bufferSize >= fileLength) {
+                //TEST-CASE: if buffer size is greater than file, use bufferSize
+                MappedByteBuffer singleBuffer = map(0, bufferSize);
+                buffers.add(singleBuffer);
+                writeBufferIdx = 0;
+                current = buffers.get(writeBufferIdx);
+                return;
+            }
+
+            long numFullBuffers = (fileLength / bufferSize);
+            long diff = fileLength % bufferSize;
+            long totalBuffers = numFullBuffers = diff > 0 ? numFullBuffers : numFullBuffers + 1;
+
+            if (Mode.READ_WRITE.equals(mode)) {
+                //load everything at one, can it be improved ?
+                for (long i = 0; i < totalBuffers; i++) {
+                    MappedByteBuffer buffer = map(i * bufferSize, bufferSize);
+                    buffers.add(buffer);
+                }
+                writeBufferIdx = 0;
+                current = buffers.get(writeBufferIdx);
+
+            } else if (Mode.READ.equals(mode)) { //readOnly, do not extend file size
+                //load everything at one, can it be improved ?
+                for (long i = 0; i < numFullBuffers; i++) {
+                    MappedByteBuffer buffer = map(i * bufferSize, bufferSize);
+                    buffers.add(buffer);
+                }
+
+                current = buffers.get(0);
+                if (diff > 0) {
+                    MappedByteBuffer last = map((numFullBuffers + 1) * bufferSize, diff);
+                    buffers.add(last);
+                }
+            }
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public int write(ByteBuffer data) {
         ensureNonEmpty(data);
-        ensureCapacity(data);
+        checkWritable();
+
+        if (!current.hasRemaining()) {
+            nextBuffer();
+        }
+
+        if (current.remaining() < data.remaining()) {
+            //grow enough to fit the new data, this should be avoided as much as possible
+
+            int spaceLeft = current.remaining();
+            ByteBuffer slice = data.slice();
+            slice.limit(spaceLeft);
+            current.put(slice);
+            position += spaceLeft;
+            data.position(spaceLeft);
+
+            nextBuffer();
+
+            int secondFragment = write(data);
+            return spaceLeft + secondFragment;
+        }
 
         int written = data.remaining();
-        mbb.put(data);
+        current.put(data);
         position += written;
         return written;
     }
 
     @Override
     public int read(long position, ByteBuffer data) {
-        checkBoundaries(position);
-        int pos = (int) position;
+        int idx = bufferIdx(position);
+        if (idx == NO_BUFFER) {
+            return 0;
+        }
+        MappedByteBuffer buffer = getBuffer(idx);
+        int bufferAddress = posOnBuffer(position);
 
-        ByteBuffer readOnly = mbb.asReadOnlyBuffer();
-        if (pos > readOnly.capacity()) {
-            throw new StorageException("Position " + pos + "is out of limit (" + readOnly.capacity() + ")");
+        ByteBuffer readOnly = buffer.asReadOnlyBuffer();
+        if (position > readOnly.capacity() && idx >= buffers.size()) {
+            throw new StorageException("Position " + position + "is out of limit (" + readOnly.capacity() + ")");
         }
 
-        int limit = Math.min(readOnly.capacity() - pos, data.limit());
-        readOnly.limit(pos + limit).position(pos);
+        readOnly.position(bufferAddress);
+        if (readOnly.remaining() < data.remaining()) {
+            int limit = readOnly.remaining();
+            readOnly.limit(bufferAddress + limit);
+            data.put(readOnly);
+            return limit + read(position + limit, data);
+        }
 
+        //source buffer has enough data
+        int limit = data.remaining();
+        readOnly.limit(bufferAddress + limit);
         data.put(readOnly);
         return limit;
     }
 
     @Override
     public void position(long position) {
-        checkBoundaries(position);
-        mbb.position((int) position);
+        current.position((int) position);
         super.position = position;
     }
 
-    private void checkBoundaries(long position) {
-        if (position > Integer.MAX_VALUE) {
-            //TODO remap ?
-            throw new UnsupportedOperationException("NOT IMPLEMENTED YET");
+
+    private MappedByteBuffer getBuffer(int idx) {
+        return buffers.get(idx);
+    }
+
+    private int posOnBuffer(long pos) {
+        return (int) (pos % bufferSize);
+    }
+
+    private int bufferIdx(long pos) {
+        int idx = (int) (pos / bufferSize);
+        if (idx < 0 || idx >= buffers.size()) {
+            return NO_BUFFER;
+        }
+        return idx;
+    }
+
+    private void checkWritable() {
+        if (Mode.READ.equals(mode)) {
+            throw new StorageException("Storage is readonly");
         }
     }
 
-    private void ensureCapacity(ByteBuffer data) {
+    private void nextBuffer() {
+        current.flip();
+        writeBufferIdx++;
+        long numBuffers = buffers.size();
+        if (writeBufferIdx >= numBuffers) {
+            //TODO will the lock be extended for the entire file ? Or a new lock for the extended region is needed
+            MappedByteBuffer next = map(numBuffers * bufferSize, bufferSize);
+            buffers.add(next);
+        }
+        current = buffers.get(writeBufferIdx);
+    }
+
+    private void expand() {
         try {
-            if (mbb.remaining() < data.remaining()) {
-                //grow enough to fit the new data, this should be avoided as much as possible
-                this.mbb = grow(raf.length() + (data.remaining() - mbb.remaining()));
+            long fileLength = raf.length();
+            long totalSize = ((long) ((buffers.size()) * bufferSize));
+            long newFileSize = totalSize + bufferSize;
+            if (totalSize + bufferSize > fileLength) {
+                raf.setLength(newFileSize);
             }
+
+            MappedByteBuffer newBuffer = map(position(), bufferSize);
+            buffers.add(newBuffer);
+            current = newBuffer;
+
         } catch (Exception e) {
-            throw new StorageException(e);
+            throw new StorageException("Failed to expand buffer", e);
         }
+
     }
 
-    private static final Logger logger = LoggerFactory.getLogger(MMapStorage.class);
-
-    private MappedByteBuffer grow(long newSize) throws IOException {
-        logger.warn("Remapping ################################");
-        raf.setLength(newSize);
-        int prevPos = this.mbb.position();
-        flush();
-        unmap();
-        MappedByteBuffer newMbb = map(raf);
-        newMbb.position(prevPos);
-        return newMbb;
-    }
-
-    //TODO - HOW TO HANDLE FILES WITH MORE THAN Integer.MAX_VALUE ?
-    //TODO - SIZE VALIDATION
-    //TODO - CHECK MEMORY CONSTRAINTS WHEN OPENING MULTIPLE SEGMENTS, IT CAN BLOW OFF THE MEMORY CAPACITY
-    private MappedByteBuffer map(RandomAccessFile raf) {
+    private MappedByteBuffer map(long from, long size) {
         try {
-            return map(0, raf.length());
-        } catch (Exception e) {
-            throw new StorageException(e);
-        }
-    }
-
-    private MappedByteBuffer map(long from, long to) {
-        try {
-            return raf.getChannel().map(mode, from, to);
+            FileChannel.MapMode mapMode = Mode.READ_WRITE.equals(mode) ? FileChannel.MapMode.READ_WRITE : FileChannel.MapMode.READ_ONLY;
+            return raf.getChannel().map(mapMode, from, size);
         } catch (Exception e) {
             close();
             throw new StorageException(e);
@@ -112,32 +199,40 @@ public class MMapStorage extends DiskStorage {
 
     @Override
     public long position() {
-        return mbb.position();
+        return position;
     }
 
     @Override
     public void delete() {
-        unmap();
+        unmapAll();
         super.delete();
     }
 
     @Override
     public void close() {
         flush();
-        unmap();
+        unmapAll();
         super.close();
     }
 
-    private void unmap() {
+    private void unmapAll() {
+        for (MappedByteBuffer buffer : buffers) {
+            unmap(buffer);
+        }
+        buffers.clear();
+        current = null;
+    }
+
+    private void unmap(MappedByteBuffer buffer) {
+        if (buffer == null) {
+            return;
+        }
         try {
-            if(mbb == null) {
-                return;
-            }
             Class<?> fcClass = channel.getClass();
             Method unmapMethod = fcClass.getDeclaredMethod("unmap", MappedByteBuffer.class);
             unmapMethod.setAccessible(true);
-            unmapMethod.invoke(null, mbb);
-            mbb = null;
+            unmapMethod.invoke(null, buffer);
+
         } catch (Exception e) {
             throw new StorageException(e);
         }
@@ -145,16 +240,12 @@ public class MMapStorage extends DiskStorage {
 
     @Override
     public void shrink() {
-        int position = mbb.position();
-        unmap();
-        super.shrink();
-        this.mbb = map(0, position);
-        this.mbb.position(position);
+        super.mode = Mode.READ;
     }
 
     @Override
     public void flush() {
-        if (mbb != null)
-            mbb.force();
+        if (current != null && Mode.READ_WRITE.equals(mode))
+            current.force();
     }
 }

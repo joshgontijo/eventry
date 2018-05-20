@@ -1,5 +1,5 @@
 package io.joshworks.fstore.core.io;
 
-public class HugeByteBuffer  {
-
+public enum Mode {
+    READ_WRITE, READ
 }

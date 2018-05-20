@@ -13,7 +13,7 @@ public class RuntimeIOException extends RuntimeException {
     }
 
     public static RuntimeException of(IOException ioex) {
-        return of(ioex.getMessage(), ioex);
+        return new RuntimeIOException(ioex.getMessage(), ioex);
     }
 
     public static RuntimeException of(String message, IOException ioex) {

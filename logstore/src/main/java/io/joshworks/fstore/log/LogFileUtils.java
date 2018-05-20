@@ -44,17 +44,15 @@ public final class LogFileUtils {
         return newFile;
     }
 
-//    public static String fileName(String prefix, int idxOnLevel, int level) {
-//        String indexOnLevel = String.format("%06d", idxOnLevel);
-//        String extension = ".L" + level;
-//        return  prefix + "-" + indexOnLevel + extension;
-//    }
-
     public static String fileName(String prefix, int idxOnLevel, int level) {
-        return  prefix + SEGMENT_EXTENSION;
+        String indexOnLevel = String.format("%06d", idxOnLevel);
+        String extension = ".L" + level;
+        return  prefix + "-" + indexOnLevel + extension;
     }
 
-
+//    public static String fileName(String prefix, int idxOnLevel, int level) {
+//        return  prefix + SEGMENT_EXTENSION;
+//    }
 
     public static File loadSegment(File directory, String name) {
         try {

@@ -32,6 +32,7 @@ public final class Builder<T> {
     boolean mmap;
     boolean asyncFlush;
     int maxSegmentsPerLevel = 3;
+    int mmapBufferSize = segmentSize;
 
     Builder(File directory, Serializer<T> serializer) {
         Objects.requireNonNull(directory, "directory cannot be null");
@@ -57,6 +58,11 @@ public final class Builder<T> {
         return this;
     }
 
+    public Builder<T> disableCompaction() {
+        this.maxSegmentsPerLevel = LogAppender.COMPACTION_DISABLED;
+        return this;
+    }
+
     public Builder<T> namingStrategy(NamingStrategy strategy) {
         Objects.requireNonNull(strategy, "NamingStrategy must be provided");
         this.namingStrategy = strategy;
@@ -77,6 +83,12 @@ public final class Builder<T> {
 
     public Builder<T> mmap() {
         this.mmap = true;
+        return this;
+    }
+
+    public Builder<T> mmap(int bufferSize) {
+        this.mmap = true;
+        this.mmapBufferSize = bufferSize;
         return this;
     }
 
