@@ -1,56 +1,74 @@
 package io.joshworks.fstore.core.eventbus;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.logging.Level;
-import java.util.logging.Logger;
+import java.util.function.Consumer;
+
 
 /**
  * Created by Josue on 05/08/2016.
  */
 public class EventBus {
 
-    private static final Logger logger = Logger.getLogger(EventBus.class.getName());
+    private final Map<Class, List<Subscriber>> subscribers = new ConcurrentHashMap<>();
+    private final ExecutorService executor;
+    private final ErrorHandler errorHandler;
 
-    private static final Map<Class, List<Subscriber>> subscribers = new ConcurrentHashMap<>();
-    private static final ExecutorService executor = Executors.newCachedThreadPool();
+    private static final Logger logger = LoggerFactory.getLogger(EventBus.class);
+    private static final ErrorHandler DEFAULT_ERROR_HANDLER =
+            (e, ctx) -> logger.error("Error on " + ctx.handler.getClass().getSimpleName() + "#" + ctx.method, e);
 
-    private EventBus() {
+    public EventBus() {
+        this(Executors.newCachedThreadPool(), DEFAULT_ERROR_HANDLER);
     }
 
-    public static void fire(final Object event) {
+    public EventBus(ExecutorService executor) {
+        this(executor, DEFAULT_ERROR_HANDLER);
+    }
+
+    public EventBus(ErrorHandler errorHandler) {
+        this(Executors.newCachedThreadPool(), errorHandler);
+    }
+
+    public EventBus(ExecutorService executor, ErrorHandler errorHandler) {
+        this.executor = executor;
+        this.errorHandler = errorHandler;
+    }
+
+    public void emitAsync(final Object event) {
+        for (Subscriber subscriber : getSubscribers(event)) {
+            executor.submit(() -> subscriber.invoke(event, errorHandler));
+        }
+    }
+
+    public void emit(final Object event) {
+        for (Subscriber subscriber : getSubscribers(event)) {
+            subscriber.invoke(event, errorHandler);
+        }
+    }
+
+    private List<Subscriber> getSubscribers(Object event) {
         Objects.requireNonNull(event, "Event must be provided");
-        List<Subscriber> subscribers = EventBus.subscribers.get(event.getClass());
-        if (subscribers == null) {
-            logger.warning("No handler for type found for type " + event.getClass());
-            return;
+        List<Subscriber> found = subscribers.get(event.getClass());
+        if (found == null) {
+            logger.warn("No handler for type found for type {}", event.getClass());
+            return new ArrayList<>();
         }
-        for (Subscriber listener : subscribers) {
-            if (listener.async) {
-                executor.submit(() -> invoke(listener, event));
-            } else {
-                invoke(listener, event);
-            }
-        }
+        return found;
     }
 
-    private static Object invoke(Subscriber listener, Object event) {
-        try {
-            return listener.method.invoke(listener.object, event);
-        } catch (Exception e) {
-            logger.log(Level.SEVERE, e.getMessage(), e);
-            return null;
-        }
-    }
-
-    public static void register(Object subscriber) {
+    public void register(Object subscriber) {
         Objects.requireNonNull(subscriber, "Subscriber cannot be null");
 
         for (Method method : subscriber.getClass().getDeclaredMethods()) {
@@ -60,28 +78,98 @@ public class EventBus {
                     throw new IllegalArgumentException("Subscriber must accept only 1 parameter");
                 }
                 Class<?> parameterType = parameters[0].getType();
-                if (!subscribers.containsKey(parameterType)) {
-                    subscribers.put(parameterType, new LinkedList<>());
-                }
+                subscribers.putIfAbsent(parameterType, new ArrayList<>());
 
-                boolean async = method.getAnnotation(Subscribe.class).async();
+                boolean synchronize = method.getAnnotation(Subscribe.class).synchronize();
 
-                logger.log(Level.INFO, ":: Added Subscriber {0}#{1}[{2}] ::",
-                        new Object[]{subscriber.getClass().getSimpleName(), method.getName(), parameterType.getSimpleName()});
-                subscribers.get(parameterType).add(new Subscriber(subscriber, method, async));
+                logger.info(":: Added Subscriber {}#{}[{}] ::", subscriber.getClass().getSimpleName(), method.getName(), parameterType.getSimpleName());
+                subscribers.get(parameterType).add(new ObjectSubscriber(subscriber, method, synchronize));
             }
         }
     }
 
-    private static class Subscriber {
+    public <T> void on(Class<T> eventType, EventHandler<T> handler) {
+        Objects.requireNonNull(eventType, "Event type must be provided");
+        Objects.requireNonNull(handler, "Handler must be provided");
+
+        subscribers.putIfAbsent(eventType, new ArrayList<>());
+        subscribers.get(eventType).add(new FunctionSubscriber(handler));
+    }
+
+    private interface Subscriber {
+        void invoke(Object event, ErrorHandler errorHandler);
+    }
+
+    private static class ObjectSubscriber implements Subscriber {
         final Object object;
         final Method method;
-        final boolean async;
+        final boolean synchronize;
 
-        private Subscriber(Object object, Method method, boolean async) {
+        private ObjectSubscriber(Object object, Method method, boolean synchronize) {
             this.object = object;
             this.method = method;
-            this.async = async;
+            this.synchronize = synchronize;
+        }
+
+        @Override
+        public void invoke(Object event, ErrorHandler errorHandler) {
+            try {
+                if (synchronize) {
+                    synchronized (object) {
+                        method.invoke(object, event);
+                    }
+                } else {
+                    method.invoke(object, event);
+                }
+            } catch (IllegalAccessException e) {
+                logger.error("Cannot access " + object + "#" + method, e);
+            } catch (IllegalArgumentException e) {
+                logger.error("Invalid argument for " + object + "#" + method, e);
+            } catch (InvocationTargetException e) {
+                errorHandler.accept(e.getCause(), new Context(method.getName(), event, object));
+            }
         }
     }
+
+    private static class FunctionSubscriber implements Subscriber {
+        final EventHandler handler;
+
+        private FunctionSubscriber(EventHandler handler) {
+            this.handler = handler;
+        }
+
+        @Override
+        public void invoke(Object event, ErrorHandler errorHandler) {
+            try {
+                handler.accept(event);
+            } catch (FunctionException e) {
+                errorHandler.accept(e.getCause(), new Context(handler.toString(), event, null));
+            } catch (Exception e) {
+                logger.error("Invalid argument for " + handler.toString(), e);
+            }
+        }
+    }
+
+    @FunctionalInterface
+    public interface EventHandler<T> extends Consumer<T> {
+
+        @Override
+        default void accept(final T elem) {
+            try {
+                acceptThrows(elem);
+            } catch (Exception e) {
+                throw new FunctionException(e);
+            }
+        }
+
+        void acceptThrows(T elem) throws Exception;
+    }
+
+    private static class FunctionException extends RuntimeException {
+        private FunctionException(Throwable cause) {
+            super(cause);
+        }
+    }
+
+
 }
