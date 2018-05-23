@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 
 /**
@@ -26,8 +27,8 @@ public class EventBus {
     private final ErrorHandler errorHandler;
 
     private static final Logger logger = LoggerFactory.getLogger(EventBus.class);
-    private static final ErrorHandler DEFAULT_ERROR_HANDLER =
-            (e, ctx) -> logger.error("Error on " + ctx.handler.getClass().getSimpleName() + "#" + ctx.method, e);
+
+    private static final ErrorHandler DEFAULT_ERROR_HANDLER = (e, ctx) -> logger.error("Error on " + ctx, e);
 
     public EventBus() {
         this(Executors.newCachedThreadPool(), DEFAULT_ERROR_HANDLER);
@@ -47,15 +48,30 @@ public class EventBus {
     }
 
     public void emitAsync(final Object event) {
+        if (event == null) {
+            return;
+        }
         for (Subscriber subscriber : getSubscribers(event)) {
-            executor.submit(() -> subscriber.invoke(event, errorHandler));
+            executor.submit(() -> {
+                Object response = subscriber.invoke(event, errorHandler);
+                emitAsync(response);
+            });
         }
     }
 
     public void emit(final Object event) {
-        for (Subscriber subscriber : getSubscribers(event)) {
-            subscriber.invoke(event, errorHandler);
+        if (event == null) {
+            return;
         }
+        List<Object> responses = new ArrayList<>();
+        for (Subscriber subscriber : getSubscribers(event)) {
+            Object response = subscriber.invoke(event, errorHandler);
+            responses.add(response);
+        }
+        for (Object response : responses) {
+            emit(response);
+        }
+
     }
 
     private List<Subscriber> getSubscribers(Object event) {
@@ -88,16 +104,27 @@ public class EventBus {
         }
     }
 
-    public <T> void on(Class<T> eventType, EventHandler<T> handler) {
+    public <T> void on(Class<T> eventType, EventConsumer<T> handler) {
         Objects.requireNonNull(eventType, "Event type must be provided");
         Objects.requireNonNull(handler, "Handler must be provided");
 
         subscribers.putIfAbsent(eventType, new ArrayList<>());
-        subscribers.get(eventType).add(new FunctionSubscriber(handler));
+        on(eventType, (e -> {
+            handler.accept(e);
+            return null;
+        }));
+    }
+
+    public <T, R> void on(Class<T> eventType, EventFunction<T, R> handler) {
+        Objects.requireNonNull(eventType, "Event type must be provided");
+        Objects.requireNonNull(handler, "Handler must be provided");
+
+        subscribers.putIfAbsent(eventType, new ArrayList<>());
+        subscribers.get(eventType).add(new ConsumerSubscriber(handler));
     }
 
     private interface Subscriber {
-        void invoke(Object event, ErrorHandler errorHandler);
+        Object invoke(Object event, ErrorHandler errorHandler);
     }
 
     private static class ObjectSubscriber implements Subscriber {
@@ -112,14 +139,14 @@ public class EventBus {
         }
 
         @Override
-        public void invoke(Object event, ErrorHandler errorHandler) {
+        public Object invoke(Object event, ErrorHandler errorHandler) {
             try {
                 if (synchronize) {
                     synchronized (object) {
-                        method.invoke(object, event);
+                        return method.invoke(object, event);
                     }
                 } else {
-                    method.invoke(object, event);
+                    return method.invoke(object, event);
                 }
             } catch (IllegalAccessException e) {
                 logger.error("Cannot access " + object + "#" + method, e);
@@ -128,30 +155,32 @@ public class EventBus {
             } catch (InvocationTargetException e) {
                 errorHandler.accept(e.getCause(), new Context(method.getName(), event, object));
             }
+            return null;
         }
     }
 
-    private static class FunctionSubscriber implements Subscriber {
-        final EventHandler handler;
+    private static class ConsumerSubscriber implements Subscriber {
+        final EventFunction handler;
 
-        private FunctionSubscriber(EventHandler handler) {
+        private ConsumerSubscriber(EventFunction handler) {
             this.handler = handler;
         }
 
         @Override
-        public void invoke(Object event, ErrorHandler errorHandler) {
+        public Object invoke(Object event, ErrorHandler errorHandler) {
             try {
-                handler.accept(event);
+                return handler.apply(event);
             } catch (FunctionException e) {
                 errorHandler.accept(e.getCause(), new Context(handler.toString(), event, null));
             } catch (Exception e) {
                 logger.error("Invalid argument for " + handler.toString(), e);
             }
+            return null;
         }
     }
 
     @FunctionalInterface
-    public interface EventHandler<T> extends Consumer<T> {
+    public interface EventConsumer<T> extends Consumer<T> {
 
         @Override
         default void accept(final T elem) {
@@ -163,6 +192,21 @@ public class EventBus {
         }
 
         void acceptThrows(T elem) throws Exception;
+    }
+
+    @FunctionalInterface
+    public interface EventFunction<T, R> extends Function<T, R> {
+
+        @Override
+        default R apply(final T elem) {
+            try {
+                return applyThrows(elem);
+            } catch (Exception e) {
+                throw new FunctionException(e);
+            }
+        }
+
+        R applyThrows(T elem) throws Exception;
     }
 
     private static class FunctionException extends RuntimeException {

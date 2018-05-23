@@ -12,4 +12,10 @@ public class Context {
         this.arg = arg;
         this.handler = handler;
     }
+
+    @Override
+    public String toString() {
+        return handler == null ? "" : handler.getClass().getSimpleName() + "#" +
+                method + "(" + String.valueOf(arg) + ")";
+    }
 }
