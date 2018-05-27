@@ -2,7 +2,7 @@ package io.joshworks.fstore.core.seda;
 
 public interface Publisher {
 
-    void submit(Object event);
+    void publish(Object event);
 
-    void submit(String correlationId, Object event);
+    void publish(String correlationId, Object event);
 }

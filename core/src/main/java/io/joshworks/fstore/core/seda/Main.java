@@ -1,27 +1,39 @@
 package io.joshworks.fstore.core.seda;
 
-import java.io.IOException;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class Main {
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
 
-        SedaContext context = new LocalSedaContext();
+        AtomicLong sum = new AtomicLong();
+        SedaContext context = new SedaContext();
+        try {
 
-        context.addStage(String.class, new Stage.Builder<>("first-stage", ctx -> {
-            System.out.println("Data: " + ctx.data);
-            ctx.submit(ctx.data.length());
-        }));
+            context.addStage(String.class, new Stage.Builder<>("first-stage", ctx -> ctx.publish(ctx.data.length())));
+            context.addStage(Integer.class, new Stage.Builder<>("second-stage", event -> {
+                sum.addAndGet(event.data);
+                Thread.sleep(1000);
+                event.publish(1L);
+            }));
+            context.addStage(Long.class, new Stage.Builder<>("third-stage", event -> {
+                Thread.sleep(1000);
+                System.out.println(event.data);
+            }));
 
 
-        context.addStage(Integer.class, new Stage.Builder<>("second-stage", event -> {
-            System.out.println("Size: " + event.data);
-        }));
+            for (int i = 0; i < 10; i++) {
+                context.submit("a");
+            }
 
 
-        context.submit("Yolo");
+        } finally {
+            context.shutdown();
 
-        context.close();
+            System.out.println(sum.get());
+            System.err.println(context.stats());
+        }
+
 
     }
 }

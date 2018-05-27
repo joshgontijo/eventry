@@ -1,25 +1,25 @@
 package io.joshworks.fstore.core.seda;
 
-public class EventContext<T> implements Publisher{
+public class EventContext<T> implements Publisher {
 
     public final String correlationId;
     public final T data;
-    private final LocalSedaContext context;
+    private final SedaContext context;
 
-    EventContext(String correlationId, T data, LocalSedaContext context) {
+    EventContext(String correlationId, T data, SedaContext context) {
         this.correlationId = correlationId;
         this.data = data;
         this.context = context;
     }
 
     @Override
-    public void submit(Object event) {
-        context.submit(this.correlationId, event);
+    public void publish(Object event) {
+        publish(this.correlationId, event);
     }
 
     @Override
-    public void submit(String correlationId, Object event) {
-        context.submit(correlationId, event);
+    public void publish(String correlationId, Object event) {
+        context.sendToNextStage(correlationId, event);
     }
 
 }
