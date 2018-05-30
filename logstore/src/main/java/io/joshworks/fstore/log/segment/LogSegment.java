@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log;
+package io.joshworks.fstore.log.segment;
 
 
 import io.joshworks.fstore.core.RuntimeIOException;
@@ -6,6 +6,8 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.log.Checksum;
+import io.joshworks.fstore.log.LogIterator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,17 +23,50 @@ public class LogSegment<T> implements Log<T> {
 
     private static final Logger logger = LoggerFactory.getLogger(LogSegment.class);
 
+    private final Serializer<Header> headerSerializer = new HeaderSerializer();
     private final Serializer<T> serializer;
     private final Storage storage;
     private final DataReader reader;
-    private boolean readOnly;
 
-    public LogSegment(Storage storage, Serializer<T> serializer, DataReader reader, long position, boolean readOnly) {
+    private int entries;
+
+    private Header header;
+
+    public LogSegment(Storage storage, Serializer<T> serializer, DataReader reader, long position) {
+        this(storage, serializer, reader, position, null); //when type is null,
+    }
+
+    //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
+    public LogSegment(Storage storage, Serializer<T> serializer, DataReader reader, long position, Type type) {
         this.serializer = serializer;
         this.storage = storage;
         this.reader = reader;
-        this.position(position);
-        this.readOnly = readOnly;
+        this.header = readHeader(storage, type);//must come before position(position)
+        this.entries = header.entries;
+
+        if (Type.LOG_HEAD.equals(header.type) && position > 0) {
+            SegmentState result = rebuildState(position);
+            this.position(result.position);
+            this.entries = result.entries;
+        }
+    }
+
+    private Header readHeader(Storage storage, Type type) {
+        ByteBuffer bb = ByteBuffer.allocate(Header.SIZE);
+        storage.read(0, bb);
+        Header header = headerSerializer.fromBytes(bb);
+        if (Header.EMPTY.equals(header)) {
+            //new segment, create a header
+            if (type == null) {
+                throw new IllegalArgumentException("Type must provided when creating a new segment");
+            }
+            if (!Type.LOG_HEAD.equals(type) && !Type.MERGE_OUT.equals(type)) {
+                throw new IllegalArgumentException("Only Type.LOG_HEAD and Type.MERGE_OUT are accepted when creating a segment");
+            }
+
+            return new Header(0, System.currentTimeMillis(), 0, type);
+        }
+        return header;
     }
 
     private void position(long position) {
@@ -64,6 +99,7 @@ public class LogSegment<T> implements Log<T> {
         long recordPosition = position();
         write(storage, bytes);
 
+        entries++;
         return recordPosition;
     }
 
@@ -102,25 +138,22 @@ public class LogSegment<T> implements Log<T> {
     }
 
     @Override
-    public long checkIntegrity(long lastKnownPosition) {
+    public SegmentState rebuildState(long lastKnownPosition) {
         long position = lastKnownPosition;
+        int foundEntries = 0;
         try {
             logger.info("Restoring log state and checking consistency from position {}", lastKnownPosition);
             LogIterator<T> logIterator = iterator(lastKnownPosition);
             while (logIterator.hasNext()) {
-                T next = logIterator.next();
-                if (next == null) {
-                    logger.warn("Found inconsistent entry on position {}, segment '{}'", position, name());
-                    break;
-                }
+                logIterator.next();
+                foundEntries++;
                 position = logIterator.position();
             }
         } catch (Exception e) {
             logger.warn("Found inconsistent entry on position {}, segment '{}'", position, name());
-            return position;
         }
         logger.info("Log state restored, current position {}", position);
-        return position;
+        return new SegmentState(foundEntries, position);
     }
 
     @Override
@@ -129,17 +162,31 @@ public class LogSegment<T> implements Log<T> {
     }
 
     @Override
-    public void roll() {
-        if (readOnly) {
+    public void roll(int level) {
+        if (Type.READ_ONLY.equals(header.type)) {
             throw new IllegalStateException("Cannot roll readOnly segment");
         }
         storage.shrink();
-        readOnly = true;
+
+        this.header = new Header(entries, header.created, level, Type.READ_ONLY);
+        storage.position(0);
+        ByteBuffer headerData = headerSerializer.toBytes(this.header);
+        storage.write(headerData);
     }
 
     @Override
     public boolean readOnly() {
-        return readOnly;
+        return Type.READ_ONLY.equals(header.type);
+    }
+
+    @Override
+    public int entries() {
+        return entries;
+    }
+
+    @Override
+    public int level() {
+        return header.level;
     }
 
     static long write(Storage storage, ByteBuffer bytes) {
@@ -207,5 +254,15 @@ public class LogSegment<T> implements Log<T> {
             readAheadPosition += bb.limit();
             return serializer.fromBytes(bb);
         }
+    }
+
+    @Override
+    public String toString() {
+        final StringBuffer sb = new StringBuffer("LogSegment{");
+        sb.append(", handler=").append(storage.name());
+        sb.append(", entries=").append(entries);
+        sb.append(", header=").append(header);
+        sb.append('}');
+        return sb.toString();
     }
 }

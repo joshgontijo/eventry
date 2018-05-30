@@ -1,4 +1,7 @@
-package io.joshworks.fstore.log;
+package io.joshworks.fstore.log.segment;
+
+import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.Writer;
 
 import java.io.Closeable;
 import java.util.stream.Stream;
@@ -22,12 +25,16 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     long size();
 
-    long checkIntegrity(long lastKnownPosition);
+    SegmentState rebuildState(long lastKnownPosition);
 
     void delete();
 
-    void roll();
+    void roll(int level);
 
     boolean readOnly();
+
+    int entries();
+
+    int level();
 
 }

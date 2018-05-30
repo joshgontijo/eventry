@@ -137,7 +137,7 @@ public class State implements Closeable {
         return new State(storage, 0L, 0L, System.currentTimeMillis(), new LinkedList<>());
     }
 
-    public void flush() {
+    public synchronized void flush() {
         if (!dirty) {
             return;
         }

@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.es.index.IndexEntry;
-import io.joshworks.fstore.log.LogSegment;
+import io.joshworks.fstore.log.segment.LogSegment;
 import io.joshworks.fstore.log.appender.Builder;
 import io.joshworks.fstore.log.appender.LogAppender;
 

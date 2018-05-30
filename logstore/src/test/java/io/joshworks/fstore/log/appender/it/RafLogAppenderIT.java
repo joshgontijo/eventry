@@ -7,6 +7,6 @@ public class RafLogAppenderIT extends LogAppenderIT {
 
     @Override
     protected SimpleLogAppender<String> appender(Builder<String> builder) {
-        return builder.open();
+        return builder.segmentSize(41943040).open();
     }
 }

@@ -210,9 +210,20 @@ public abstract class LogAppenderIT {
                 System.out.println("TOTAL WRITTEN: " + appender.entries() + " - LAST SECOND: " + written + " - AVG: " + avg);
                 written = 0;
                 lastUpdate = System.currentTimeMillis();
+
+//                if(appender.entries() >= 500000) {
+//                        try {
+//                            Thread.sleep(60000);
+//                        } catch (InterruptedException e) {
+//                            e.printStackTrace();
+//                        }
+//                }
+
             }
             appender.append(value);
             written++;
+
+
         }
 
 

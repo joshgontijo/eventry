@@ -3,6 +3,8 @@ package io.joshworks.fstore.log;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.reader.FixedBufferDataReader;
+import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.LogSegment;
 import io.joshworks.fstore.serializer.StringSerializer;
 import org.junit.After;
 import org.junit.Before;

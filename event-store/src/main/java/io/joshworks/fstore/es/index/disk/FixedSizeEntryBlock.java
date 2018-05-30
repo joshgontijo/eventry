@@ -1,7 +1,7 @@
 package io.joshworks.fstore.es.index.disk;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.log.block.Block;
+import io.joshworks.fstore.log.segment.block.Block;
 
 import java.nio.ByteBuffer;
 import java.util.List;

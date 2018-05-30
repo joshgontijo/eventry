@@ -4,7 +4,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.Log;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.serializer.Serializers;

@@ -1,11 +1,13 @@
-package io.joshworks.fstore.log.block;
+package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.Log;
+import io.joshworks.fstore.log.segment.SegmentState;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.LogSegment;
+import io.joshworks.fstore.log.segment.LogSegment;
+import io.joshworks.fstore.log.segment.Type;
 
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
@@ -20,8 +22,8 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     private B block;
     private final LogSegment<B> delegate;
 
-    public BlockSegment(Storage storage, Serializer<B> serializer, DataReader reader, long position, boolean readOnly) {
-        delegate = new LogSegment<>(storage, serializer, reader, position, readOnly);
+    public BlockSegment(Storage storage, Serializer<B> serializer, DataReader reader, long position, Type type) {
+        delegate = new LogSegment<>(storage, serializer, reader, position, type);
         this.block = createBlock();
     }
 
@@ -98,8 +100,8 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     }
 
     @Override
-    public long checkIntegrity(long lastKnownPosition) {
-        return delegate.checkIntegrity(lastKnownPosition);
+    public SegmentState rebuildState(long lastKnownPosition) {
+        return delegate.rebuildState(lastKnownPosition);
     }
 
     @Override
@@ -109,14 +111,25 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     }
 
     @Override
-    public void roll() {
+    public void roll(int level) {
         flush();
-        delegate.roll();
+        delegate.roll(level);
     }
 
     @Override
     public boolean readOnly() {
         return delegate.readOnly();
+    }
+
+    @Override
+    public int entries() {
+        //TODO this will return the number of blocks
+        return delegate.entries();
+    }
+
+    @Override
+    public int level() {
+        return delegate.level();
     }
 
     @Override

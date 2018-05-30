@@ -8,6 +8,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public final class LogFileUtils {
 
@@ -54,7 +58,7 @@ public final class LogFileUtils {
 //        return  prefix + SEGMENT_EXTENSION;
 //    }
 
-    public static File loadSegment(File directory, String name) {
+    public static File getSegmentHandler(File directory, String name) {
         try {
 //            String fileName = name.endsWith(SEGMENT_EXTENSION) ? name : name + SEGMENT_EXTENSION;
             File file = new File(directory, name);
@@ -70,7 +74,44 @@ public final class LogFileUtils {
         }
     }
 
+//    public static Map<Integer, List<String>> findSegments(File directory) {
+//
+//        final String extPattern = ".L?[0-9.]+$";
+//
+//        try (Stream<Path> files = Files.list(directory.toPath())) {
+//            List<Path> segments = files.filter(path -> extensionOf(path).matches(extPattern)).collect(Collectors.toList());
+//
+//
+//            Map<Integer, List<String>> levels = new HashMap<>();
+//            for (Path segment : segments) {
+//                String ext = extensionOf(segment);
+//                int level = Integer.parseInt(ext.substring(1, ext.length()));
+//                levels.putIfAbsent(level, new ArrayList<>());
+//                levels.get(level).add(segment.getFileName().toString());
+//            }
+//
+//            return levels;
+//
+//
+//        } catch (Exception e) {
+//            throw new RuntimeException(e);
+//        }
+//    }
 
+    public static List<String> findSegments(File directory) {
+        final String extPattern = ".L?[0-9.]+$";
+        try (Stream<Path> files = Files.list(directory.toPath())) {
+            return files.filter(path -> extensionOf(path).matches(extPattern)).map(Path::toString).collect(Collectors.toList());
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static String extensionOf(Path path) {
+        String filename = path.getFileName().toString();
+        String[] split = filename.split("\\.");
+        return split.length != 2 ? "" : split[1];
+    }
 
     public static void checkCreatePreConditions(File directory) {
         if (directory.exists() && !directory.isDirectory()) {

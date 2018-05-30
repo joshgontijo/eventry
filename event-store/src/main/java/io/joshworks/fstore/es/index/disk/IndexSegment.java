@@ -13,7 +13,7 @@ import io.joshworks.fstore.es.index.midpoint.Midpoints;
 import io.joshworks.fstore.es.utils.Iterators;
 import io.joshworks.fstore.index.filter.Hash;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.block.BlockSegment;
+import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;

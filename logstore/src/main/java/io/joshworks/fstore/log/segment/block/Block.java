@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log.block;
+package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;

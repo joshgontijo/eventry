@@ -9,12 +9,13 @@ import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.BitUtil;
-import io.joshworks.fstore.log.Log;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.appender.compaction.Compactor;
 import io.joshworks.fstore.log.appender.level.Levels;
-import io.joshworks.fstore.log.appender.merge.SegmentCombiner;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
+import io.joshworks.fstore.log.segment.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,7 +24,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -59,7 +59,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     private final Metadata metadata;
     private final DataReader dataReader;
     private final NamingStrategy namingStrategy;
-    private final SegmentCombiner<T> segmentCombiner;
+
 
     final long maxSegments;
     final long maxAddressPerSegment;
@@ -72,14 +72,16 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     //state
     private final State state;
+//    private final History history;
 
     private AtomicBoolean closed = new AtomicBoolean();
 
     private final ScheduledExecutorService stateScheduler = Executors.newSingleThreadScheduledExecutor();
-//    private final ExecutorService compactionScheduler = Executors.newFixedThreadPool(10);
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
 
-    private final Map<Integer, ExecutorService> levelExecutors = new HashMap<>();
+   private final Compactor<T, L> compactor;
+
+    private final Object LOCK = new Object();
 
     protected LogAppender(Builder<T> builder) {
 
@@ -89,8 +91,6 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         this.mmapBufferSize = builder.mmapBufferSize;
         this.dataReader = builder.reader;
         this.namingStrategy = builder.namingStrategy;
-        this.segmentCombiner = builder.combiner;
-
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);
 
@@ -113,6 +113,8 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             this.state = State.readFrom(directory);
         }
 
+//        this.history = new History(directory);
+
         this.maxSegments = BitUtil.maxValueForBits(Long.SIZE - metadata.segmentBitShift);
         this.maxAddressPerSegment = BitUtil.maxValueForBits(metadata.segmentBitShift);
 
@@ -125,6 +127,9 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
         String compaction = builder.maxSegmentsPerLevel == LogAppender.COMPACTION_DISABLED ? "DISABLED" : "ENABLED";
         logger.info("Compaction is {}", compaction);
+
+        this.compactor = new Compactor<>(builder.combiner, builder.maxSegmentsPerLevel, levels);
+
 
         logger.info("SEGMENT BIT SHIFT: {}", metadata.segmentBitShift);
         logger.info("MAX SEGMENTS: {} ({} bits)", maxSegments, Long.SIZE - metadata.segmentBitShift);
@@ -142,46 +147,38 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return new Builder<>(directory, serializer);
     }
 
-    protected abstract L createSegment(Storage storage, Serializer<T> serializer, DataReader reader);
+    protected abstract L createSegment(Storage storage, Serializer<T> serializer, DataReader reader, Type type);
 
-    protected abstract L openSegment(Storage storage, Serializer<T> serializer, DataReader reader, long position, boolean readonly);
+    protected abstract L openSegment(Storage storage, Serializer<T> serializer, DataReader reader);
 
-    private L createSegmentInternal(int level, int indexOnLevel, long size) {
+    private L createSegmentInternal(int level, int indexOnLevel, long size, Type type) {
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, indexOnLevel, level);
         Storage storage = createStorage(segmentFile, size);
 
-        return createSegment(storage, serializer, dataReader);
+        return createSegment(storage, serializer, dataReader, type);
     }
 
     private L createCurrentSegment(long size) {
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 0, 1);
         Storage storage = createStorage(segmentFile, size);
 
-        return createSegment(storage, serializer, dataReader);
+        return createSegment(storage, serializer, dataReader, Type.LOG_HEAD);
     }
 
 
     private Levels<T, L> loadSegments() {
 
-        List<List<L>> levelSegments = new ArrayList<>();
-
-        int level = 0;
-        for (List<String> foundLevels : state.levels()) {
-            logger.info("Loading level {}", level);
-            List<L> segments = new LinkedList<>();
-
-
-            for (String segmentName : foundLevels) {
-                File segmentFile = LogFileUtils.loadSegment(directory, segmentName);
-                L segment = level == 0 ?
-                        loadSegment(segmentFile, state.position(), false) :
-                        loadSegment(segmentFile, 0, true);
-
-                segments.add(segment);
-            }
-            levelSegments.add(segments);
-            level++;
+        List<L> segments = new ArrayList<>();
+        for(String segmentName : LogFileUtils.findSegments(directory)) {
+            File segmentFile = LogFileUtils.getSegmentHandler(directory, segmentName);
+            Storage storage = openStorage(segmentFile);
+            L segment = openSegment(storage, serializer, dataReader);
+            logger.info("Loaded segment {}", segment);
+            segments.add(segment);
         }
+
+        Map<Integer, List<L>> found = segments.stream().collect(Collectors.groupingBy(Log::level));
+
 
         Levels<T, L> loaded = Levels.load(metadata.maxSegmentsPerLevel, levelSegments);
 
@@ -196,11 +193,6 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
         return loaded;
 
-    }
-
-    private L loadSegment(File segmentFile, long position, boolean readonly) {
-        Storage storage = openStorage(segmentFile);
-        return openSegment(storage, serializer, dataReader, position, readonly);
     }
 
     private Storage openStorage(File file) {
@@ -230,12 +222,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             state.lastRollTime(System.currentTimeMillis());
             state.flush();
 
-            //maxSegmentsPerLevel <= 0 is disabled
-            if(this.metadata.maxSegmentsPerLevel > 0 && levels.requiresCompaction(1)) {
-//                compact(1);
-                levelExecutors.putIfAbsent(1, Executors.newSingleThreadExecutor());
-                levelExecutors.get(1).submit(() -> this.compact(1));
-            }
+            compactor.newSegmentRolled();
 
 
         } catch (Exception e) {
@@ -287,62 +274,9 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return segmentedPosition;
     }
 
-    public void compact(int level) {
-        if (level <= 0) {
-            throw new IllegalArgumentException("Level must be greater than zero");
-        }
-        if (levels.depth() <= level) {
-            throw new IllegalArgumentException("No level " + level);
-        }
 
-        int nextLevel = level + 1;
-        List<L> levelSegments = levels.segmentsForCompaction(level);
-
-        long totalSize = levelSegments.stream().mapToLong(Log::size).sum();
-
-        logger.info("Compacting {} segments from level {} using {}, new segment size: {}", levelSegments.size(), level, segmentCombiner.getClass().getSimpleName(), totalSize);
-
-        L newSegment = createSegmentInternal(nextLevel, levels.size(nextLevel), totalSize);
-        try {
-            if (levelSegments.size() < metadata.maxSegmentsPerLevel) {
-                logger.warn("Nothing to compact");
-                return;
-            }
-            List<Stream<T>> entriesStream = levelSegments.stream().map(Log::stream).collect(Collectors.toList());
-            segmentCombiner.merge(entriesStream, newSegment::append);
-
-            newSegment.roll();
-
-            //TODO here it should delete after all readers of the segments are closed
-            logger.info("Deleting old segments");
-
-            levels.add(nextLevel, newSegment);
-            levels.removeSegmentsFromCompaction(level);
-
-            state.levels(levels.segmentNames());
-            state.flush();
-
-            logger.info("Compaction complete, current number of levels: {}", levels);
-
-            if (levels.requiresCompaction(nextLevel)) {
-//                compact(nextLevel);
-                levelExecutors.putIfAbsent(nextLevel, Executors.newSingleThreadExecutor());
-                levelExecutors.get(nextLevel).submit(() -> this.compact(nextLevel));
-            }
-
-            if (levels.requiresCompaction(level)) {
-                compact(level);
-//                levelExecutors.putIfAbsent(level, Executors.newSingleThreadExecutor());
-//                levelExecutors.get(level).submit(() -> this.compact(level));
-            }
-
-
-        } catch (Exception e) {
-            if (newSegment != null) {
-                newSegment.delete();
-            }
-            throw e;
-        }
+    void compact(int level) {
+       compactor.compact(level);
     }
 
     public String name() {

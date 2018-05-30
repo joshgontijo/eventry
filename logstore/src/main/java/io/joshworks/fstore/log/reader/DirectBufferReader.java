@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.reader;
 
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.Log;
+import io.joshworks.fstore.log.segment.Log;
 
 import java.nio.ByteBuffer;
 

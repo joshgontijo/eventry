@@ -3,7 +3,7 @@ package io.joshworks.fstore.log.appender;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.LogSegment;
+import io.joshworks.fstore.log.segment.LogSegment;
 
 public class SimpleLogAppender<T> extends LogAppender<T, LogSegment<T>> {
 

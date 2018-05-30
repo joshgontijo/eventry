@@ -7,7 +7,7 @@ import io.joshworks.fstore.es.index.Index;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.es.utils.Iterators;
-import io.joshworks.fstore.log.Log;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.appender.Builder;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.Order;
