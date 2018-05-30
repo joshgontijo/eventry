@@ -32,6 +32,8 @@ public class LogSegment<T> implements Log<T> {
 
     private Header header;
 
+    public static final long START = Header.SIZE;
+
     public LogSegment(Storage storage, Serializer<T> serializer, DataReader reader, long position) {
         this(storage, serializer, reader, position, null); //when type is null,
     }
@@ -43,7 +45,7 @@ public class LogSegment<T> implements Log<T> {
         this.reader = reader;
         this.header = readHeader(storage, type);//must come before position(position)
         this.entries = header.entries;
-
+        this.position(Header.SIZE);
         if (Type.LOG_HEAD.equals(header.type) && position > 0) {
             SegmentState result = rebuildState(position);
             this.position(result.position);
@@ -70,6 +72,9 @@ public class LogSegment<T> implements Log<T> {
     }
 
     private void position(long position) {
+        if (position < START) {
+            throw new IllegalArgumentException("Position must be at least " + Header.SIZE);
+        }
         this.storage.position(position);
     }
 
@@ -80,6 +85,9 @@ public class LogSegment<T> implements Log<T> {
 
     @Override
     public T get(long position) {
+        if (position < START) {
+            throw new IllegalArgumentException("Position must be greater or equals to " + START);
+        }
         ByteBuffer data = reader.read(storage, position);
         if (data.remaining() == 0) { //EOF
             return null;
@@ -139,6 +147,9 @@ public class LogSegment<T> implements Log<T> {
 
     @Override
     public SegmentState rebuildState(long lastKnownPosition) {
+        if (lastKnownPosition < START) {
+            throw new IllegalStateException("Invalid lastKnownPosition: " + lastKnownPosition + ",value must be at least " + START);
+        }
         long position = lastKnownPosition;
         int foundEntries = 0;
         try {
@@ -153,6 +164,9 @@ public class LogSegment<T> implements Log<T> {
             logger.warn("Found inconsistent entry on position {}, segment '{}'", position, name());
         }
         logger.info("Log state restored, current position {}", position);
+        if (position < Header.SIZE) {
+            throw new IllegalStateException("Initial log state position must be at least " + Header.SIZE);
+        }
         return new SegmentState(foundEntries, position);
     }
 
@@ -212,10 +226,13 @@ public class LogSegment<T> implements Log<T> {
         private long lastReadSize;
 
         private LogReader(Storage storage, DataReader reader, Serializer<T> serializer) {
-            this(storage, reader, serializer, 0);
+            this(storage, reader, serializer, START);
         }
 
         private LogReader(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition) {
+            if (initialPosition < START) {
+                throw new IllegalArgumentException("Position must be equals or greater than " + START);
+            }
             this.storage = storage;
             this.reader = reader;
             this.serializer = serializer;
@@ -258,11 +275,9 @@ public class LogSegment<T> implements Log<T> {
 
     @Override
     public String toString() {
-        final StringBuffer sb = new StringBuffer("LogSegment{");
-        sb.append(", handler=").append(storage.name());
-        sb.append(", entries=").append(entries);
-        sb.append(", header=").append(header);
-        sb.append('}');
-        return sb.toString();
+        return "LogSegment{" + ", handler=" + storage.name() +
+                ", entries=" + entries +
+                ", header=" + header +
+                '}';
     }
 }
