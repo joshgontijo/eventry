@@ -101,7 +101,6 @@ public class Stage<T> implements Closeable {
 
     public static class Builder<T> {
 
-        private final String name;
         private final StageHandler<T> handler;
 
         private int corePoolSize = 1;
@@ -112,9 +111,7 @@ public class Stage<T> implements Closeable {
         private RejectedExecutionHandler rejectionHandler;
         private boolean blockWhenFull;
 
-        public Builder(String name, StageHandler<T> handler) {
-            this.name = name;
-            this.rejectionHandler = new LoggingRejectionHandler(name);
+        public Builder(StageHandler<T> handler) {
             this.handler = handler;
         }
 
@@ -169,7 +166,8 @@ public class Stage<T> implements Closeable {
             return this;
         }
 
-        Stage<T> build(SedaContext sedaContext) {
+        Stage<T> build(String name, SedaContext sedaContext) {
+            rejectionHandler = rejectionHandler == null ?  new LoggingRejectionHandler(name) : rejectionHandler;
             queueHighBound = queueHighBound > queueSize ? queueSize : queueHighBound;
             return new Stage<>(name, corePoolSize, maximumPoolSize, queueSize, queueHighBound, keepAliveTime, TimeUnit.MILLISECONDS, blockWhenFull, rejectionHandler, sedaContext, handler);
         }

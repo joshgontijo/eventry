@@ -4,11 +4,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -18,62 +16,54 @@ public class SedaContext implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(SedaContext.class);
 
-    private final Map<Class, List<Stage>> eventMapper = new ConcurrentHashMap<>();
+    private final Map<String, Stage> eventMapper = new ConcurrentHashMap<>();
     private final AtomicReference<ContextState> state = new AtomicReference<>(ContextState.RUNNING);
 
 
-    public synchronized <T> void addStage(Class<T> eventType, Stage.Builder<T> builder) {
-        Stage<T> stage = builder.build(this);
-        boolean containsName = eventMapper.values().stream().flatMap(Collection::stream).anyMatch(s -> s.name().equals(stage.name()));
-        if (containsName) {
-            throw new IllegalArgumentException("Duplicated stage name '" + stage.name() + "'");
+    public synchronized <T> void addStage(String name, Stage.Builder<T> builder) {
+        if (eventMapper.containsKey(name)) {
+            throw new IllegalArgumentException("Duplicated stage name '" + name + "'");
         }
-
-
-        eventMapper.putIfAbsent(eventType, new ArrayList<>());
-        eventMapper.get(eventType).add(stage);
+        Stage<T> stage = builder.build(name, this);
+        eventMapper.put(name, stage);
     }
 
     public Map<String, StageStats> stats() {
-        return eventMapper.values().stream()
-                .flatMap(Collection::stream)
-                .collect(Collectors.toMap(Stage::name, Stage::stats));
-    }
-
-    public void submit(Object event) {
-        submit(null, event);
+        return eventMapper.values().stream().collect(Collectors.toMap(Stage::name, Stage::stats));
     }
 
     @SuppressWarnings("unchecked")
-    public void submit(String correlationId, Object event) {
+    public void submit(String stageName, Object event) {
         ContextState contextState = state.get();
+        String uuid = UUID.randomUUID().toString();
         if (!ContextState.RUNNING.equals(contextState)) {
             throw new IllegalStateException("Cannot accept new events, context state " + contextState);
         }
         Objects.requireNonNull(event, "Event must be provided");
-        List<Stage> stages = eventMapper.getOrDefault(event.getClass(), new ArrayList<>());
-        //TODO overal load ? how to tell the previous stage about the load of the next
-        for (Stage stage : stages) {
-            stage.submit(correlationId, event);
-        }
+        sendTo(stageName, uuid, event);
     }
 
     public ContextState state() {
         return state.get();
     }
 
-    @SuppressWarnings("unchecked")
-    void sendToNextStage(String correlationId, Object event) {
+
+    void sendToNextStage(String stageName, String correlationId, Object event) {
         ContextState contextState = state.get();
         if (ContextState.CLOSED.equals(contextState) || ContextState.CLOSING.equals(contextState)) {
             throw new IllegalStateException("Cannot accept new events, context state " + contextState);
         }
         Objects.requireNonNull(event, "Event must be provided");
-        List<Stage> stages = eventMapper.getOrDefault(event.getClass(), new ArrayList<>());
-        //TODO overal load ? how to tell the previous stage about the load of the next
-        for (Stage stage : stages) {
-            stage.submit(correlationId, event);
+       sendTo(stageName, correlationId, event);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void sendTo(String stageName, String correlationId, Object event) {
+        Stage stage = eventMapper.get(stageName);
+        if(stage == null) {
+            throw new IllegalArgumentException("No such stage: " + stageName);
         }
+        stage.submit(correlationId, event);
     }
 
     @Override
@@ -89,8 +79,7 @@ public class SedaContext implements Closeable {
             return;
         }
         logger.info("Closing SEDA context");
-        List<Stage> stages = eventMapper.values().stream().flatMap(List::stream).collect(Collectors.toList());
-        for (Stage stage : stages) {
+        for (Stage stage : eventMapper.values()) {
             stage.close(timeout, unit);
         }
         state.set(ContextState.CLOSED);
@@ -98,7 +87,7 @@ public class SedaContext implements Closeable {
 
     private void closeInternal() {
         logger.info("Closing SEDA context");
-        eventMapper.values().stream().flatMap(List::stream).forEach(Stage::close);
+        eventMapper.values().forEach(Stage::close);
         state.set(ContextState.CLOSED);
     }
 
@@ -107,16 +96,14 @@ public class SedaContext implements Closeable {
         if (!state.compareAndSet(ContextState.RUNNING, ContextState.AWAITING_COMPLETION)) {
             return;
         }
-        List<Stage> stages = eventMapper.values().stream().flatMap(List::stream).collect(Collectors.toList());
 
         boolean completed;
-
         try {
             do {
                 logger.info("Waiting for stages to complete");
 
                 completed = true;
-                for (Stage stage : stages) {
+                for (Stage stage : eventMapper.values()) {
                     StageStats stats = stage.stats();
                     boolean stageCompleted = stats.activeCount == 0 && stats.queueSize == 0;
                     completed = completed && stageCompleted;

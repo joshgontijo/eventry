@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.LogIterator;
@@ -43,9 +44,7 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(LogAppender.class);
 
-    private static final double SEGMENT_EXTRA_SIZE = 0.1;
     static final int COMPACTION_DISABLED = 0;
-
 
     private final File directory;
     private final Serializer<T> serializer;
@@ -54,7 +53,6 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
     private final NamingStrategy namingStrategy;
     private final SegmentFactory<T, L> factory;
     private final StorageProvider storageProvider;
-
 
     final long maxSegments;
     final long maxAddressPerSegment;
@@ -73,6 +71,8 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
 
     private final ScheduledExecutorService stateScheduler = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
+
+    private final SedaContext sedaContext = new SedaContext();
 
     private final Compactor<T, L> compactor;
 
@@ -148,29 +148,12 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
         return new Builder<>(directory, serializer);
     }
 
-//    public static <T> Builder<T, LogSegment<T>> simple(File directory, Serializer<T> serializer) {
-//        return new Builder<>(directory, LogSegment::new, serializer);
-//    }
-//
-//    public static <T> Builder<T, DefaultBlockSegment<T>> block(File directory, Serializer<T> serializer, int maxBlockSize) {
-//        return new Builder<>(directory, (storage, serializer1, reader, type) -> new DefaultBlockSegment<>(storage, serializer1, reader, type, maxBlockSize), serializer);
-//    }
-
-
-    private L createSegmentInternal(int level, int indexOnLevel, long size, Type type) {
-        File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, indexOnLevel, level);
-        Storage storage = storageProvider.create(segmentFile, size);
-
-        return factory.createOrOpen(storage, serializer, dataReader, type);
-    }
-
     private L createCurrentSegment(long size) {
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 0, 1);
         Storage storage = storageProvider.create(segmentFile, size);
 
         return factory.createOrOpen(storage, serializer, dataReader, Type.LOG_HEAD);
     }
-
 
     private Levels<T, L> loadSegments() {
 
@@ -197,10 +180,7 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
         }
 
 
-        Levels<T, L> loaded = Levels.load(metadata.maxSegmentsPerLevel, segments);
-
-
-        return loaded;
+        return Levels.load(metadata.maxSegmentsPerLevel, segments);
     }
 
     private L loadSegment(String segmentName) {
@@ -355,6 +335,9 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
             logger.info("Closing segment {}", segment.name());
             IOUtils.closeQuietly(segment);
         });
+
+        sedaContext.shutdown();
+
     }
 
     public void flush() {

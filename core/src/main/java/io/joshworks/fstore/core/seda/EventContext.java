@@ -16,10 +16,11 @@ public class EventContext<T> {
      * Enqueue this message to the next stage, if the blockWhenFull is used by the downstream stage,
      * then this producer will block until the queue is available, otherwise an {@link EnqueueException} is thrown
      *
-     * @param event The event to be enqueued
+     * @param event     The event to be enqueued
+     * @param stageName The stage name to submit this event
      * @throws EnqueueException if the queue is full and blockWhenFull is not set
      */
-    public void publish(Object event) {
-        sedaContext.sendToNextStage(correlationId, event);
+    public void submit(String stageName, Object event) {
+        sedaContext.sendToNextStage(stageName, correlationId, event);
     }
 }

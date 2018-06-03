@@ -1,7 +1,5 @@
 package io.joshworks.fstore.core.seda;
 
-import java.util.concurrent.Semaphore;
-
 public class Main {
 
     public static void main(String[] args) {
@@ -11,8 +9,8 @@ public class Main {
         try {
 
 //            context.addStage(String.class, new Stage.Builder<>("first-stage", ctx -> ctx.publish(ctx.data.length())));
-            context.addStage(String.class, new Stage.Builder<>("full-test-1", new TestHandler()));
-            context.addStage(Integer.class, new Stage.Builder<>("full-test-2", new TestHandler2()).queueSize(20).maximumPoolSize(1).blockWhenFull());
+            context.addStage("stage-1", new Stage.Builder<>(new TestHandler()));
+            context.addStage("stage-2", new Stage.Builder<>(new TestHandler2()).queueSize(20).maximumPoolSize(1).blockWhenFull());
 //            context.addStage(Integer.class, new Stage.Builder<>("second-stage", event -> {
 //                sum.addAndGet(event.data);
 //                Thread.sleep(1000);
@@ -25,7 +23,7 @@ public class Main {
 
 
             for (int i = 0; i < 20; i++) {
-                context.submit("" + i);
+                context.submit("stage-1", String.valueOf(i));
             }
 
 
@@ -43,7 +41,7 @@ public class Main {
 
         @Override
         public void onEvent(EventContext<String> context) {
-            context.publish(Integer.parseInt(context.data));
+            context.submit("stage-2", Integer.parseInt(context.data));
         }
 
     }

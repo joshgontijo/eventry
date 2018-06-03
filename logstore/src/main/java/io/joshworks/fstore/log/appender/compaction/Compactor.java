@@ -25,7 +25,6 @@ public class Compactor<T, L extends Log<T>> {
 
     private static final Logger logger = LoggerFactory.getLogger(Compactor.class);
 
-//    private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Map<Integer, ExecutorService> levelExecutors = new HashMap<>();
     private File directory;
     private final SegmentCombiner<T> segmentCombiner;
