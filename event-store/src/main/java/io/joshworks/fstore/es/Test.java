@@ -137,7 +137,7 @@ public class Test {
         public String toString() {
             final StringBuffer sb = new StringBuffer("Entry{");
             sb.append("time=").append(time);
-            sb.append(", open=").append(open);
+            sb.append(", create=").append(open);
             sb.append(", close=").append(close);
             sb.append(", high=").append(high);
             sb.append(", low=").append(low);

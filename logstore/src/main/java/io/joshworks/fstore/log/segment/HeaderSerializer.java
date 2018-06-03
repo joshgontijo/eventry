@@ -11,7 +11,7 @@ public class HeaderSerializer implements Serializer<Header> {
     public ByteBuffer toBytes(Header data) {
         ByteBuffer bb = ByteBuffer.allocate(Header.SIZE);
         writeTo(data, bb);
-        return (ByteBuffer) bb.flip();
+        return (ByteBuffer) bb.position(0); //do not flip, the header will always have the fixed size
 
     }
 
@@ -31,8 +31,9 @@ public class HeaderSerializer implements Serializer<Header> {
         if (buffer.remaining() != Header.SIZE) {
             throw new IllegalStateException("Expected " + Header.SIZE + " header length");
         }
-        byte[] magicData = new byte[Header.LOG_MAGIC.length()];
 
+        byte[] magicData = new byte[Header.LOG_MAGIC.length()];
+        buffer.get(magicData);
         String magic = new String(magicData, StandardCharsets.UTF_8);
 
         int type = buffer.getInt();
@@ -45,7 +46,7 @@ public class HeaderSerializer implements Serializer<Header> {
         }
 
         if(!Header.LOG_MAGIC.equals(magic)) {
-            throw new CorruptedSegmentException("Invalid segment magic: " + magic);
+            throw new CorruptedSegmentException("Invalid segment magic: '" + magic + "'");
         }
 
         return new Header(entries, created, level, Type.of(type));

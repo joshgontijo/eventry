@@ -32,22 +32,30 @@ public class LogSegment<T> implements Log<T> {
 
     private Header header;
 
-    public static final long START = Header.SIZE;
 
-    public LogSegment(Storage storage, Serializer<T> serializer, DataReader reader, long position) {
-        this(storage, serializer, reader, position, null); //when type is null,
+
+    public LogSegment(Storage storage, Serializer<T> serializer, DataReader reader) {
+        this(storage, serializer, reader, null); //when type is null,
     }
 
     //Type is only used for new segments, accepted values are Type.LOG_HEAD or Type.MERGE_OUT
-    public LogSegment(Storage storage, Serializer<T> serializer, DataReader reader, long position, Type type) {
+    public LogSegment(Storage storage, Serializer<T> serializer, DataReader reader, Type type) {
         this.serializer = serializer;
         this.storage = storage;
         this.reader = reader;
-        this.header = readHeader(storage, type);//must come before position(position)
-        this.entries = header.entries;
+        Header readHeader = readHeader(storage, type);
+
+        if (Header.EMPTY.equals(readHeader)) { //new segment
+            this.header = createNewHeader(storage, type);
+            this.position(Log.START);
+            return;
+        }
+        this.header = readHeader;
         this.position(Header.SIZE);
-        if (Type.LOG_HEAD.equals(header.type) && position > 0) {
-            SegmentState result = rebuildState(position);
+
+        this.entries = header.entries;
+        if (Type.LOG_HEAD.equals(header.type)) { //reopening log head
+            SegmentState result = rebuildState(LogSegment.START);
             this.position(result.position);
             this.entries = result.entries;
         }
@@ -56,19 +64,27 @@ public class LogSegment<T> implements Log<T> {
     private Header readHeader(Storage storage, Type type) {
         ByteBuffer bb = ByteBuffer.allocate(Header.SIZE);
         storage.read(0, bb);
-        Header header = headerSerializer.fromBytes(bb);
-        if (Header.EMPTY.equals(header)) {
-            //new segment, create a header
-            if (type == null) {
-                throw new IllegalArgumentException("Type must provided when creating a new segment");
-            }
-            if (!Type.LOG_HEAD.equals(type) && !Type.MERGE_OUT.equals(type)) {
-                throw new IllegalArgumentException("Only Type.LOG_HEAD and Type.MERGE_OUT are accepted when creating a segment");
-            }
+        bb.flip();
+        return headerSerializer.fromBytes(bb);
 
-            return new Header(0, System.currentTimeMillis(), 0, type);
+    }
+
+    private Header createNewHeader(Storage storage, Type type) {
+        validateTypeProvided(type);
+        Header newHeader = new Header(0, System.currentTimeMillis(), 0, type);
+        ByteBuffer headerData = headerSerializer.toBytes(newHeader);
+        storage.write(headerData);
+        return newHeader;
+    }
+
+    private void validateTypeProvided(Type type) {
+        //new segment, create a header
+        if (type == null) {
+            throw new IllegalArgumentException("Type must provided when creating a new segment");
         }
-        return header;
+        if (!Type.LOG_HEAD.equals(type) && !Type.MERGE_OUT.equals(type)) {
+            throw new IllegalArgumentException("Only Type.LOG_HEAD and Type.MERGE_OUT are accepted when creating a segment");
+        }
     }
 
     private void position(long position) {
@@ -180,12 +196,15 @@ public class LogSegment<T> implements Log<T> {
         if (Type.READ_ONLY.equals(header.type)) {
             throw new IllegalStateException("Cannot roll readOnly segment");
         }
-        storage.shrink();
 
         this.header = new Header(entries, header.created, level, Type.READ_ONLY);
+        long position = storage.position();
         storage.position(0);
         ByteBuffer headerData = headerSerializer.toBytes(this.header);
         storage.write(headerData);
+        storage.position(position);
+        storage.shrink();
+
     }
 
     @Override
@@ -201,6 +220,11 @@ public class LogSegment<T> implements Log<T> {
     @Override
     public int level() {
         return header.level;
+    }
+
+    @Override
+    public long created() {
+        return header.created;
     }
 
     static long write(Storage storage, ByteBuffer bytes) {
@@ -275,7 +299,7 @@ public class LogSegment<T> implements Log<T> {
 
     @Override
     public String toString() {
-        return "LogSegment{" + ", handler=" + storage.name() +
+        return "LogSegment{" + "handler=" + storage.name() +
                 ", entries=" + entries +
                 ", header=" + header +
                 '}';

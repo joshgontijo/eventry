@@ -1,20 +1,17 @@
 package io.joshworks.fstore.core.seda;
 
-import java.util.function.Consumer;
-
 @FunctionalInterface
-public interface StageHandler<T> extends Consumer<EventContext<T>> {
+public interface StageHandler<T>  {
 
-    @Override
-    default void accept(final EventContext<T> elem) {
+    default void handle(final EventContext<T> elem) {
         try {
-            acceptThrows(elem);
+            onEvent(elem);
         } catch (Exception e) {
             throw new StageHandlerException(e);
         }
     }
 
-    void acceptThrows(EventContext<T> elem) throws Exception;
+    void onEvent(EventContext<T> elem) throws Exception;
 
     class StageHandlerException extends RuntimeException {
         private StageHandlerException(Throwable cause) {

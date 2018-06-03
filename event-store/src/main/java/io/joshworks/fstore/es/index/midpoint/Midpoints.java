@@ -94,7 +94,7 @@ public class Midpoints {
     public int getMidpointIdx(IndexEntry entry) {
         int idx = Collections.binarySearch(midpoints, entry);
         if (idx < 0) {
-            idx = Math.abs(idx) - 2; // -1 for the actual position, -1 for the offset where to start scanning
+            idx = Math.abs(idx) - 2; // -1 for the actual position, -1 for the offset where to queuedTime scanning
             idx = idx < 0 ? 0 : idx;
         }
         if (idx >= midpoints.size()) {

@@ -3,11 +3,8 @@ package io.joshworks.fstore.log.appender.it;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.Utils;
-import io.joshworks.fstore.log.appender.Builder;
 import io.joshworks.fstore.log.appender.LogAppender;
-import io.joshworks.fstore.log.appender.SimpleLogAppender;
-import io.joshworks.fstore.serializer.Serializers;
-import io.joshworks.fstore.serializer.StringSerializer;
+import io.joshworks.fstore.log.segment.Log;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,11 +17,11 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-public abstract class LogAppenderIT {
+public abstract class LogAppenderIT<L extends Log<String>> {
 
-    private SimpleLogAppender<String> appender;
+    private LogAppender<String, L> appender;
 
-    protected abstract SimpleLogAppender<String> appender(Builder<String> builder);
+    protected abstract LogAppender<String, L> appender(File testDirectory);
 
     private File testDirectory;
 
@@ -32,9 +29,7 @@ public abstract class LogAppenderIT {
     public void setUp() {
         testDirectory = Utils.testFolder();
         testDirectory.deleteOnExit();
-
-        Builder<String> builder = LogAppender.builder(testDirectory, new StringSerializer());
-        appender = appender(builder);
+        appender = appender(testDirectory);
     }
 
     @After
@@ -98,7 +93,7 @@ public abstract class LogAppenderIT {
 
         assertEquals(position, f.length());
 
-        try (SimpleLogAppender<String> appender = appender(LogAppender.builder(testDirectory, Serializers.STRING))) {
+        try (LogAppender<String, L> appender = appender(testDirectory)) {
             LogIterator<String> logIterator = appender.scanner();
             assertTrue(logIterator.hasNext());
             assertEquals(data, logIterator.next());
@@ -106,7 +101,7 @@ public abstract class LogAppenderIT {
     }
 
     @Test
-    public void insert_scan_1M_2kb_entries() {
+    public void insert_scan_1M_2kb_entries() throws InterruptedException {
         int items = 1000000;
         String value = stringOfByteLength(2048);
         appendN(value, items);
@@ -137,11 +132,13 @@ public abstract class LogAppenderIT {
     }
 
     @Test
-    public void insert_100_segments_of_1GB_with_2kb_entries() {
+    public void insert_100_segments_of_1GB_with_2kb_entries() throws InterruptedException {
         String value = stringOfByteLength(2048);
 
         fillNSegments(value, 99999);
         appender.flush();
+
+        Thread.sleep(120000);
         scanAllAssertingSameValue(value);
     }
 
@@ -153,7 +150,7 @@ public abstract class LogAppenderIT {
 
         Long lastPosition = null;
         for (int i = 0; i < iterations; i++) {
-            try (SimpleLogAppender<String> appender = appender(LogAppender.builder(testDirectory, Serializers.STRING))) {
+            try (LogAppender<String, L> appender = appender(testDirectory)) {
                 if (lastPosition != null) {
                     assertEquals(lastPosition, Long.valueOf(appender.position()));
                 }
@@ -163,7 +160,7 @@ public abstract class LogAppenderIT {
             }
         }
 
-        try (SimpleLogAppender<String> appender = appender(LogAppender.builder(testDirectory, Serializers.STRING))) {
+        try (LogAppender<String, L> appender = appender(testDirectory)) {
             assertEquals(iterations, appender.stream().count());
             assertEquals(iterations, appender.entries());
         }
@@ -253,6 +250,6 @@ public abstract class LogAppenderIT {
         }
 
         assertEquals(appender.entries(), totalRead);
-        System.out.println("APPENDER_READ -  READ " + read + " ENTRIES IN " + (System.currentTimeMillis() - start) + "ms");
+        System.out.println("APPENDER_READ -  READ " + totalRead + " ENTRIES IN " + (System.currentTimeMillis() - start) + "ms");
     }
 }

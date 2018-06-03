@@ -1,21 +1,20 @@
-package io.joshworks.fstore.es.index.disk;
+package io.joshworks.fstore.log.segment.block;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.log.segment.block.Block;
 
 import java.nio.ByteBuffer;
 import java.util.List;
 
-class FixedSizeEntryBlock<T> extends Block<T> {
+public class FixedSizeEntryBlock<T> extends Block<T> {
 
     private final int entrySize;
 
-    FixedSizeEntryBlock(Serializer<T> serializer, int maxEntries, int entrySize) {
+    public FixedSizeEntryBlock(Serializer<T> serializer, int maxEntries, int entrySize) {
         super(serializer, maxEntries * entrySize);
         this.entrySize = entrySize;
     }
 
-    FixedSizeEntryBlock(Serializer<T> serializer, List<Integer> lengths, ByteBuffer data, int entrySize) {
+    public FixedSizeEntryBlock(Serializer<T> serializer, List<Integer> lengths, ByteBuffer data, int entrySize) {
         super(serializer, lengths, data);
         this.entrySize = entrySize;
     }

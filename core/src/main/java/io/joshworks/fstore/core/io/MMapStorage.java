@@ -129,7 +129,15 @@ public class MMapStorage extends DiskStorage {
 
     @Override
     public void position(long position) {
-        current.position((int) position);
+
+        int idx = bufferIdx(position);
+        if (idx == NO_BUFFER) {
+            throw new IllegalArgumentException("Invalid position");
+        }
+        MappedByteBuffer buffer = getBuffer(idx);
+        int bufferAddress = posOnBuffer(position);
+        current = buffer;
+        current.position(bufferAddress);
         super.position = position;
     }
 

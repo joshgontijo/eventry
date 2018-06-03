@@ -10,6 +10,7 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     int ENTRY_HEADER_SIZE = Integer.BYTES * 2; //length + crc32
     byte[] EOF = new byte[]{0xFFFFFFFF, 0x00000000}; //eof header, -1 length, 0 crc
+    long START = Header.SIZE;
 
     String name();
 
@@ -36,5 +37,7 @@ public interface Log<T> extends Writer<T>, Closeable {
     int entries();
 
     int level();
+
+    long created();
 
 }

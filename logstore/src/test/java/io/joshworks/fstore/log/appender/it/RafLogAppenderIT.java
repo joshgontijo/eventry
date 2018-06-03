@@ -1,12 +1,15 @@
 package io.joshworks.fstore.log.appender.it;
 
-import io.joshworks.fstore.log.appender.Builder;
-import io.joshworks.fstore.log.appender.SimpleLogAppender;
+import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.segment.LogSegment;
+import io.joshworks.fstore.serializer.Serializers;
 
-public class RafLogAppenderIT extends LogAppenderIT {
+import java.io.File;
+
+public class RafLogAppenderIT extends LogAppenderIT<LogSegment<String>> {
 
     @Override
-    protected SimpleLogAppender<String> appender(Builder<String> builder) {
-        return builder.segmentSize(41943040).open();
+    protected LogAppender<String, LogSegment<String>> appender(File testDirectory) {
+        return LogAppender.builder(testDirectory, Serializers.STRING).simple();
     }
 }

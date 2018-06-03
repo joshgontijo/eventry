@@ -4,13 +4,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
+import java.util.Objects;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Stage<T> implements Closeable {
 
-    private static final Logger logger = LoggerFactory.getLogger(Stage.class);
+    private final Logger logger;
 
     private final SedaThreadPoolExecutor threadPool;
     private final StageHandler<T> handler;
@@ -26,28 +27,39 @@ public class Stage<T> implements Closeable {
           int queueHighBound,
           long keepAliveTime,
           TimeUnit unit,
+          boolean blockWhenFull,
           RejectedExecutionHandler rejectionHandler,
           SedaContext sedaContext,
           StageHandler<T> handler) {
+        this.logger = LoggerFactory.getLogger(name);
         this.handler = handler;
         this.name = name;
         this.sedaContext = sedaContext;
-        threadPool = SedaThreadPoolExecutor.create(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, queueSize, queueHighBound, rejectionHandler);
+        threadPool = SedaThreadPoolExecutor.create(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, queueSize, queueHighBound, rejectionHandler, blockWhenFull);
     }
 
-    void submit(String correlationId, T event) {
-        if(closed.get()) {
+    boolean submit(String correlationId, T event) {
+        if (closed.get()) {
             throw new IllegalStateException("Stage is closed");
         }
-        threadPool.submit(() -> {
+
+        threadPool.execute(TimedRunnable.wrap(() -> {
+            EventContext<T> context = new EventContext<>(correlationId, event, sedaContext);
             try {
-                handler.accept(new EventContext<>(correlationId, event, sedaContext));
+                handler.handle(context);
+
             } catch (StageHandler.StageHandlerException e) {
-                logger.error("[" + name + "] Failed handling event" + event, e.getCause());
+                Throwable cause = e.getCause();
+                if (cause instanceof EnqueueException) {
+                    logger.error("Failed to enqueue event: {}", event);
+                } else {
+                    logger.error("Failed handling event: " + event, e.getCause());
+                }
             } catch (Exception e) {
-                logger.error("[" + name + "] Failed handling event" + event, e);
+                logger.error("Failed handling event: " + event, e);
             }
-        });
+        }));
+        return true;
     }
 
     public StageStats stats() {
@@ -60,7 +72,7 @@ public class Stage<T> implements Closeable {
 
     @Override
     public void close() {
-        if(!closed.compareAndSet(false, true)) {
+        if (!closed.compareAndSet(false, true)) {
             return;
         }
         logger.info("Closing stage {}", name);
@@ -68,7 +80,7 @@ public class Stage<T> implements Closeable {
     }
 
     public void close(long timeout, TimeUnit unit) {
-        if(!closed.compareAndSet(false, true)) {
+        if (!closed.compareAndSet(false, true)) {
             return;
         }
         close();
@@ -93,11 +105,12 @@ public class Stage<T> implements Closeable {
         private final StageHandler<T> handler;
 
         private int corePoolSize = 1;
-        private int maximumPoolSize = 10;
+        private int maximumPoolSize = 1;
         private int queueSize = Integer.MAX_VALUE;
         private long keepAliveTime = 30000;
         private int queueHighBound = queueSize / 2;
         private RejectedExecutionHandler rejectionHandler;
+        private boolean blockWhenFull;
 
         public Builder(String name, StageHandler<T> handler) {
             this.name = name;
@@ -145,14 +158,20 @@ public class Stage<T> implements Closeable {
             return this;
         }
 
+        public Builder<T> blockWhenFull() {
+            this.blockWhenFull = true;
+            return this;
+        }
+
         public Builder<T> rejectionHandler(RejectedExecutionHandler rejectionHandler) {
+            Objects.requireNonNull(rejectionHandler, "Rejection handler must be provided");
             this.rejectionHandler = rejectionHandler;
             return this;
         }
 
         Stage<T> build(SedaContext sedaContext) {
             queueHighBound = queueHighBound > queueSize ? queueSize : queueHighBound;
-            return new Stage<>(name, corePoolSize, maximumPoolSize, queueSize, queueHighBound, keepAliveTime, TimeUnit.MILLISECONDS, rejectionHandler, sedaContext, handler);
+            return new Stage<>(name, corePoolSize, maximumPoolSize, queueSize, queueHighBound, keepAliveTime, TimeUnit.MILLISECONDS, blockWhenFull, rejectionHandler, sedaContext, handler);
         }
     }
 

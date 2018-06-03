@@ -7,9 +7,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 
@@ -37,10 +34,6 @@ public class StateTest {
         state.position(10);
         state.incrementEntryCount();
         state.lastRollTime(123L);
-
-        List<List<String>> segments = new ArrayList<>();
-        segments.add(Arrays.asList("a", "b"));
-        state.levels(segments);
 
         state.close();
 

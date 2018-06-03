@@ -3,6 +3,7 @@ package io.joshworks.fstore.es.index.disk;
 import io.joshworks.fstore.codec.snappy.SnappyCodec;
 import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.log.segment.block.FixedSizeEntryBlock;
 
 import java.nio.ByteBuffer;
 import java.util.List;

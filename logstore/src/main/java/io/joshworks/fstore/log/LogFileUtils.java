@@ -101,7 +101,7 @@ public final class LogFileUtils {
     public static List<String> findSegments(File directory) {
         final String extPattern = ".L?[0-9.]+$";
         try (Stream<Path> files = Files.list(directory.toPath())) {
-            return files.filter(path -> extensionOf(path).matches(extPattern)).map(Path::toString).collect(Collectors.toList());
+            return files.filter(path -> extensionOf(path).matches(extPattern)).map(p -> p.getFileName().toString()).collect(Collectors.toList());
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -119,7 +119,7 @@ public final class LogFileUtils {
         }
 
         if (LogFileUtils.metadataExists(directory)) {
-            throw new IllegalStateException("Metadata file found, use open instead");
+            throw new IllegalStateException("Metadata file found, use create instead");
         }
     }
 

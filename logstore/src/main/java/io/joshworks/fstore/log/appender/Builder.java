@@ -2,21 +2,24 @@ package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.appender.merge.ConcatenateCombiner;
 import io.joshworks.fstore.log.appender.merge.SegmentCombiner;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.reader.FixedBufferDataReader;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.LogSegment;
+import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.log.segment.block.Block;
+import io.joshworks.fstore.log.segment.block.BlockSegment;
+import io.joshworks.fstore.log.segment.block.DefaultBlockSegment;
 
 import java.io.File;
 import java.util.Objects;
 
-public final class Builder<T> {
-
-    private static final Logger logger = LoggerFactory.getLogger(Builder.class);
+public class Builder<T> {
 
     //How many bits a segment index can hold
     private static final int SEGMENT_BITS = 18;
@@ -97,9 +100,30 @@ public final class Builder<T> {
         return this;
     }
 
+    public LogAppender<T, LogSegment<T>> simple() {
+        return new LogAppender<>(this, new SegmentFactory<T, LogSegment<T>>() {
+            @Override
+            public LogSegment<T> createOrOpen(Storage storage, Serializer<T> serializer, DataReader reader, Type type) {
+                return new LogSegment<>(storage, serializer, reader, type);
+            }
+        });
+    }
 
-    public SimpleLogAppender<T> open() {
-        return new SimpleLogAppender<>(this);
+    public <L extends Log<T>> LogAppender<T, L> simple(SegmentFactory<T, L> factory) {
+        return new LogAppender<>(this, factory);
+    }
+
+    public LogAppender<T, DefaultBlockSegment<T>> block(int maxBlockSize) {
+        return new LogAppender<>(this, new SegmentFactory<T, DefaultBlockSegment<T>>() {
+            @Override
+            public DefaultBlockSegment<T> createOrOpen(Storage storage, Serializer<T> serializer, DataReader reader, Type type) {
+                return new DefaultBlockSegment<>(storage, serializer, reader, type, maxBlockSize);
+            }
+        });
+    }
+
+    public <B extends Block<T>, L extends BlockSegment<T, B>> LogAppender<T, L> block(SegmentFactory<T, L> factory) {
+        return new LogAppender<>(this, factory);
     }
 
 }

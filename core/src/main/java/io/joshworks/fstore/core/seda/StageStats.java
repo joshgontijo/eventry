@@ -13,6 +13,7 @@ public class StageStats {
     public final int remainingQueueCapacity;
     public final int queueSize;
     public final double averageExecutionTime;
+    public final double averageQueueTime;
     public final long totalExecutionTime;
     private final long rejectedTasks;
 
@@ -27,6 +28,7 @@ public class StageStats {
         this.remainingQueueCapacity = threadPool.getQueue().remainingCapacity();
         this.queueSize = threadPool.getQueue().size();
         this.averageExecutionTime = threadPool.averageExecutionTime();
+        this.averageQueueTime = threadPool.averageTimeInQueue();
         this.totalExecutionTime = threadPool.totalTime();
         this.rejectedTasks = threadPool.rejectedTasks();
         this.closed = closed;
@@ -35,7 +37,7 @@ public class StageStats {
     @Override
     public String toString() {
         return "closed=" + closed +
-                "activeCount=" + activeCount +
+                ", activeCount=" + activeCount +
                 ", corePoolSize=" + corePoolSize +
                 ", largestPoolSize=" + largestPoolSize +
                 ", poolSize=" + poolSize +
@@ -47,6 +49,7 @@ public class StageStats {
                 ", rejectedTasks=" + rejectedTasks +
                 ", averageExecutionTime=" + String.format("%.6f", averageExecutionTime) +
                 ", totalExecutionTime=" + totalExecutionTime +
+                ", averageQueueTime=" + averageQueueTime +
                 '}';
     }
 }

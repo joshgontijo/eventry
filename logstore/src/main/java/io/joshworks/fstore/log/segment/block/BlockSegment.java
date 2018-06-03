@@ -22,8 +22,8 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     private B block;
     private final LogSegment<B> delegate;
 
-    public BlockSegment(Storage storage, Serializer<B> serializer, DataReader reader, long position, Type type) {
-        delegate = new LogSegment<>(storage, serializer, reader, position, type);
+    public BlockSegment(Storage storage, Serializer<B> serializer, DataReader reader, Type type) {
+        delegate = new LogSegment<>(storage, serializer, reader, type);
         this.block = createBlock();
     }
 
@@ -92,6 +92,11 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
             throw new IllegalStateException("Block not found on address " + position);
         }
         return found;
+    }
+
+    @Override
+    public long created() {
+        return delegate.created();
     }
 
     @Override

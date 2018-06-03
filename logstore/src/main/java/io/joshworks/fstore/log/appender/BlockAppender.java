@@ -1,7 +1,8 @@
-package io.joshworks.fstore.log.segment.block;
+package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.log.appender.SimpleLogAppender;
+import io.joshworks.fstore.log.segment.LogSegment;
+import io.joshworks.fstore.log.segment.block.Block;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -9,12 +10,12 @@ import java.util.Iterator;
 public class BlockAppender<T> {
 
     private final int blockSize;
-    private final SimpleLogAppender<Block<T>> appender;
+    private final LogAppender<Block<T>, LogSegment<Block<T>>> appender;
     private final Serializer<T> serializer;
 
     private Block<T> block;
 
-    public BlockAppender(SimpleLogAppender<Block<T>> appender, Serializer<T> serializer, int blockSize) {
+    public BlockAppender(LogAppender<Block<T>, LogSegment<Block<T>>> appender, Serializer<T> serializer, int blockSize) {
         this.blockSize = blockSize;
         this.serializer = serializer;
         this.appender = appender;
@@ -52,7 +53,7 @@ public class BlockAppender<T> {
         private Iterator<T> blockIterator;
         private final Iterator<Block<T>> appenderIterator;
 
-        private BlockItemIterator(SimpleLogAppender<Block<T>> appender) {
+        private BlockItemIterator(LogAppender<Block<T>, LogSegment<Block<T>>> appender) {
             this.appenderIterator = appender.scanner();
             blockIterator = appenderIterator.hasNext() ? appenderIterator.next().iterator() : new ArrayList<T>().iterator();
         }

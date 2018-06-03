@@ -14,6 +14,7 @@ import io.joshworks.fstore.es.utils.Iterators;
 import io.joshworks.fstore.index.filter.Hash;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
+import io.joshworks.fstore.log.segment.block.FixedSizeEntryBlock;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
@@ -167,7 +168,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
             this.start = range.start();
             this.segmentIterator = segmentIterator;
 
-            //initial load skipping less than start
+            //initial load skipping less than queuedTime
             while (segmentIterator.hasNext()) {
                 IndexEntry next = segmentIterator.next();
                 if (next.greatOrEqualsTo(start)) {

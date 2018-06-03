@@ -1,13 +1,11 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.LogFileUtils;
-import io.joshworks.fstore.serializer.Serializers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,18 +13,10 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.StringJoiner;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class State implements Closeable {
 
     private static final int SIZE = 4096;
-    private static final Serializer<String> stringSerializer = Serializers.VSTRING;
-    private static final String LEVEL_SEPARATOR = ",";
 
     private static final Logger logger = LoggerFactory.getLogger(State.class);
 
@@ -35,16 +25,14 @@ public class State implements Closeable {
     private long position;
     private long entryCount;
     private long lastRollTime;
-    private List<List<String>> levels;
 
     private boolean dirty;
 
-    private State(Storage storage, long position, long entryCount, long lastRollTime, List<List<String>> levels) {
+    private State(Storage storage, long position, long entryCount, long lastRollTime) {
         this.storage = storage;
         this.position = position;
         this.entryCount = entryCount;
         this.lastRollTime = lastRollTime;
-        this.levels = levels;
     }
 
     private static Storage createStorage(File directory) {
@@ -66,11 +54,6 @@ public class State implements Closeable {
         this.dirty = true;
     }
 
-    public void levels(List<List<String>> levels) {
-        this.levels = levels;
-        this.dirty = true;
-    }
-
     public long position() {
         return position;
     }
@@ -83,13 +66,10 @@ public class State implements Closeable {
         return lastRollTime;
     }
 
-    public List<List<String>> levels() {
-        return levels;
-    }
-
     public static State readFrom(File directory) {
-        Storage storage = createStorage(directory);
+        Storage storage = null;
         try {
+            storage = createStorage(directory);
             ByteBuffer data = ByteBuffer.allocate(74);
             storage.read(0, data);
 
@@ -106,23 +86,7 @@ public class State implements Closeable {
             long entryCount = data.getLong();
             long lastRollTime = data.getLong();
 
-            List<List<String>> levels = new LinkedList<>();
-            while (data.position() < length) {
-                String level = stringSerializer.fromBytes(data);
-                if (level == null || level.isEmpty()) {
-                    continue;
-                }
-                String[] split = level.split(LEVEL_SEPARATOR);
-
-                LinkedList<String> levelSegments = Stream.of(split)
-                        .filter(s -> !s.isEmpty())
-                        .collect(Collectors.toCollection(LinkedList::new));
-                if (!levelSegments.isEmpty()) {
-                    levels.add(levelSegments);
-                }
-
-            }
-            State state = new State(storage, lastPosition, entryCount, lastRollTime, levels);
+            State state = new State(storage, lastPosition, entryCount, lastRollTime);
             logger.info("Reading state {}", state);
             return state;
 
@@ -134,34 +98,21 @@ public class State implements Closeable {
 
     public static State empty(File directory) {
         Storage storage = createStorage(directory);
-        return new State(storage, 0L, 0L, System.currentTimeMillis(), new LinkedList<>());
+        return new State(storage, 0L, 0L, System.currentTimeMillis());
     }
 
     public synchronized void flush() {
         if (!dirty) {
             return;
         }
-        logger.info("Writing state {}", toString());
-        List<ByteBuffer> segmentsData = new ArrayList<>();
-        for (List<String> level : levels) {
-            StringJoiner joiner = new StringJoiner(LEVEL_SEPARATOR);
-            for (String segmentName : level) {
-                joiner.add(segmentName);
-            }
-            segmentsData.add(stringSerializer.toBytes(joiner.toString()));
-        }
+        logger.info("Writing state {}", this);
 
-        int segmentsNameDataSize = segmentsData.stream().mapToInt(ByteBuffer::limit).sum();
-
-        int length = Integer.BYTES + (Long.BYTES * 3) + segmentsNameDataSize;
+        int length = Integer.BYTES + (Long.BYTES * 3);
         ByteBuffer bb = ByteBuffer.allocate(length);
         bb.putInt(length);
         bb.putLong(position);
         bb.putLong(entryCount);
         bb.putLong(lastRollTime);
-        for (ByteBuffer segmentData : segmentsData) {
-            bb.put(segmentData);
-        }
 
         bb.flip();
 
@@ -185,7 +136,6 @@ public class State implements Closeable {
         return "{position=" + position +
                 ", entryCount=" + entryCount +
                 ", lastRollTime=" + lastRollTime +
-                ", segments=" + levels +
                 '}';
     }
 

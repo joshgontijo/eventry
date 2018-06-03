@@ -1,25 +1,25 @@
 package io.joshworks.fstore.core.seda;
 
-public class EventContext<T> implements Publisher {
+public class EventContext<T> {
 
     public final String correlationId;
     public final T data;
-    private final SedaContext context;
+    private SedaContext sedaContext;
 
-    EventContext(String correlationId, T data, SedaContext context) {
+    EventContext(String correlationId, T data, SedaContext sedaContext) {
         this.correlationId = correlationId;
         this.data = data;
-        this.context = context;
+        this.sedaContext = sedaContext;
     }
 
-    @Override
+    /**
+     * Enqueue this message to the next stage, if the blockWhenFull is used by the downstream stage,
+     * then this producer will block until the queue is available, otherwise an {@link EnqueueException} is thrown
+     *
+     * @param event The event to be enqueued
+     * @throws EnqueueException if the queue is full and blockWhenFull is not set
+     */
     public void publish(Object event) {
-        publish(this.correlationId, event);
+        sedaContext.sendToNextStage(correlationId, event);
     }
-
-    @Override
-    public void publish(String correlationId, Object event) {
-        context.sendToNextStage(correlationId, event);
-    }
-
 }

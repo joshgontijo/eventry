@@ -1,5 +1,6 @@
 package io.joshworks.fstore.core.seda;
 
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
@@ -10,33 +11,39 @@ import java.util.concurrent.atomic.AtomicLong;
 public class SedaThreadPoolExecutor extends ThreadPoolExecutor {
 
     private final RejectedExecutionHandlerWrapper rejectionHandler;
-
     private final AtomicLong totalTime = new AtomicLong();
+    private final AtomicLong totalTimeInQueue = new AtomicLong();
     private final AtomicLong totalExecutions = new AtomicLong();
-    private final ThreadLocal<Long> executionTimer = new ThreadLocal<>();
+    private final ThreadLocal<TimeWatch> executionTimer = new ThreadLocal<>();
+    private final TimeWatch timer = TimeWatch.start();
 
     private SedaThreadPoolExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, SedaThreadFactory threadFactory, LimitBlockingQueue<Runnable> queue, RejectedExecutionHandlerWrapper rejectionHandler) {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, queue, threadFactory, rejectionHandler);
         this.rejectionHandler = rejectionHandler;
     }
 
-    public static SedaThreadPoolExecutor create(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, int queueSize, int queueHighBound, RejectedExecutionHandler handler) {
+    public static SedaThreadPoolExecutor create(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, int queueSize, int queueHighBound, RejectedExecutionHandler handler, boolean blockWhenFull) {
         LimitBlockingQueue<Runnable> queue = new LimitBlockingQueue<>(queueHighBound, queueSize);
         SedaThreadFactory threadFactory = new SedaThreadFactory(name);
-        RejectedExecutionHandlerWrapper rejectionHandler = new RejectedExecutionHandlerWrapper(handler);
+        RejectedExecutionHandlerWrapper rejectionHandler = new RejectedExecutionHandlerWrapper(handler, blockWhenFull);
         return new SedaThreadPoolExecutor(corePoolSize, maximumPoolSize, keepAliveTime, unit, threadFactory, queue, rejectionHandler);
     }
 
     @Override
     protected void beforeExecute(Thread t, Runnable r) {
+
+        TimedRunnable tr = (TimedRunnable)r;
+        totalTimeInQueue.addAndGet(System.currentTimeMillis() - tr.queuedTime);
+
+
         super.beforeExecute(t, r);
-        executionTimer.set(System.currentTimeMillis());
+        executionTimer.set(TimeWatch.start());
     }
 
     @Override
     protected void afterExecute(Runnable r, Throwable t) {
         super.afterExecute(r, t);
-        long time = System.currentTimeMillis() - executionTimer.get();
+        long time = executionTimer.get().time();
         totalExecutions.incrementAndGet();
         totalTime.addAndGet(time);
     }
@@ -50,6 +57,11 @@ public class SedaThreadPoolExecutor extends ThreadPoolExecutor {
         return (totalTasks == 0) ? 0 : totalTime.get() / (double) totalTasks;
     }
 
+    double averageTimeInQueue() {
+        long totalTasks = totalExecutions.get();
+        return (totalTasks == 0) ? 0 : totalTimeInQueue.get() / (double) totalTasks;
+    }
+
     long rejectedTasks() {
         return rejectionHandler.rejectedTasksCount();
     }
@@ -57,19 +69,27 @@ public class SedaThreadPoolExecutor extends ThreadPoolExecutor {
     private static class RejectedExecutionHandlerWrapper implements RejectedExecutionHandler {
 
         private final RejectedExecutionHandler delegate;
+        private final boolean blockWhenFull;
         private final AtomicLong rejectedCount = new AtomicLong();
 
-        public RejectedExecutionHandlerWrapper(RejectedExecutionHandler handler) {
+        public RejectedExecutionHandlerWrapper(RejectedExecutionHandler handler, boolean blockWhenFull) {
             this.delegate = handler;
+            this.blockWhenFull = blockWhenFull;
         }
 
         @Override
-        public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
+        public void rejectedExecution(Runnable task, ThreadPoolExecutor executor) {
             try {
-                executor.getQueue().add(r);
-            } catch (IllegalStateException e) {
+                BlockingQueue<Runnable> queue = executor.getQueue();
+                if(blockWhenFull) {
+                    queue.put(task);
+                } else {
+                    queue.add(task);
+                }
+            } catch (IllegalStateException | InterruptedException e) {
                 rejectedCount.incrementAndGet();
-                delegate.rejectedExecution(r, executor);
+                delegate.rejectedExecution(task, executor);
+                throw new EnqueueException();
             }
         }
 
