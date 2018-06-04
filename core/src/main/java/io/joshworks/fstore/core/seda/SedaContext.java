@@ -19,12 +19,12 @@ public class SedaContext implements Closeable {
     private final Map<String, Stage> eventMapper = new ConcurrentHashMap<>();
     private final AtomicReference<ContextState> state = new AtomicReference<>(ContextState.RUNNING);
 
-
-    public synchronized <T> void addStage(String name, Stage.Builder<T> builder) {
+    @SuppressWarnings("unchecked")
+    public synchronized <T> void addStage(String name, StageHandler<T> handler, Stage.Builder builder) {
         if (eventMapper.containsKey(name)) {
             throw new IllegalArgumentException("Duplicated stage name '" + name + "'");
         }
-        Stage<T> stage = builder.build(name, this);
+        Stage<T> stage = builder.build(name, handler, this);
         eventMapper.put(name, stage);
     }
 
@@ -32,7 +32,6 @@ public class SedaContext implements Closeable {
         return eventMapper.values().stream().collect(Collectors.toMap(Stage::name, Stage::stats));
     }
 
-    @SuppressWarnings("unchecked")
     public void submit(String stageName, Object event) {
         ContextState contextState = state.get();
         String uuid = UUID.randomUUID().toString();

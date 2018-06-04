@@ -8,22 +8,13 @@ public class Main {
         SedaContext context = new SedaContext();
         try {
 
-//            context.addStage(String.class, new Stage.Builder<>("first-stage", ctx -> ctx.publish(ctx.data.length())));
-            context.addStage("stage-1", new Stage.Builder<>(new TestHandler()));
-            context.addStage("stage-2", new Stage.Builder<>(new TestHandler2()).queueSize(20).maximumPoolSize(1).blockWhenFull());
-//            context.addStage(Integer.class, new Stage.Builder<>("second-stage", event -> {
-//                sum.addAndGet(event.data);
-//                Thread.sleep(1000);
-//                event.publish(1L);
-//            }));
-//            context.addStage(Long.class, new Stage.Builder<>("third-stage", event -> {
-//                Thread.sleep(1000);
-//                System.out.println(event.data);
-//            }));
+            context.addStage("stage-0", (StageHandler<String>) elem -> elem.submit("stage-2", elem.data.length()), new Stage.Builder());
+            context.addStage("stage-1", new TestHandler(), new Stage.Builder());
+            context.addStage("stage-2", new TestHandler2(),  new Stage.Builder().queueSize(20).maximumPoolSize(1).blockWhenFull());
 
 
             for (int i = 0; i < 20; i++) {
-                context.submit("stage-1", String.valueOf(i));
+                context.submit("stage-0", String.valueOf(i));
             }
 
 
@@ -43,7 +34,6 @@ public class Main {
         public void onEvent(EventContext<String> context) {
             context.submit("stage-2", Integer.parseInt(context.data));
         }
-
     }
 
     private static class TestHandler2 implements StageHandler<Integer> {

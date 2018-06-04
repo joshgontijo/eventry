@@ -98,10 +98,7 @@ public class Stage<T> implements Closeable {
         return name;
     }
 
-
-    public static class Builder<T> {
-
-        private final StageHandler<T> handler;
+    public static class Builder {
 
         private int corePoolSize = 1;
         private int maximumPoolSize = 1;
@@ -111,11 +108,10 @@ public class Stage<T> implements Closeable {
         private RejectedExecutionHandler rejectionHandler;
         private boolean blockWhenFull;
 
-        public Builder(StageHandler<T> handler) {
-            this.handler = handler;
+        public Builder() {
         }
 
-        public Builder<T> corePoolSize(int corePoolSize) {
+        public Builder corePoolSize(int corePoolSize) {
             if (maximumPoolSize <= 0) {
                 throw new IllegalArgumentException("corePoolSize must be greater than zero");
             }
@@ -126,7 +122,7 @@ public class Stage<T> implements Closeable {
             return this;
         }
 
-        public Builder<T> maximumPoolSize(int maximumPoolSize) {
+        public Builder maximumPoolSize(int maximumPoolSize) {
             if (maximumPoolSize <= 0) {
                 throw new IllegalArgumentException("maximumPoolSize must be greater than zero");
             }
@@ -137,7 +133,7 @@ public class Stage<T> implements Closeable {
             return this;
         }
 
-        public Builder<T> queueSize(int queueSize) {
+        public Builder queueSize(int queueSize) {
             if (maximumPoolSize <= 0) {
                 throw new IllegalArgumentException("queueSize must be greater than zero");
             }
@@ -145,28 +141,28 @@ public class Stage<T> implements Closeable {
             return this;
         }
 
-        public Builder<T> normalQueueOperationSize(int queueSize) {
+        public Builder normalQueueOperationSize(int queueSize) {
             this.queueHighBound = queueSize;
             return this;
         }
 
-        public Builder<T> keepAliveTime(long keepAliveTime) {
+        public Builder keepAliveTime(long keepAliveTime) {
             this.keepAliveTime = keepAliveTime;
             return this;
         }
 
-        public Builder<T> blockWhenFull() {
+        public Builder blockWhenFull() {
             this.blockWhenFull = true;
             return this;
         }
 
-        public Builder<T> rejectionHandler(RejectedExecutionHandler rejectionHandler) {
+        public Builder rejectionHandler(RejectedExecutionHandler rejectionHandler) {
             Objects.requireNonNull(rejectionHandler, "Rejection handler must be provided");
             this.rejectionHandler = rejectionHandler;
             return this;
         }
 
-        Stage<T> build(String name, SedaContext sedaContext) {
+        Stage build(String name, StageHandler handler, SedaContext sedaContext) {
             rejectionHandler = rejectionHandler == null ?  new LoggingRejectionHandler(name) : rejectionHandler;
             queueHighBound = queueHighBound > queueSize ? queueSize : queueHighBound;
             return new Stage<>(name, corePoolSize, maximumPoolSize, queueSize, queueHighBound, keepAliveTime, TimeUnit.MILLISECONDS, blockWhenFull, rejectionHandler, sedaContext, handler);
