@@ -75,7 +75,7 @@ public class Stage<T> implements Closeable {
         if (!closed.compareAndSet(false, true)) {
             return;
         }
-        logger.info("Closing stage {}", name);
+        logger.info("Closing stage");
         threadPool.shutdown();
     }
 
@@ -85,9 +85,9 @@ public class Stage<T> implements Closeable {
         }
         close();
         try {
-            logger.info("Waiting stage '{}' to terminate", name);
+            logger.info("Waiting termination");
             threadPool.awaitTermination(timeout, unit);
-            logger.info("Stage '{}' terminated", name);
+            logger.info("Stage terminated");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
