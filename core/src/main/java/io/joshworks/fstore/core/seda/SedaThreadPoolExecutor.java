@@ -6,6 +6,7 @@ import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class SedaThreadPoolExecutor extends ThreadPoolExecutor {
@@ -117,16 +118,17 @@ public class SedaThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     private static class SedaThreadFactory implements ThreadFactory {
-        private final String name;
+        private final AtomicInteger poolNumber = new AtomicInteger(1);
+        private final String prefix;
 
-        private SedaThreadFactory(String name) {
-            this.name = name;
+        private SedaThreadFactory(String prefix) {
+            this.prefix = prefix;
         }
 
         @Override
         public Thread newThread(Runnable r) {
             Thread thread = new Thread(r);
-            thread.setName(name);
+            thread.setName(prefix + "-" + poolNumber.getAndIncrement());
             return thread;
         }
     }
