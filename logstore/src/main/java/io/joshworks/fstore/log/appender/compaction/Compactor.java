@@ -2,6 +2,9 @@ package io.joshworks.fstore.log.appender.compaction;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.core.seda.EventContext;
+import io.joshworks.fstore.core.seda.SedaContext;
+import io.joshworks.fstore.core.seda.Stage;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.StorageProvider;
@@ -14,18 +17,15 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class Compactor<T, L extends Log<T>> {
 
     private static final Logger logger = LoggerFactory.getLogger(Compactor.class);
 
-    private final Map<Integer, ExecutorService> levelExecutors = new HashMap<>();
+    static final String COMPACTION_COMPLETED_STAGE = "compaction-completed";
+
+//    private final Map<Integer, ExecutorService> levelExecutors = new HashMap<>();
     private File directory;
     private final SegmentCombiner<T> segmentCombiner;
 
@@ -36,6 +36,9 @@ public class Compactor<T, L extends Log<T>> {
     private NamingStrategy namingStrategy;
     private final int maxSegmentsPerLevel;
     private Levels<T, L> levels;
+    private final SedaContext sedaContext;
+
+    private final CompactionTask<T, L> compactionTask = new CompactionTask<>();
 
     public Compactor(File directory,
                      SegmentCombiner<T> segmentCombiner,
@@ -45,7 +48,8 @@ public class Compactor<T, L extends Log<T>> {
                      DataReader dataReader,
                      NamingStrategy namingStrategy,
                      int maxSegmentsPerLevel,
-                     Levels<T, L> levels) {
+                     Levels<T, L> levels,
+                     SedaContext sedaContext) {
         this.directory = directory;
         this.segmentCombiner = segmentCombiner;
         this.segmentFactory = segmentFactory;
@@ -55,6 +59,10 @@ public class Compactor<T, L extends Log<T>> {
         this.namingStrategy = namingStrategy;
         this.maxSegmentsPerLevel = maxSegmentsPerLevel;
         this.levels = levels;
+        this.sedaContext = sedaContext;
+
+        sedaContext.addStage(COMPACTION_COMPLETED_STAGE, this::handleResult, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
+
     }
 
 
@@ -79,11 +87,17 @@ public class Compactor<T, L extends Log<T>> {
         //TODO fix file name (idx on segment)
         File targetFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 0, level + 1);
 
-        CompactionTask<T, L> task = new CompactionTask<>(sources, segmentCombiner, targetFile, storageProvider, segmentFactory, serializer, dataReader, level);
 
-        levelExecutors.putIfAbsent(level, Executors.newSingleThreadExecutor());
-        CompletableFuture.supplyAsync(task::merge, levelExecutors.get(level)).thenAccept(this::handleResult);
+        String stageName = stageNameForLevel(level);
+        if(!sedaContext.stages().contains(stageName)){
+            sedaContext.addStage(stageName, compactionTask, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
+        }
 
+        sedaContext.submit(stageName, new CompactionEvent<>(sources, segmentCombiner, targetFile, segmentFactory, storageProvider, serializer, dataReader, level));
+    }
+
+    private String stageNameForLevel(int level) {
+        return "compaction-level-" + level;
     }
 
     private synchronized List<L> getSegmentsForCompaction(int level) {
@@ -103,7 +117,8 @@ public class Compactor<T, L extends Log<T>> {
         return maxSegmentsPerLevel > 0 && levels.requiresCompaction(level);
     }
 
-    private void handleResult(CompactionResult<T, L> result) {
+    private void handleResult(EventContext<CompactionResult<T, L>> event) {
+        CompactionResult<T, L> result = event.data;
         if (!result.successful()) {
             //TODO
             logger.error("Compaction error", result.exception);

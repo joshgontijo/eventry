@@ -1,15 +1,19 @@
 package io.joshworks.fstore.core.seda;
 
+import java.util.concurrent.CompletableFuture;
+
 public class EventContext<T> {
 
     public final String correlationId;
     public final T data;
     private SedaContext sedaContext;
+    private final CompletableFuture<Object> future;
 
-    EventContext(String correlationId, T data, SedaContext sedaContext) {
+    EventContext(String correlationId, T data, SedaContext sedaContext, CompletableFuture<Object> future) {
         this.correlationId = correlationId;
         this.data = data;
         this.sedaContext = sedaContext;
+        this.future = future;
     }
 
     /**
@@ -21,6 +25,10 @@ public class EventContext<T> {
      * @throws EnqueueException if the queue is full and blockWhenFull is not set
      */
     public void submit(String stageName, Object event) {
-        sedaContext.sendToNextStage(stageName, correlationId, event);
+        sedaContext.sendToNextStage(stageName, correlationId, event, future);
+    }
+
+    public void complete(Object value) {
+        future.complete(value);
     }
 }

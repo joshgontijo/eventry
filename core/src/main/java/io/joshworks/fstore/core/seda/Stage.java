@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -38,13 +39,13 @@ public class Stage<T> implements Closeable {
         threadPool = SedaThreadPoolExecutor.create(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, queueSize, queueHighBound, rejectionHandler, blockWhenFull);
     }
 
-    boolean submit(String correlationId, T event) {
+    void submit(String correlationId, T event, CompletableFuture<Object> future) {
         if (closed.get()) {
             throw new IllegalStateException("Stage is closed");
         }
 
         threadPool.execute(TimedRunnable.wrap(() -> {
-            EventContext<T> context = new EventContext<>(correlationId, event, sedaContext);
+            EventContext<T> context = new EventContext<>(correlationId, event, sedaContext, future);
             try {
                 handler.handle(context);
 
@@ -55,11 +56,13 @@ public class Stage<T> implements Closeable {
                 } else {
                     logger.error("Failed handling event: " + event, e.getCause());
                 }
+                future.completeExceptionally(cause);
+
             } catch (Exception e) {
                 logger.error("Failed handling event: " + event, e);
+                future.completeExceptionally(e);
             }
         }));
-        return true;
     }
 
     public StageStats stats() {

@@ -106,7 +106,9 @@ public abstract class LogAppenderIT<L extends Log<String>> {
         String value = stringOfByteLength(2048);
         appendN(value, items);
 
-        appender.flush();
+        appender.close();
+
+        appender = appender(testDirectory);
 
         scanAllAssertingSameValue(value);
     }
@@ -187,10 +189,18 @@ public abstract class LogAppenderIT<L extends Log<String>> {
                 written = 0;
                 lastUpdate = System.currentTimeMillis();
             }
-            appender.append(value);
+//            appender.append(value);
+            appender.appendAsync(value, pos ->{});
             written++;
         }
 
+        try {
+            System.out.println("Waiting....");
+            Thread.sleep(120000);
+            System.out.println("Waiting completed....");
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
         System.out.println("APPENDER_WRITE - " + appender.entries() + " IN " + (System.currentTimeMillis() - start) + "ms");
     }
 

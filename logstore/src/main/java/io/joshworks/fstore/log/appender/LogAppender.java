@@ -6,6 +6,8 @@ import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.seda.SedaContext;
+import io.joshworks.fstore.core.seda.Stage;
+import io.joshworks.fstore.core.seda.StageHandler;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.LogIterator;
@@ -28,8 +30,8 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -69,7 +71,7 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
 
     private AtomicBoolean closed = new AtomicBoolean();
 
-    private final ScheduledExecutorService stateScheduler = Executors.newSingleThreadScheduledExecutor();
+//    private final ScheduledExecutorService stateScheduler = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
 
     private final SedaContext sedaContext = new SedaContext();
@@ -127,7 +129,7 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
         String compaction = builder.maxSegmentsPerLevel == LogAppender.COMPACTION_DISABLED ? "DISABLED" : "ENABLED";
         logger.info("Compaction is {}", compaction);
 
-        this.compactor = new Compactor<>(directory, builder.combiner, factory, storageProvider, serializer, dataReader, namingStrategy, metadata.maxSegmentsPerLevel, levels);
+        this.compactor = new Compactor<>(directory, builder.combiner, factory, storageProvider, serializer, dataReader, namingStrategy, metadata.maxSegmentsPerLevel, levels, sedaContext);
 
 
         logger.info("SEGMENT BIT SHIFT: {}", metadata.segmentBitShift);
@@ -141,6 +143,8 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
 //            this.close();
 //        }));
 
+
+        sedaContext.addStage("write", (StageHandler<WriteItem>) elem -> appendAsyncInternal(elem.data), new Stage.Builder());
 
     }
 
@@ -248,6 +252,25 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
         throw new UnsupportedOperationException("TODO");
     }
 
+    public void appendAsync(T data, Consumer<Long> onComplete) {
+        sedaContext.submit("write", new WriteItem(data, onComplete));
+    }
+
+    private void appendAsyncInternal(WriteItem item) {
+        long position = this.append(item.data);
+        item.completionHandler.accept(position);
+    }
+
+    private class WriteItem {
+        private final T data;
+        private final Consumer<Long> completionHandler;
+
+        private WriteItem(T data, Consumer<Long> completionHandler) {
+            this.data = data;
+            this.completionHandler = completionHandler;
+        }
+    }
+
     public long append(T data) {
         L current = levels.current();
         long positionOnSegment = current.append(data);
@@ -320,7 +343,9 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
             return;
         }
         logger.info("Closing log appender {}", directory.getName());
-        stateScheduler.shutdown();
+//        stateScheduler.shutdown();
+
+        sedaContext.shutdown();
 
         L currentSegment = levels.current();
         if (currentSegment != null) {
