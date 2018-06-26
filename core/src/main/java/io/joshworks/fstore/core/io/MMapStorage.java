@@ -26,7 +26,7 @@ public class MMapStorage extends DiskStorage {
 
         try {
             long fileLength = raf.length();
-            if (bufferSize >= fileLength) {
+            if (bufferSize >= fileLength) { //TODO this is wrong, how about opening for read ?
                 //TEST-CASE: if buffer size is greater than file, use bufferSize
                 MappedByteBuffer singleBuffer = map(0, bufferSize);
                 buffers.add(singleBuffer);
@@ -40,7 +40,7 @@ public class MMapStorage extends DiskStorage {
             long totalBuffers = numFullBuffers = diff > 0 ? numFullBuffers : numFullBuffers + 1;
 
             if (Mode.READ_WRITE.equals(mode)) {
-                //load everything at one, can it be improved ?
+                //load everything at once, can it be improved ?
                 for (long i = 0; i < totalBuffers; i++) {
                     MappedByteBuffer buffer = map(i * bufferSize, bufferSize);
                     buffers.add(buffer);
@@ -82,10 +82,10 @@ public class MMapStorage extends DiskStorage {
             int spaceLeft = current.remaining();
             ByteBuffer slice = data.slice();
             slice.limit(spaceLeft);
-            current.put(slice);
-            position += spaceLeft;
-            data.position(spaceLeft);
 
+            write(slice);
+
+            data.position(spaceLeft);
             nextBuffer();
 
             int secondFragment = write(data);
@@ -117,6 +117,7 @@ public class MMapStorage extends DiskStorage {
             int limit = readOnly.remaining();
             readOnly.limit(bufferAddress + limit);
             data.put(readOnly);
+            //TODO STACKOVERFLOW
             return limit + read(position + limit, data);
         }
 
@@ -170,7 +171,7 @@ public class MMapStorage extends DiskStorage {
         long numBuffers = buffers.size();
         if (writeBufferIdx >= numBuffers) {
             //TODO will the lock be extended for the entire file ? Or a new lock for the extended region is needed
-            MappedByteBuffer next = map(numBuffers * bufferSize, bufferSize);
+            MappedByteBuffer next = map((numBuffers * bufferSize), bufferSize);
             buffers.add(next);
         }
         current = buffers.get(writeBufferIdx);
@@ -197,6 +198,7 @@ public class MMapStorage extends DiskStorage {
 
     private MappedByteBuffer map(long from, long size) {
         try {
+            System.out.println("Mapping " + from + " -> " + (from + size - 1));
             FileChannel.MapMode mapMode = Mode.READ_WRITE.equals(mode) ? FileChannel.MapMode.READ_WRITE : FileChannel.MapMode.READ_ONLY;
             return raf.getChannel().map(mapMode, from, size);
         } catch (Exception e) {
@@ -253,7 +255,9 @@ public class MMapStorage extends DiskStorage {
 
     @Override
     public void flush() {
-        if (current != null && Mode.READ_WRITE.equals(mode))
-            current.force();
+        if (current != null && Mode.READ_WRITE.equals(mode)) {
+            //TODO Possibly caused by https://bugs.openjdk.java.net/browse/JDK-6539707
+//            current.force();
+        }
     }
 }

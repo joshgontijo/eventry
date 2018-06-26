@@ -1,12 +1,14 @@
 package io.joshworks.fstore.es.index.disk;
 
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.es.Utils;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.reader.HeaderLengthDataReader;
+import io.joshworks.fstore.log.segment.Type;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -46,11 +48,10 @@ public class IndexSegmentTest {
     public IndexSegment open(File location) {
         long size = location.length() == 0 ? 1048576 : location.length();
         return new IndexSegment(
-                new RafStorage(location, size),
+                new RafStorage(location, size, Mode.READ_WRITE),
                 new FixedSizeBlockSerializer<>(new IndexEntrySerializer(), IndexEntry.BYTES),
                 new HeaderLengthDataReader(),
-                0,
-                false,
+                Type.LOG_HEAD,
                 indexDir,
                 NUMBER_OF_ELEMENTS);
     }
@@ -161,7 +162,7 @@ public class IndexSegmentTest {
         segment.append(e3);
         segment.append(e4);
 
-        segment.roll();
+        segment.roll(1);
 
         Optional<IndexEntry> ie = segment.get(1L, 1);
         assertTrue(ie.isPresent());
@@ -396,7 +397,7 @@ public class IndexSegmentTest {
         segment.append(IndexEntry.of(stream, 3, 0));
         segment.append(IndexEntry.of(stream, 4, 0));
 
-        segment.roll();
+        segment.roll(1);
 
         Range range = Range.of(stream, 1);
 
@@ -424,7 +425,7 @@ public class IndexSegmentTest {
         segment.append(IndexEntry.of(stream, 3, 0));
         segment.append(IndexEntry.of(stream, 4, 0));
 
-        segment.roll();
+        segment.roll(1);
 
         Range range = Range.of(streamQuery, 1);
 
@@ -441,7 +442,7 @@ public class IndexSegmentTest {
         segment.append(IndexEntry.of(stream, 3, 0));
         segment.append(IndexEntry.of(stream, 4, 0));
 
-        segment.roll();
+        segment.roll(1);
 
         Range range = Range.of(stream, 1, 3);
 
@@ -519,7 +520,7 @@ public class IndexSegmentTest {
         for (int i = from; i <= to; i++) {
             segment.append(IndexEntry.of(i, 1, 0));
         }
-        segment.roll();
+        segment.roll(1);
         return segment;
     }
 
@@ -527,7 +528,7 @@ public class IndexSegmentTest {
         for (int i = from; i <= to; i++) {
             segment.append(IndexEntry.of(stream, i, 0));
         }
-        segment.roll();
+        segment.roll(1);
         return segment;
     }
 
@@ -538,7 +539,7 @@ public class IndexSegmentTest {
                 segment.append(IndexEntry.of(stream, version, 0));
             }
         }
-        segment.roll();
+        segment.roll(1);
         return segment;
     }
 

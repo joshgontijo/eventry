@@ -2,6 +2,7 @@ package io.joshworks.fstore.es.index.midpoint;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.MMapStorage;
+import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
@@ -9,7 +10,6 @@ import io.joshworks.fstore.es.index.Range;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -54,7 +54,7 @@ public class Midpoints {
 
         long size = Math.max(Midpoint.BYTES * midpoints.size(), handler.length());
 
-        try (Storage storage = new MMapStorage(handler, size, FileChannel.MapMode.READ_WRITE)) {
+        try (Storage storage = new MMapStorage(handler, size, Mode.READ_WRITE, (int) size)) {
             for (Midpoint midpoint : midpoints) {
                 ByteBuffer data = midpointSerializer.toBytes(midpoint);
                 storage.write(data);
@@ -69,7 +69,7 @@ public class Midpoints {
         if (!handler.exists()) {
             return new ArrayList<>();
         }
-        try (Storage storage = new MMapStorage(handler, handler.length(), FileChannel.MapMode.READ_WRITE)) {
+        try (Storage storage = new MMapStorage(handler, handler.length(), Mode.READ_WRITE, (int) handler.length())) {
             long pos = 0;
             ByteBuffer data = ByteBuffer.allocate(Midpoint.BYTES);
 

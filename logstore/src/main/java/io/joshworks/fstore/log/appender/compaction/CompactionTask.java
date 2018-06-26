@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.joshworks.fstore.log.appender.compaction.Compactor.COMPACTION_COMPLETED_STAGE;
+import static io.joshworks.fstore.log.appender.compaction.Compactor.COMPACTION_CLEANUP_STAGE;
 
 public class CompactionTask<T, L extends Log<T>> implements StageHandler<CompactionEvent<T, L>> {
 
@@ -44,11 +44,11 @@ public class CompactionTask<T, L extends Log<T>> implements StageHandler<Compact
             target.roll(nextLevel);
 
             logger.info("Compaction completed, took {}ms", (System.currentTimeMillis() - start));
-            context.submit(COMPACTION_COMPLETED_STAGE, CompactionResult.success(data.segments, target, data.level));
+            context.submit(COMPACTION_CLEANUP_STAGE, CompactionResult.success(data.segments, target, data.level));
 
         } catch (Exception e) {
             logger.error("Failed to compact", e);
-            context.submit(COMPACTION_COMPLETED_STAGE, CompactionResult.failure(data.segments, target, data.level, e));
+            context.submit(COMPACTION_CLEANUP_STAGE, CompactionResult.failure(data.segments, target, data.level, e));
         }
     }
 }

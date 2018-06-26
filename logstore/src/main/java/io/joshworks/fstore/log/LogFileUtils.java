@@ -1,6 +1,5 @@
 package io.joshworks.fstore.log;
 
-
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import org.slf4j.Logger;

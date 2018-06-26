@@ -3,6 +3,7 @@ package io.joshworks.fstore.log.segment.block;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.appender.SimpleLogAppender;
 import io.joshworks.fstore.log.segment.LogSegment;
 import io.joshworks.fstore.serializer.Serializers;
 import org.junit.After;
@@ -27,7 +28,7 @@ public class BlockTest {
     @Before
     public void setUp() {
         testFolder = Utils.testFile();
-        appender = LogAppender.builder(testFolder, new BlockSerializer<>(Serializers.STRING)).segmentSize(5242880).simple();
+        appender = new SimpleLogAppender<>(LogAppender.builder(testFolder, new BlockSerializer<>(Serializers.STRING)).segmentSize(5242880));
     }
 
     @After

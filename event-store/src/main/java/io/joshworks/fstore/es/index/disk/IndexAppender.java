@@ -7,12 +7,15 @@ import io.joshworks.fstore.es.index.Index;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.es.utils.Iterators;
-import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.appender.Builder;
+import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.Order;
+import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
+import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.Type;
 
+import java.io.File;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -24,21 +27,8 @@ import java.util.stream.StreamSupport;
 
 public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> implements Index {
 
-    private final int numElements;
-
-    public IndexAppender(Builder<IndexEntry> builder, int numElements) {
-        super(builder);
-        this.numElements = numElements;
-    }
-
-    @Override
-    protected IndexSegment createSegment(Storage storage, Serializer<IndexEntry> serializer, DataReader reader) {
-        return new IndexSegment(storage, new FixedSizeBlockSerializer<>(serializer, IndexEntry.BYTES), reader, 0, false, directory().toFile(), numElements);
-    }
-
-    @Override
-    protected IndexSegment openSegment(Storage storage, Serializer<IndexEntry> serializer, DataReader reader, long position, boolean readonly) {
-        return new IndexSegment(storage, new FixedSizeBlockSerializer<>(serializer, IndexEntry.BYTES), reader, position, readonly, directory().toFile(), numElements);
+    public IndexAppender(Config<IndexEntry> config, int numElements) {
+        super(config, new IndexSegmentFactory(config.directory, numElements));
     }
 
     @Override
@@ -88,6 +78,22 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
         @Override
         public String prefix() {
             return "index-" + super.prefix();
+        }
+    }
+
+    private static class IndexSegmentFactory implements SegmentFactory<IndexEntry, IndexSegment> {
+
+        private final File directory;
+        private final int numElements;
+
+        private IndexSegmentFactory(File directory, int numElements) {
+            this.directory = directory;
+            this.numElements = numElements;
+        }
+
+        @Override
+        public IndexSegment createOrOpen(Storage storage, Serializer<IndexEntry> serializer, DataReader reader, Type type) {
+            return new IndexSegment(storage, new FixedSizeBlockSerializer<>(serializer, IndexEntry.BYTES), reader, type, directory, numElements);
         }
     }
 

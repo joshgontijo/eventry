@@ -114,34 +114,35 @@ public abstract class LogAppenderIT<L extends Log<String>> {
     }
 
     @Test
-    public void insert_1_segments_of_1GB_with_2kb_entries() {
+    public void insert_1M_with_2kb_entries() {
         String value = stringOfByteLength(2048);
 
-        fillNSegments(value, 1);
+        appendN(value, 1000000);
         appender.flush();
 
         scanAllAssertingSameValue(value);
     }
 
     @Test
-    public void insert_10_segments_with_2kb_entries() {
+    public void insert_10M_with_2kb_entries() throws InterruptedException {
         String value = stringOfByteLength(2048);
 
-        fillNSegments(value, 10);
+        appendN(value, 10000000);
+        Thread.sleep(240000);
         appender.flush();
 
         scanAllAssertingSameValue(value);
     }
 
     @Test
-    public void insert_100_segments_of_1GB_with_2kb_entries() throws InterruptedException {
+    public void insert_100M_with_2kb_entries() throws InterruptedException {
         String value = stringOfByteLength(2048);
 
-        fillNSegments(value, 99999);
+        appendN(value, 100000000);
         appender.flush();
 
         Thread.sleep(120000);
-        scanAllAssertingSameValue(value);
+//        scanAllAssertingSameValue(value);
     }
 
     @Test
@@ -189,53 +190,14 @@ public abstract class LogAppenderIT<L extends Log<String>> {
                 written = 0;
                 lastUpdate = System.currentTimeMillis();
             }
-//            appender.append(value);
-            appender.appendAsync(value, pos ->{});
-            written++;
-        }
-
-        try {
-            System.out.println("Waiting....");
-            Thread.sleep(120000);
-            System.out.println("Waiting completed....");
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-        System.out.println("APPENDER_WRITE - " + appender.entries() + " IN " + (System.currentTimeMillis() - start) + "ms");
-    }
-
-    private void fillNSegments(String value, long numSegments) {
-        long start = System.currentTimeMillis();
-
-        long avg = 0;
-        long lastUpdate = System.currentTimeMillis();
-        long written = 0;
-
-        while (appender.segmentsNames().size() < numSegments) {
-            if (System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
-                avg = (avg + written) / 2;
-                System.out.println("TOTAL WRITTEN: " + appender.entries() + " - LAST SECOND: " + written + " - AVG: " + avg);
-                written = 0;
-                lastUpdate = System.currentTimeMillis();
-
-//                if(appender.entries() >= 500000) {
-//                        try {
-//                            Thread.sleep(60000);
-//                        } catch (InterruptedException e) {
-//                            e.printStackTrace();
-//                        }
-//                }
-
-            }
             appender.append(value);
+//            appender.appendAsync(value, pos ->{});
             written++;
-
-
         }
-
 
         System.out.println("APPENDER_WRITE - " + appender.entries() + " IN " + (System.currentTimeMillis() - start) + "ms");
     }
+
 
     private void scanAllAssertingSameValue(String expected) {
         long start = System.currentTimeMillis();

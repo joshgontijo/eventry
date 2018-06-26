@@ -3,6 +3,7 @@ package io.joshworks.fstore.log;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.reader.FixedBufferDataReader;
+import io.joshworks.fstore.log.segment.Header;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.LogSegment;
 import io.joshworks.fstore.log.segment.Type;
@@ -56,7 +57,7 @@ public abstract class LogSegmentTest {
         String data = "hello";
         appender.append(data);
 
-        assertEquals(4 + 4 + data.length(), appender.position()); // 4 + 4 (header) + data length
+        assertEquals(Header.SIZE + 4 + 4 + data.length(), appender.position()); // 4 + 4 (header) + data length
     }
 
     @Test
@@ -80,7 +81,7 @@ public abstract class LogSegmentTest {
         LogIterator<String> logIterator = appender.iterator();
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
-        assertEquals(4 + 4 + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.SIZE + 4 + 4 + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -101,7 +102,7 @@ public abstract class LogSegmentTest {
         assertEquals(position, appender.position());
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
-        assertEquals(Log.ENTRY_HEADER_SIZE + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -112,12 +113,12 @@ public abstract class LogSegmentTest {
         LogIterator<String> logIterator1 = appender.iterator();
         assertTrue(logIterator1.hasNext());
         assertEquals(data, logIterator1.next());
-        assertEquals(Log.ENTRY_HEADER_SIZE  + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE  + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
 
         LogIterator<String> logIterator2 = appender.iterator();
         assertTrue(logIterator2.hasNext());
         assertEquals(data, logIterator2.next());
-        assertEquals(Log.ENTRY_HEADER_SIZE  + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE  + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -132,7 +133,7 @@ public abstract class LogSegmentTest {
         LogIterator<String> logIterator1 = appender.iterator();
         assertTrue(logIterator1.hasNext());
         assertEquals(data, logIterator1.next());
-        assertEquals(Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
 
     }
 
@@ -196,13 +197,13 @@ public abstract class LogSegmentTest {
         appender.append("a");
         appender.append("b");
 
-        assertEquals((Log.ENTRY_HEADER_SIZE + 1) * 2, appender.size());
+        assertEquals(Header.SIZE +  (Log.ENTRY_HEADER_SIZE + 1) * 2, appender.size());
 
         appender.position();
         appender.close();
 
         appender = open();
-        assertEquals((Log.ENTRY_HEADER_SIZE + 1) * 2, appender.size());
+        assertEquals(Header.SIZE + (Log.ENTRY_HEADER_SIZE + 1) * 2, appender.size());
     }
 
 }

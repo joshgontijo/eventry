@@ -6,13 +6,13 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.es.index.Index;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
-import io.joshworks.fstore.es.index.TableIndex;
 import io.joshworks.fstore.es.index.filter.BloomFilter;
 import io.joshworks.fstore.es.index.midpoint.Midpoint;
 import io.joshworks.fstore.es.index.midpoint.Midpoints;
 import io.joshworks.fstore.es.utils.Iterators;
 import io.joshworks.fstore.index.filter.Hash;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.segment.Type;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
 import io.joshworks.fstore.log.segment.block.FixedSizeEntryBlock;
 import io.joshworks.fstore.serializer.Serializers;
@@ -38,13 +38,12 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     IndexSegment(Storage storage,
                         Serializer<FixedSizeEntryBlock<IndexEntry>> serializer,
                         DataReader reader,
-                        long position,
-                        boolean readOnly,
+                        Type type,
                         File directory,
-                        int numElements) { //FIXME cannot use this with current LogAppender constructor, static need to be used atm.
-        super(storage, serializer, reader, position, readOnly);
+                        int numElements) {
+        super(storage, serializer, reader, type);
         this.midpoints = new Midpoints(directory, name());
-        this.filter = BloomFilter.openOrCreate(directory, name(), TableIndex.DEFAULT_FLUSH_THRESHOLD, FALSE_POSITIVE_PROB, new Hash.Murmur64<>(Serializers.LONG));
+        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, new Hash.Murmur64<>(Serializers.LONG));
     }
 
     @Override

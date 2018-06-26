@@ -23,9 +23,8 @@ public class Compactor<T, L extends Log<T>> {
 
     private static final Logger logger = LoggerFactory.getLogger(Compactor.class);
 
-    static final String COMPACTION_COMPLETED_STAGE = "compaction-completed";
+    static final String COMPACTION_CLEANUP_STAGE = "compaction-cleanup";
 
-//    private final Map<Integer, ExecutorService> levelExecutors = new HashMap<>();
     private File directory;
     private final SegmentCombiner<T> segmentCombiner;
 
@@ -61,7 +60,7 @@ public class Compactor<T, L extends Log<T>> {
         this.levels = levels;
         this.sedaContext = sedaContext;
 
-        sedaContext.addStage(COMPACTION_COMPLETED_STAGE, this::handleResult, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
+        sedaContext.addStage(COMPACTION_CLEANUP_STAGE, this::handleResult, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
 
     }
 

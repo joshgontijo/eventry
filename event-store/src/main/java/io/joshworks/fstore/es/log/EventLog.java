@@ -1,17 +1,13 @@
 package io.joshworks.fstore.es.log;
 
-import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.DataReader;
-import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.es.index.IndexEntry;
-import io.joshworks.fstore.log.segment.LogSegment;
-import io.joshworks.fstore.log.appender.Builder;
-import io.joshworks.fstore.log.appender.LogAppender;
+import io.joshworks.fstore.log.appender.Config;
+import io.joshworks.fstore.log.appender.SimpleLogAppender;
 
-public class EventLog extends LogAppender<Event, LogSegment<Event>> {
+public class EventLog extends SimpleLogAppender<Event> {
 
-    public EventLog(Builder<Event> builder) {
-        super(builder);
+    public EventLog(Config<Event> config) {
+        super(config);
     }
 
     public Event get(String stream, IndexEntry key) {
@@ -24,16 +20,6 @@ public class EventLog extends LogAppender<Event, LogSegment<Event>> {
         event.position(key.position);
 
         return event;
-    }
-
-    @Override
-    protected LogSegment<Event> createSegment(Storage storage, Serializer<Event> serializer, DataReader reader) {
-        return new LogSegment<>(storage, serializer, reader, 0, false);
-    }
-
-    @Override
-    protected LogSegment<Event> openSegment(Storage storage, Serializer<Event> serializer, DataReader reader, long position, boolean readonly) {
-        return new LogSegment<>(storage, serializer, reader, position, readonly);
     }
 
 }

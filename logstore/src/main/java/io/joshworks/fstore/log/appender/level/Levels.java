@@ -107,7 +107,7 @@ public class Levels<T, L extends Log<T>> {
         });
     }
 
-    public void remove(int level, List<L> segments) {
+    public synchronized void remove(int level, List<L> segments) {
         items.computeIfPresent(level, (k, v) -> {
             for (L segment : segments) {
                 v.remove(segment);

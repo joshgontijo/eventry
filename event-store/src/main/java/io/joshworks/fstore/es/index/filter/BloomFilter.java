@@ -2,6 +2,7 @@ package io.joshworks.fstore.es.index.filter;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.MMapStorage;
+import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.index.filter.Hash;
 import org.slf4j.Logger;
@@ -10,7 +11,6 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 import java.util.BitSet;
 import java.util.Objects;
 
@@ -153,15 +153,15 @@ public class BloomFilter<T> {
 
         long[] items = hashes.toLongArray();
         int dataLength = items.length * Long.BYTES;
-        int totalSie = dataLength + HEADER_SIZE;
-        try (Storage storage = new MMapStorage(handler, totalSie, FileChannel.MapMode.READ_WRITE)) {
+        int totalSize = dataLength + HEADER_SIZE;
+        try (Storage storage = new MMapStorage(handler, totalSize, Mode.READ_WRITE, totalSize)) {
 
             //Format
             //Length -> 4bytes
             //Number of bits (m) -> 4bytes
             //Number of hash (k) -> 4bytes
             //Data -> long[]
-            ByteBuffer bb = ByteBuffer.allocate(totalSie);
+            ByteBuffer bb = ByteBuffer.allocate(totalSize);
             bb.putInt(dataLength);
             bb.putInt(this.m);
             bb.putInt(this.k);
@@ -179,7 +179,7 @@ public class BloomFilter<T> {
     }
 
     private static <T> BloomFilter<T> load(File handler, Hash<T> hash) {
-        try (Storage storage = new MMapStorage(handler, handler.length(), FileChannel.MapMode.READ_WRITE)) {
+        try (Storage storage = new MMapStorage(handler, handler.length(), Mode.READ_WRITE, (int) handler.length())) {
             ByteBuffer header = ByteBuffer.allocate(HEADER_SIZE);
             storage.read(0, header);
             header.flip();

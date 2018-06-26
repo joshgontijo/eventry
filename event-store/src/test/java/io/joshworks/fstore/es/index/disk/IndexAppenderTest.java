@@ -2,7 +2,7 @@ package io.joshworks.fstore.es.index.disk;
 
 import io.joshworks.fstore.es.Utils;
 import io.joshworks.fstore.es.index.IndexEntry;
-import io.joshworks.fstore.log.appender.Builder;
+import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.LogAppender;
 import org.junit.After;
 import org.junit.Before;
@@ -22,8 +22,8 @@ public class IndexAppenderTest {
     @Before
     public void setUp() {
         location = new File("J:\\EVENT-STORE\\" + UUID.randomUUID().toString().substring(0, 8));
-        Builder<IndexEntry> builder = LogAppender.builder(location, new IndexEntrySerializer()).mmap();
-        appender = new IndexAppender(builder, 10000);
+        Config<IndexEntry> config = LogAppender.builder(location, new IndexEntrySerializer()).mmap();
+        appender = new IndexAppender(config, 10000);
     }
 
     @After

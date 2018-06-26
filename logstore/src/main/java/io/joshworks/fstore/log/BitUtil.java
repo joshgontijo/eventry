@@ -78,7 +78,7 @@ public class BitUtil {
         String[] bits = value.split(",");
         for (int i = 0; i < bits.length; i++) {
             bits[i] = bits[i].trim();
-            set.set(Integer.valueOf(bits[i]).intValue());
+            set.set(Integer.valueOf(bits[i]));
         }
         return set;
     }
@@ -91,7 +91,7 @@ public class BitUtil {
     public static BitSet fromByteArray(final byte[] bytes) {
         BitSet bits = new BitSet();
         for (int i = 0; i < bytes.length * 8; i++) {
-            if ((bytes[bytes.length - i / 8 - 1] & (1 << (i % 8))) > 0) {
+            if ((bytes[bytes.length - (i / 8) - 1] & (1 << (i % 8))) > 0) {
                 bits.set(i);
             }
         }
@@ -106,7 +106,7 @@ public class BitUtil {
      * @return the BitSet
      */
     public static BitSet fromInt(final int value, final int length) {
-        return BitUtil.fromInteger(new Integer(value), length);
+        return BitUtil.fromInteger(value, length);
     }
 
     /**
@@ -117,8 +117,8 @@ public class BitUtil {
      * @return the BitSet
      */
     public static BitSet fromInteger(Integer value, final int length) {
-        if (value.intValue() < 0 && length != -1) {
-            value = new Integer((int) Math.pow(2, length) + value.intValue());
+        if (value < 0 && length != -1) {
+            value = (int) Math.pow(2, length) + value;
         }
         return BitUtil.fromByteArray(new BigInteger(value.toString()).toByteArray());
     }

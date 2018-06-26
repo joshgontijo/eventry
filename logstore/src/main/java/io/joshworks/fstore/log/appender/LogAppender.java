@@ -42,7 +42,7 @@ import java.util.stream.StreamSupport;
  * |------------ 64bits -------------|
  * [SEGMENT_IDX] [POSITION_ON_SEGMENT]
  */
-public class LogAppender<T, L extends Log<T>> implements Closeable {
+public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(LogAppender.class);
 
@@ -78,14 +78,14 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
 
     private final Compactor<T, L> compactor;
 
-    protected LogAppender(Builder<T> builder, SegmentFactory<T, L> factory) {
+    protected LogAppender(Config<T> config, SegmentFactory<T, L> factory) {
 
-        this.directory = builder.directory;
-        this.serializer = builder.serializer;
+        this.directory = config.directory;
+        this.serializer = config.serializer;
         this.factory = factory;
-        this.storageProvider = builder.mmap ? StorageProvider.mmap(builder.mmapBufferSize) : StorageProvider.raf();
-        this.dataReader = builder.reader;
-        this.namingStrategy = builder.namingStrategy;
+        this.storageProvider = config.mmap ? StorageProvider.mmap(config.mmapBufferSize) : StorageProvider.raf();
+        this.dataReader = config.reader;
+        this.namingStrategy = config.namingStrategy;
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);
 
@@ -95,11 +95,12 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
             LogFileUtils.createRoot(directory);
             this.metadata = Metadata.create(
                     directory,
-                    builder.segmentSize,
-                    builder.segmentBitShift,
-                    builder.maxSegmentsPerLevel,
-                    builder.mmap,
-                    builder.asyncFlush);
+                    config.segmentSize,
+                    config.segmentBitShift,
+                    config.maxSegmentsPerLevel,
+                    config.mmap,
+                    config.flushAfterWrite,
+                    config.asyncFlush);
 
             this.state = State.empty(directory);
         } else {
@@ -126,10 +127,10 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
             throw e;
         }
 
-        String compaction = builder.maxSegmentsPerLevel == LogAppender.COMPACTION_DISABLED ? "DISABLED" : "ENABLED";
+        String compaction = config.maxSegmentsPerLevel == LogAppender.COMPACTION_DISABLED ? "DISABLED" : "ENABLED";
         logger.info("Compaction is {}", compaction);
 
-        this.compactor = new Compactor<>(directory, builder.combiner, factory, storageProvider, serializer, dataReader, namingStrategy, metadata.maxSegmentsPerLevel, levels, sedaContext);
+        this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataReader, namingStrategy, metadata.maxSegmentsPerLevel, levels, sedaContext);
 
 
         logger.info("SEGMENT BIT SHIFT: {}", metadata.segmentBitShift);
@@ -148,8 +149,8 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
 
     }
 
-    public static <T> Builder<T> builder(File directory, Serializer<T> serializer) {
-        return new Builder<>(directory, serializer);
+    public static <T> Config<T> builder(File directory, Serializer<T> serializer) {
+        return new Config<>(directory, serializer);
     }
 
     private L createCurrentSegment(long size) {
@@ -216,7 +217,7 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
 
 
         } catch (Exception e) {
-            throw new RuntimeIOException("Could not close segment file", e);
+            throw new RuntimeIOException("Could not roll segment file", e);
         }
     }
 
@@ -274,6 +275,9 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
     public long append(T data) {
         L current = levels.current();
         long positionOnSegment = current.append(data);
+        if(metadata.flushAfterWrite) {
+            flushInternal();
+        }
         long segmentedPosition = toSegmentedPosition(levels.numSegments() - 1L, positionOnSegment);
         if (positionOnSegment < 0) {
             throw new IllegalStateException("Invalid address " + positionOnSegment);
@@ -381,9 +385,9 @@ public class LogAppender<T, L extends Log<T>> implements Closeable {
             return;
         }
         try {
-            long start = System.currentTimeMillis();
+//            long start = System.currentTimeMillis();
             levels.current().flush();
-            logger.info("Flush took {}ms", System.currentTimeMillis() - start);
+//            logger.info("Flush took {}ms", System.currentTimeMillis() - start);
         } catch (IOException e) {
             throw RuntimeIOException.of(e);
         }
