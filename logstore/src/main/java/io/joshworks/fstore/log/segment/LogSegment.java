@@ -43,7 +43,7 @@ public class LogSegment<T> implements Log<T> {
         this.serializer = serializer;
         this.storage = storage;
         this.reader = reader;
-        Header readHeader = readHeader(storage, type);
+        Header readHeader = readHeader(storage);
 
         if (Header.EMPTY.equals(readHeader)) { //new segment
             this.header = createNewHeader(storage, type);
@@ -61,10 +61,13 @@ public class LogSegment<T> implements Log<T> {
         }
     }
 
-    private Header readHeader(Storage storage, Type type) {
+    private Header readHeader(Storage storage) {
         ByteBuffer bb = ByteBuffer.allocate(Header.SIZE);
         storage.read(0, bb);
         bb.flip();
+        if(bb.remaining() == 0) {
+            return Header.EMPTY;
+        }
         return headerSerializer.fromBytes(bb);
 
     }
@@ -197,14 +200,17 @@ public class LogSegment<T> implements Log<T> {
             throw new IllegalStateException("Cannot roll readOnly segment");
         }
 
+        writeHeader(level);
+        storage.shrink();
+    }
+
+    private void writeHeader(int level) {
         this.header = new Header(entries, header.created, level, Type.READ_ONLY);
         long position = storage.position();
         storage.position(0);
         ByteBuffer headerData = headerSerializer.toBytes(this.header);
         storage.write(headerData);
         storage.position(position);
-        storage.shrink();
-
     }
 
     @Override

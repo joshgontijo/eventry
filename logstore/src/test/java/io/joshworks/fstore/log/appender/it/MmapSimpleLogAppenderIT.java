@@ -12,6 +12,9 @@ public class MmapSimpleLogAppenderIT extends LogAppenderIT<LogSegment<String>> {
     @Override
     protected LogAppender<String, LogSegment<String>> appender(File testDirectory) {
 //        return new SimpleLogAppender<>(LogAppender.builder(testDirectory, Serializers.STRING).mmap());
-        return new SimpleLogAppender<>(LogAppender.builder(testDirectory, Serializers.STRING).mmap(83886080).segmentSize(83886080).disableCompaction());
+        return new SimpleLogAppender<>(LogAppender.builder(testDirectory, Serializers.STRING)
+                .mmap(83986080)
+                .asyncFlush()
+                .segmentSize(83886080));
     }
 }

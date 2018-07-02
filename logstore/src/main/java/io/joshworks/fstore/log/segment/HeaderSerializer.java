@@ -11,7 +11,7 @@ public class HeaderSerializer implements Serializer<Header> {
     public ByteBuffer toBytes(Header data) {
         ByteBuffer bb = ByteBuffer.allocate(Header.SIZE);
         writeTo(data, bb);
-        return (ByteBuffer) bb.position(0); //do not flip, the header will always have the fixed size
+        return bb.position(0); //do not flip, the header will always have the fixed size
 
     }
 

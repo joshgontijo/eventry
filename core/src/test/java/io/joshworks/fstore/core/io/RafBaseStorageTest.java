@@ -1,8 +1,4 @@
-package io.joshworks.fstore.core;
-
-import io.joshworks.fstore.core.io.Mode;
-import io.joshworks.fstore.core.io.RafStorage;
-import io.joshworks.fstore.core.io.Storage;
+package io.joshworks.fstore.core.io;
 
 import java.io.File;
 

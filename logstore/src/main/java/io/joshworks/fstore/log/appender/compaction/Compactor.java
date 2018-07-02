@@ -60,7 +60,7 @@ public class Compactor<T, L extends Log<T>> {
         this.levels = levels;
         this.sedaContext = sedaContext;
 
-        sedaContext.addStage(COMPACTION_CLEANUP_STAGE, this::handleResult, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
+        sedaContext.addStage(COMPACTION_CLEANUP_STAGE, this::cleanup, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
 
     }
 
@@ -99,7 +99,7 @@ public class Compactor<T, L extends Log<T>> {
         return "compaction-level-" + level;
     }
 
-    private synchronized List<L> getSegmentsForCompaction(int level) {
+    private List<L> getSegmentsForCompaction(int level) {
         if (level <= 0) {
             throw new IllegalArgumentException("Level must be greater than zero");
         }
@@ -116,7 +116,7 @@ public class Compactor<T, L extends Log<T>> {
         return maxSegmentsPerLevel > 0 && levels.requiresCompaction(level);
     }
 
-    private void handleResult(EventContext<CompactionResult<T, L>> event) {
+    private void cleanup(EventContext<CompactionResult<T, L>> event) {
         CompactionResult<T, L> result = event.data;
         if (!result.successful()) {
             //TODO

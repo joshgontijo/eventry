@@ -39,7 +39,7 @@ public class LogAppenderTest {
         testDirectory = Utils.testFolder();
         testDirectory.deleteOnExit();
 
-        config = LogAppender.builder(testDirectory, new StringSerializer()).segmentSize(SEGMENT_SIZE);
+        config = LogAppender.builder(testDirectory, new StringSerializer()).segmentSize(SEGMENT_SIZE).mmap(SEGMENT_SIZE);
         appender = new SimpleLogAppender<>(config);
     }
 

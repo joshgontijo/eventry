@@ -103,7 +103,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
     @Test
     public void insert_scan_1M_2kb_entries() throws InterruptedException {
         int items = 1000000;
-        String value = stringOfByteLength(2048);
+        String value = stringOfLength(2048);
         appendN(value, items);
 
         appender.close();
@@ -115,7 +115,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
     @Test
     public void insert_1M_with_2kb_entries() {
-        String value = stringOfByteLength(2048);
+        String value = stringOfLength(2048);
 
         appendN(value, 1000000);
         appender.flush();
@@ -125,10 +125,10 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
     @Test
     public void insert_10M_with_2kb_entries() throws InterruptedException {
-        String value = stringOfByteLength(2048);
+        String value = stringOfLength(2048);
 
         appendN(value, 10000000);
-        Thread.sleep(240000);
+        TimeUnit.HOURS.sleep(1);
         appender.flush();
 
         scanAllAssertingSameValue(value);
@@ -136,7 +136,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
     @Test
     public void insert_100M_with_2kb_entries() throws InterruptedException {
-        String value = stringOfByteLength(2048);
+        String value = stringOfLength(2048);
 
         appendN(value, 100000000);
         appender.flush();
@@ -169,7 +169,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
         }
     }
 
-    private static String stringOfByteLength(int length) {
+    private static String stringOfLength(int length) {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < length / Character.BYTES; i++)
             sb.append("A");
@@ -190,8 +190,8 @@ public abstract class LogAppenderIT<L extends Log<String>> {
                 written = 0;
                 lastUpdate = System.currentTimeMillis();
             }
-            appender.append(value);
-//            appender.appendAsync(value, pos ->{});
+//            appender.append(value);
+            appender.appendAsync(value, pos ->{});
             written++;
         }
 

@@ -1,7 +1,5 @@
-package io.joshworks.fstore.core;
+package io.joshworks.fstore.core.io;
 
-import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.utils.Utils;
 import org.junit.After;
 import org.junit.Before;
@@ -128,12 +126,14 @@ public abstract class DiskStorageTest {
 
     @Test
     public void when_data_is_written_the_size_must_increase() {
-        int dataLength = (int) (storage.length() + 4096);
+        int dataLength = (int) storage.length();
 
         byte[] data = new byte[dataLength];
         Arrays.fill(data, (byte) 1);
         ByteBuffer bb = ByteBuffer.wrap(data);
 
+        storage.write(bb);
+        bb.clear();
         storage.write(bb);
 
         assertTrue(storage.length() >= dataLength);
@@ -146,7 +146,7 @@ public abstract class DiskStorageTest {
     }
 
     @Test
-    public void providing_bigger_buffer_than_available_data_read_only_available() throws IOException {
+    public void providing_buffer_bigger_than_available_data_read_only_available() throws IOException {
 
         //given
         int size = 8;
@@ -173,4 +173,26 @@ public abstract class DiskStorageTest {
         }
     }
 
+    @Test
+    public void position_is_updated_after_insert() {
+        ByteBuffer bb = ByteBuffer.wrap("a".getBytes(StandardCharsets.UTF_8));
+
+        assertEquals(0, storage.position());
+
+        storage.write(bb);
+        long pos = storage.position();
+
+        assertEquals(bb.capacity(), pos);
+    }
+
+    @Test
+    public void shrink_resize_the_file_to_the_current_position() {
+        ByteBuffer bb = ByteBuffer.wrap(TEST_DATA.getBytes(StandardCharsets.UTF_8));
+        storage.write(bb);
+
+        long pos = storage.position();
+        storage.shrink();
+
+        assertEquals(pos, storage.length());
+    }
 }

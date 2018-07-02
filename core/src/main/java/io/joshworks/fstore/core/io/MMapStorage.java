@@ -17,39 +17,42 @@ public class MMapStorage extends DiskStorage {
 
     private final int bufferSize;
     private MappedByteBuffer current;
-    private final List<MappedByteBuffer> buffers = new ArrayList<>();
+    final List<MappedByteBuffer> buffers = new ArrayList<>();
     private int writeBufferIdx;
+
+    private final boolean isWindows;
 
     public MMapStorage(File file, long length, Mode mode, int bufferSize) {
         super(file, length, mode);
         this.bufferSize = bufferSize;
+        isWindows = System.getProperty("os.name").toLowerCase().startsWith("win");
 
         try {
             long fileLength = raf.length();
-            if (bufferSize >= fileLength) { //TODO this is wrong, how about opening for read ?
-                //TEST-CASE: if buffer size is greater than file, use bufferSize
-                MappedByteBuffer singleBuffer = map(0, bufferSize);
-                buffers.add(singleBuffer);
-                writeBufferIdx = 0;
-                current = buffers.get(writeBufferIdx);
-                return;
-            }
-
             long numFullBuffers = (fileLength / bufferSize);
             long diff = fileLength % bufferSize;
-            long totalBuffers = numFullBuffers = diff > 0 ? numFullBuffers : numFullBuffers + 1;
 
             if (Mode.READ_WRITE.equals(mode)) {
+
                 //load everything at once, can it be improved ?
-                for (long i = 0; i < totalBuffers; i++) {
-                    MappedByteBuffer buffer = map(i * bufferSize, bufferSize);
-                    buffers.add(buffer);
-                }
+                long totalBuffers = diff == 0 ? numFullBuffers : numFullBuffers + 1;
+
+                //resize file to accommodate all buffers
+                raf.setLength(totalBuffers * bufferSize);
+
+//                for (long i = 0; i < totalBuffers; i++) {
+//                    MappedByteBuffer buffer = map(i * bufferSize, bufferSize);
+//                    buffers.add(buffer);
+//                }
+
+                MappedByteBuffer initialBuffer = map(0, bufferSize);
+                buffers.add(initialBuffer);
+
                 writeBufferIdx = 0;
                 current = buffers.get(writeBufferIdx);
 
             } else if (Mode.READ.equals(mode)) { //readOnly, do not extend file size
-                //load everything at one, can it be improved ?
+                //loading everything at once, can it be improved ?
                 for (long i = 0; i < numFullBuffers; i++) {
                     MappedByteBuffer buffer = map(i * bufferSize, bufferSize);
                     buffers.add(buffer);
@@ -60,6 +63,7 @@ public class MMapStorage extends DiskStorage {
                     MappedByteBuffer last = map((numFullBuffers + 1) * bufferSize, diff);
                     buffers.add(last);
                 }
+                position = buffers.stream().mapToLong(ByteBuffer::capacity).sum();
             }
 
         } catch (IOException e) {
@@ -72,24 +76,14 @@ public class MMapStorage extends DiskStorage {
         ensureNonEmpty(data);
         checkWritable();
 
-        if (!current.hasRemaining()) {
-            nextBuffer();
+        int dataSize = data.remaining();
+        if (dataSize > bufferSize) {
+            throw new IllegalArgumentException("Data size (" + dataSize + ") cannot be greater than buffer size (" + bufferSize + ")");
         }
 
-        if (current.remaining() < data.remaining()) {
-            //grow enough to fit the new data, this should be avoided as much as possible
-
-            int spaceLeft = current.remaining();
-            ByteBuffer slice = data.slice();
-            slice.limit(spaceLeft);
-
-            write(slice);
-
-            data.position(spaceLeft);
+        // data is never split into multiple buffers
+        if (current.remaining() < dataSize) {
             nextBuffer();
-
-            int secondFragment = write(data);
-            return spaceLeft + secondFragment;
         }
 
         int written = data.remaining();
@@ -113,24 +107,18 @@ public class MMapStorage extends DiskStorage {
         }
 
         readOnly.position(bufferAddress);
-        if (readOnly.remaining() < data.remaining()) {
-            int limit = readOnly.remaining();
-            readOnly.limit(bufferAddress + limit);
-            data.put(readOnly);
-            //TODO STACKOVERFLOW
-            return limit + read(position + limit, data);
-        }
 
         //source buffer has enough data
         int limit = data.remaining();
-        readOnly.limit(bufferAddress + limit);
+        int size = Math.min(limit, readOnly.remaining());
+        size =  Math.min(size, (int)(this.position - position));
+        readOnly.limit(bufferAddress + size);
         data.put(readOnly);
-        return limit;
+        return size;
     }
 
     @Override
     public void position(long position) {
-
         int idx = bufferIdx(position);
         if (idx == NO_BUFFER) {
             throw new IllegalArgumentException("Invalid position");
@@ -139,7 +127,7 @@ public class MMapStorage extends DiskStorage {
         int bufferAddress = posOnBuffer(position);
         current = buffer;
         current.position(bufferAddress);
-        super.position = position;
+        super.position(position);
     }
 
 
@@ -177,6 +165,7 @@ public class MMapStorage extends DiskStorage {
         current = buffers.get(writeBufferIdx);
     }
 
+    @Deprecated
     private void expand() {
         try {
             long fileLength = raf.length();
@@ -198,7 +187,7 @@ public class MMapStorage extends DiskStorage {
 
     private MappedByteBuffer map(long from, long size) {
         try {
-            System.out.println("Mapping " + from + " -> " + (from + size - 1));
+//            System.out.println("Mapping " + from + " -> " + (from + size - 1));
             FileChannel.MapMode mapMode = Mode.READ_WRITE.equals(mode) ? FileChannel.MapMode.READ_WRITE : FileChannel.MapMode.READ_ONLY;
             return raf.getChannel().map(mapMode, from, size);
         } catch (Exception e) {
@@ -251,13 +240,23 @@ public class MMapStorage extends DiskStorage {
     @Override
     public void shrink() {
         super.mode = Mode.READ;
+        int remaining = current.flip().remaining();
+        buffers.remove(buffers.size() - 1);
+
+        unmap(current);
+//        unmapall();
+//        super.shrink();
+
+        long start = buffers.size() * bufferSize;
+        current = map(start, remaining);
+        buffers.add(current);
     }
 
     @Override
     public void flush() {
-        if (current != null && Mode.READ_WRITE.equals(mode)) {
-            //TODO Possibly caused by https://bugs.openjdk.java.net/browse/JDK-6539707
-//            current.force();
+        if (current != null && Mode.READ_WRITE.equals(mode) && !isWindows) {
+            //caused by https://bugs.openjdk.java.net/browse/JDK-6539707
+            current.force();
         }
     }
 }

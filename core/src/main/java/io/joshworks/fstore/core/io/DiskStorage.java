@@ -69,6 +69,9 @@ public abstract class DiskStorage implements Storage {
     }
 
     public void position(long position) {
+        if(Mode.READ.equals(mode)) {
+            throw new IllegalStateException("Cannot update position on read mode");
+        }
         try {
             channel.position(position);
             this.position = position;
@@ -121,7 +124,7 @@ public abstract class DiskStorage implements Storage {
     @Override
     public void shrink() {
         try {
-            raf.setLength(position);
+            channel.truncate(position);
         } catch (Exception e) {
             throw new StorageException(e);
         }

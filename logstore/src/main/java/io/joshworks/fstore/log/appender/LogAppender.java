@@ -155,7 +155,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     private L createCurrentSegment(long size) {
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 0, 1);
-        Storage storage = storageProvider.create(segmentFile, size);
+        Storage storage = storageProvider.create(segmentFile, size + (size / 10));
 
         return factory.createOrOpen(storage, serializer, dataReader, Type.LOG_HEAD);
     }
@@ -246,7 +246,8 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     private boolean shouldRoll(L currentSegment) {
-        return currentSegment.size() > metadata.segmentSize && currentSegment.size() > 0;
+        long segmentSize = currentSegment.size();
+        return segmentSize >= metadata.segmentSize && segmentSize > 0;
     }
 
     public void compact(int level) {
@@ -274,6 +275,10 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     public long append(T data) {
         L current = levels.current();
+        if (shouldRoll(current)) {
+            roll();
+            current = levels.current();
+        }
         long positionOnSegment = current.append(data);
         if(metadata.flushAfterWrite) {
             flushInternal();
@@ -282,10 +287,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         if (positionOnSegment < 0) {
             throw new IllegalStateException("Invalid address " + positionOnSegment);
         }
-        if (shouldRoll(current)) {
-            roll();
-            current = levels.current();
-        }
+
         state.position(current.position());
         state.incrementEntryCount();
         return segmentedPosition;
