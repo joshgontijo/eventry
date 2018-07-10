@@ -38,8 +38,8 @@ public final class LogFileUtils {
         }
     }
 
-    public static File newSegmentFile(File directory, NamingStrategy strategy, int idxOnLevel, int level) {
-        String fileName = fileName(strategy.prefix(), idxOnLevel, level);
+    public static File newSegmentFile(File directory, NamingStrategy strategy, int level) {
+        String fileName = fileName(strategy.prefix(), level);
         File newFile = new File(directory, fileName);
         if (newFile.exists()) {
             throw new IllegalStateException("Segment file '" + fileName + "' already exist");
@@ -47,10 +47,9 @@ public final class LogFileUtils {
         return newFile;
     }
 
-    public static String fileName(String prefix, int idxOnLevel, int level) {
-        String indexOnLevel = String.format("%06d", idxOnLevel);
+    public static String fileName(String prefix, int level) {
         String extension = ".L" + level;
-        return  prefix + "-" + indexOnLevel + extension;
+        return  prefix +  extension;
     }
 
 //    public static String fileName(String prefix, int idxOnLevel, int level) {

@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.stream.Stream;
@@ -197,7 +198,7 @@ public class LogSegment<T> implements Log<T> {
     @Override
     public void roll(int level) {
         if (Type.READ_ONLY.equals(header.type)) {
-            throw new IllegalStateException("Cannot roll readOnly segment");
+            throw new IllegalStateException("Cannot roll read only segment");
         }
 
         writeHeader(level);
@@ -301,6 +302,25 @@ public class LogSegment<T> implements Log<T> {
             readAheadPosition += bb.limit();
             return serializer.fromBytes(bb);
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        LogSegment<?> that = (LogSegment<?>) o;
+        return entries == that.entries &&
+                Objects.equals(headerSerializer, that.headerSerializer) &&
+                Objects.equals(serializer, that.serializer) &&
+                Objects.equals(storage, that.storage) &&
+                Objects.equals(reader, that.reader) &&
+                Objects.equals(header, that.header);
+    }
+
+    @Override
+    public int hashCode() {
+
+        return Objects.hash(headerSerializer, serializer, storage, reader, entries, header);
     }
 
     @Override

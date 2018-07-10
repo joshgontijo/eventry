@@ -244,7 +244,6 @@ public class MMapStorage extends DiskStorage {
         buffers.remove(buffers.size() - 1);
 
         unmap(current);
-//        unmapall();
 //        super.shrink();
 
         long start = buffers.size() * bufferSize;

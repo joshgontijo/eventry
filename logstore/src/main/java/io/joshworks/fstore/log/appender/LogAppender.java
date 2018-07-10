@@ -8,6 +8,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.core.seda.Stage;
 import io.joshworks.fstore.core.seda.StageHandler;
+import io.joshworks.fstore.core.seda.StageStats;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.LogIterator;
@@ -26,6 +27,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ExecutorService;
@@ -154,7 +156,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     private L createCurrentSegment(long size) {
-        File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 0, 1);
+        File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 1);
         Storage storage = storageProvider.create(segmentFile, size + (size / 10));
 
         return factory.createOrOpen(storage, serializer, dataReader, Type.LOG_HEAD);
@@ -200,6 +202,10 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             IOUtils.closeQuietly(storage);
             throw e;
         }
+    }
+
+    public Map<String, StageStats> stats() {
+        return sedaContext.stats();
     }
 
     public synchronized void roll() {

@@ -11,6 +11,8 @@ import org.junit.Test;
 
 import java.io.File;
 import java.nio.file.Files;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
@@ -101,7 +103,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
     }
 
     @Test
-    public void insert_scan_1M_2kb_entries() throws InterruptedException {
+    public void insert_scan_1M_2kb_entries() {
         int items = 1000000;
         String value = stringOfLength(2048);
         appendN(value, items);
@@ -125,11 +127,21 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
     @Test
     public void insert_10M_with_2kb_entries() throws InterruptedException {
+
+        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+        executor.scheduleAtFixedRate(() -> {
+            System.out.println("Size: " + appender.entries());
+
+            appender.stats().forEach((k,v) -> System.out.println(k + ": " + v));
+        }, 1, 1, TimeUnit.SECONDS);
+
         String value = stringOfLength(2048);
 
         appendN(value, 10000000);
-        TimeUnit.HOURS.sleep(1);
+        TimeUnit.MINUTES.sleep(10);
         appender.flush();
+
+        executor.shutdown();
 
         scanAllAssertingSameValue(value);
     }
@@ -186,12 +198,13 @@ public abstract class LogAppenderIT<L extends Log<String>> {
         for (int i = 0; i < num; i++) {
             if (System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
                 avg = (avg + written) / 2;
-                System.out.println("TOTAL WRITTEN: " + appender.entries() + " - LAST SECOND: " + written + " - AVG: " + avg);
+//                System.out.println("TOTAL WRITTEN: " + appender.entries() + " - LAST SECOND: " + written + " - AVG: " + avg);
                 written = 0;
                 lastUpdate = System.currentTimeMillis();
             }
 //            appender.append(value);
-            appender.appendAsync(value, pos ->{});
+            appender.appendAsync(value, pos -> {
+            });
             written++;
         }
 
