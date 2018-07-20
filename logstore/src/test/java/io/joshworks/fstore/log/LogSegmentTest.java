@@ -19,11 +19,12 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public abstract class LogSegmentTest {
 
-    private Log<String> appender;
+    private Log<String> segment;
     private File testFile;
 
     private long FILE_SIZE = 10485760; //10mb
@@ -35,50 +36,50 @@ public abstract class LogSegmentTest {
         return new LogSegment<>(storage, new StringSerializer(), new FixedBufferDataReader(), Type.LOG_HEAD);
     }
 
-    private Log<String> open() {
-        Storage storage = getStorage(testFile, FILE_SIZE);
+    private Log<String> open(File theFile) {
+        Storage storage = getStorage(theFile, FILE_SIZE);
         return new LogSegment<>(storage, new StringSerializer(), new FixedBufferDataReader());
     }
 
     @Before
     public void setUp() {
         testFile = Utils.testFile();
-        appender = create(testFile);
+        segment = create(testFile);
     }
 
     @After
     public void cleanup() {
-        IOUtils.closeQuietly(appender);
+        IOUtils.closeQuietly(segment);
         Utils.tryDelete(testFile);
     }
 
     @Test
     public void writePosition() {
         String data = "hello";
-        appender.append(data);
+        segment.append(data);
 
-        assertEquals(Header.SIZE + 4 + 4 + data.length(), appender.position()); // 4 + 4 (header) + data length
+        assertEquals(Header.SIZE + 4 + 4 + data.length(), segment.position()); // 4 + 4 (header) + data length
     }
 
     @Test
     public void writePosition_reopen() throws IOException {
         String data = "hello";
-        appender.append(data);
+        segment.append(data);
 
-        long position = appender.position();
-        appender.close();
+        long position = segment.position();
+        segment.close();
 
-        appender = open();
+        segment = open(testFile);
 
-        assertEquals(position, appender.position());
+        assertEquals(position, segment.position());
     }
 
     @Test
     public void write() {
         String data = "hello";
-        appender.append(data);
+        segment.append(data);
 
-        LogIterator<String> logIterator = appender.iterator();
+        LogIterator<String> logIterator = segment.iterator();
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
         assertEquals(Header.SIZE + 4 + 4 + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
@@ -87,19 +88,19 @@ public abstract class LogSegmentTest {
     @Test
     public void reader_reopen() throws IOException {
         String data = "hello";
-        appender.append(data);
+        segment.append(data);
 
-        LogIterator<String> logIterator = appender.iterator();
+        LogIterator<String> logIterator = segment.iterator();
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
 
-        long position = appender.position();
-        appender.close();
+        long position = segment.position();
+        segment.close();
 
-        appender = open();
+        segment = open(testFile);
 
-        logIterator = appender.iterator();
-        assertEquals(position, appender.position());
+        logIterator = segment.iterator();
+        assertEquals(position, segment.position());
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
         assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
@@ -108,14 +109,14 @@ public abstract class LogSegmentTest {
     @Test
     public void multiple_readers() {
         String data = "hello";
-        appender.append(data);
+        segment.append(data);
 
-        LogIterator<String> logIterator1 = appender.iterator();
+        LogIterator<String> logIterator1 = segment.iterator();
         assertTrue(logIterator1.hasNext());
         assertEquals(data, logIterator1.next());
         assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE  + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
 
-        LogIterator<String> logIterator2 = appender.iterator();
+        LogIterator<String> logIterator2 = segment.iterator();
         assertTrue(logIterator2.hasNext());
         assertEquals(data, logIterator2.next());
         assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE  + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
@@ -128,9 +129,9 @@ public abstract class LogSegmentTest {
             sb.append(UUID.randomUUID().toString());
         }
         String data = sb.toString();
-        appender.append(data);
+        segment.append(data);
 
-        LogIterator<String> logIterator1 = appender.iterator();
+        LogIterator<String> logIterator1 = segment.iterator();
         assertTrue(logIterator1.hasNext());
         assertEquals(data, logIterator1.next());
         assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
@@ -143,13 +144,50 @@ public abstract class LogSegmentTest {
 
         int items = 10;
         for (int i = 0; i < items; i++) {
-            positions.add(appender.append(String.valueOf(i)));
+            positions.add(segment.append(String.valueOf(i)));
         }
-        appender.flush();
+        segment.flush();
 
         for (int i = 0; i < items; i++) {
-            String found = appender.get(positions.get(i));
+            String found = segment.get(positions.get(i));
             assertEquals(String.valueOf(i), found);
+        }
+    }
+
+    @Test
+    public void header_is_stored() throws IOException {
+        File file = Utils.testFile();
+        Log<String> testSegment = null;
+        try {
+
+            testSegment = create(file);
+            assertTrue(testSegment.created() > 0);
+            assertEquals(0, testSegment.entries());
+            assertEquals(0, testSegment.level());
+            assertFalse(testSegment.readOnly());
+
+            testSegment.close();
+
+            testSegment = open(file);
+            assertTrue(testSegment.created() > 0);
+            assertEquals(0, testSegment.entries());
+            assertEquals(0, testSegment.level());
+            assertFalse(testSegment.readOnly());
+
+            testSegment.append("a");
+            testSegment.roll(1);
+
+            testSegment.close();
+
+            assertEquals(1, testSegment.entries());
+            assertEquals(1, testSegment.level());
+            assertTrue(testSegment.readOnly());
+
+        } finally {
+            if(testSegment != null) {
+                testSegment.close();
+            }
+            Utils.tryDelete(file);
         }
     }
 
@@ -178,13 +216,13 @@ public abstract class LogSegmentTest {
         for (int i = 0; i < items; i++) {
             String value = UUID.randomUUID().toString();
             values.add(value);
-            appender.append(value);
+            segment.append(value);
         }
-        appender.flush();
+        segment.flush();
 
         int i =0;
 
-        LogIterator<String> logIterator = appender.iterator();
+        LogIterator<String> logIterator = segment.iterator();
         while(logIterator.hasNext()) {
             assertEquals("Failed on iteration " + i, values.get(i), logIterator.next());
             i++;
@@ -194,16 +232,16 @@ public abstract class LogSegmentTest {
 
     @Test
     public void size() throws IOException {
-        appender.append("a");
-        appender.append("b");
+        segment.append("a");
+        segment.append("b");
 
-        assertEquals(Header.SIZE +  (Log.ENTRY_HEADER_SIZE + 1) * 2, appender.size());
+        assertEquals(Header.SIZE +  (Log.ENTRY_HEADER_SIZE + 1) * 2, segment.size());
 
-        appender.position();
-        appender.close();
+        segment.position();
+        segment.close();
 
-        appender = open();
-        assertEquals(Header.SIZE + (Log.ENTRY_HEADER_SIZE + 1) * 2, appender.size());
+        segment = open(testFile);
+        assertEquals(Header.SIZE + (Log.ENTRY_HEADER_SIZE + 1) * 2, segment.size());
     }
 
 }

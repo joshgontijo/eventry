@@ -28,18 +28,21 @@ import java.util.stream.StreamSupport;
 public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> implements Index {
 
     public IndexAppender(Config<IndexEntry> config, int numElements) {
-        super(config, new IndexSegmentFactory(config.directory, numElements));
+        super(config.segmentSize(numElements * IndexEntry.BYTES), new IndexSegmentFactory(config.directory, numElements));
     }
 
     @Override
     public Iterator<IndexEntry> iterator(Range range) {
-        List<Iterator<IndexEntry>> iterators = streamSegments(Order.OLDEST).map(Log::iterator).collect(Collectors.toList());
+        List<Iterator<IndexEntry>> iterators = streamSegments(Order.OLDEST)
+                .map(idxSeg -> idxSeg.iterator(range))
+                .collect(Collectors.toList());
+
         return Iterators.concat(iterators);
     }
 
     @Override
     public Stream<IndexEntry> stream(Range range) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(), Spliterator.ORDERED), false);
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(range), Spliterator.ORDERED), false);
     }
 
     @Override

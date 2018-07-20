@@ -30,6 +30,8 @@ public class Config<T> {
     int maxSegmentsPerLevel = 3;
     int mmapBufferSize = segmentSize;
     boolean flushAfterWrite;
+    boolean threadPerLevel;
+    boolean compactionDisabled;
 
     Config(File directory, Serializer<T> serializer) {
         Objects.requireNonNull(directory, "directory cannot be null");
@@ -56,7 +58,12 @@ public class Config<T> {
     }
 
     public Config<T> disableCompaction() {
-        this.maxSegmentsPerLevel = LogAppender.COMPACTION_DISABLED;
+        this.compactionDisabled = true;
+        return this;
+    }
+
+    public Config<T> threadPerLevelCompaction() {
+        this.threadPerLevel = true;
         return this;
     }
 

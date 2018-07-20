@@ -23,7 +23,7 @@ public class SedaContext implements Closeable {
     private final AtomicReference<ContextState> state = new AtomicReference<>(ContextState.RUNNING);
 
     @SuppressWarnings("unchecked")
-    public synchronized <T> void addStage(String name, StageHandler<T> handler, Stage.Builder builder) {
+    public <T> void addStage(String name, StageHandler<T> handler, Stage.Builder builder) {
         if (stages.containsKey(name)) {
             throw new IllegalArgumentException("Duplicated stage name '" + name + "'");
         }
@@ -39,7 +39,7 @@ public class SedaContext implements Closeable {
         ContextState contextState = state.get();
         String uuid = UUID.randomUUID().toString();
         if (!ContextState.RUNNING.equals(contextState)) {
-            throw new IllegalStateException("Cannot accept new events, context state " + contextState);
+            throw new IllegalStateException("Cannot accept new events on stage '" + stageName + "', context state " + contextState);
         }
         Objects.requireNonNull(event, "Event must be provided");
         CompletableFuture<Object> future = new CompletableFuture<>();
@@ -58,19 +58,19 @@ public class SedaContext implements Closeable {
             throw new IllegalStateException("Cannot accept new events, context state " + contextState);
         }
         Objects.requireNonNull(event, "Event must be provided");
-       sendTo(stageName, correlationId, event, future);
+        sendTo(stageName, correlationId, event, future);
     }
 
     @SuppressWarnings("unchecked")
     private void sendTo(String stageName, String correlationId, Object event, CompletableFuture<Object> future) {
         Stage stage = stages.get(stageName);
-        if(stage == null) {
+        if (stage == null) {
             throw new IllegalArgumentException("No such stage: " + stageName);
         }
         stage.submit(correlationId, event, future);
     }
 
-    public Set<String> stages(){
+    public Set<String> stages() {
         return new HashSet<>(stages.keySet());
     }
 
@@ -100,7 +100,7 @@ public class SedaContext implements Closeable {
     }
 
     //Close the context and process remaining items in the stages
-    public synchronized void shutdown() {
+    public void shutdown() {
         if (!state.compareAndSet(ContextState.RUNNING, ContextState.AWAITING_COMPLETION)) {
             return;
         }

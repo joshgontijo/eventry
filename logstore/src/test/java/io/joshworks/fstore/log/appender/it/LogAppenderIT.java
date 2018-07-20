@@ -11,8 +11,6 @@ import org.junit.Test;
 
 import java.io.File;
 import java.nio.file.Files;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
@@ -128,20 +126,21 @@ public abstract class LogAppenderIT<L extends Log<String>> {
     @Test
     public void insert_10M_with_2kb_entries() throws InterruptedException {
 
-        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-        executor.scheduleAtFixedRate(() -> {
-            System.out.println("Size: " + appender.entries());
+//        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+//        executor.scheduleAtFixedRate(() -> {
+//            System.out.println("Size: " + appender.entries());
+//
+////            appender.stats().forEach((k,v) -> System.out.println(k + ": " + v));
+//        }, 1, 1, TimeUnit.SECONDS);
 
-            appender.stats().forEach((k,v) -> System.out.println(k + ": " + v));
-        }, 1, 1, TimeUnit.SECONDS);
-
-        String value = stringOfLength(2048);
+        String value = stringOfLength(1024);
 
         appendN(value, 10000000);
+        appender.roll();
+        appender.compact();
         TimeUnit.MINUTES.sleep(10);
-        appender.flush();
 
-        executor.shutdown();
+//        executor.shutdown();
 
         scanAllAssertingSameValue(value);
     }
@@ -202,9 +201,9 @@ public abstract class LogAppenderIT<L extends Log<String>> {
                 written = 0;
                 lastUpdate = System.currentTimeMillis();
             }
-//            appender.append(value);
-            appender.appendAsync(value, pos -> {
-            });
+            appender.append(value);
+//            appender.appendAsync(value, pos -> {
+//            });
             written++;
         }
 

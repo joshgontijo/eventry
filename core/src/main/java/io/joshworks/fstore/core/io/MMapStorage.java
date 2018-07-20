@@ -51,7 +51,7 @@ public class MMapStorage extends DiskStorage {
                 writeBufferIdx = 0;
                 current = buffers.get(writeBufferIdx);
 
-            } else if (Mode.READ.equals(mode)) { //readOnly, do not extend file size
+            } else  { //readOnly, do not extend file size
                 //loading everything at once, can it be improved ?
                 for (long i = 0; i < numFullBuffers; i++) {
                     MappedByteBuffer buffer = map(i * bufferSize, bufferSize);
@@ -110,8 +110,14 @@ public class MMapStorage extends DiskStorage {
 
         //source buffer has enough data
         int limit = data.remaining();
-        int size = Math.min(limit, readOnly.remaining());
-        size =  Math.min(size, (int)(this.position - position));
+        int size;
+        if (Mode.READ_WRITE.equals(mode)) {
+            size = Math.min(readOnly.remaining(), (int)(this.position - position));
+        } else {
+            size = readOnly.limit();
+        }
+
+        size = Math.min(limit, size);
         readOnly.limit(bufferAddress + size);
         data.put(readOnly);
         return size;
@@ -187,18 +193,12 @@ public class MMapStorage extends DiskStorage {
 
     private MappedByteBuffer map(long from, long size) {
         try {
-//            System.out.println("Mapping " + from + " -> " + (from + size - 1));
             FileChannel.MapMode mapMode = Mode.READ_WRITE.equals(mode) ? FileChannel.MapMode.READ_WRITE : FileChannel.MapMode.READ_ONLY;
             return raf.getChannel().map(mapMode, from, size);
         } catch (Exception e) {
             close();
             throw new StorageException(e);
         }
-    }
-
-    @Override
-    public long position() {
-        return position;
     }
 
     @Override
@@ -227,6 +227,7 @@ public class MMapStorage extends DiskStorage {
             return;
         }
         try {
+            flush();
             Class<?> fcClass = channel.getClass();
             Method unmapMethod = fcClass.getDeclaredMethod("unmap", MappedByteBuffer.class);
             unmapMethod.setAccessible(true);
@@ -244,7 +245,7 @@ public class MMapStorage extends DiskStorage {
         buffers.remove(buffers.size() - 1);
 
         unmap(current);
-//        super.shrink();
+        super.shrink();
 
         long start = buffers.size() * bufferSize;
         current = map(start, remaining);

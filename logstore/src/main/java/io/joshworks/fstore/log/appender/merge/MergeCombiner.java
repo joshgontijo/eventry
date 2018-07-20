@@ -1,10 +1,10 @@
 package io.joshworks.fstore.log.appender.merge;
 
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public abstract class MergeCombiner<T extends Comparable<T>>  implements SegmentCombiner<T> {
@@ -17,10 +17,7 @@ public abstract class MergeCombiner<T extends Comparable<T>>  implements Segment
     public void merge(List<Stream<T>> segments, Consumer<T> writer) {
 
 
-        List<Iterator<T>> iterators = new LinkedList<>();
-        for (Stream<T> segment : segments) {
-            iterators.add(segment.iterator());
-        }
+        List<Iterator<T>> iterators = segments.stream().map(Stream::iterator).collect(Collectors.toList());
 
         for (Iterator<T> iterator : iterators) {
             IteratorContainer<T> container = new IteratorContainer<>(iterator);

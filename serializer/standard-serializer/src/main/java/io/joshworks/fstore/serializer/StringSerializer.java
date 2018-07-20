@@ -20,10 +20,14 @@ public class StringSerializer implements Serializer<String> {
     @Override
     public String fromBytes(ByteBuffer buffer) {
         if(!buffer.hasArray()) {
-            byte[] data = new byte[buffer.remaining()];
-            buffer.get(data);
-            return new String(data, StandardCharsets.UTF_8);
+            return copyBytes(buffer);
         }
         return new String(buffer.array(), buffer.position(), buffer.remaining(), StandardCharsets.UTF_8);
+    }
+
+    private String copyBytes(ByteBuffer buffer) {
+        byte[] data = new byte[buffer.remaining()];
+        buffer.get(data);
+        return new String(data, StandardCharsets.UTF_8);
     }
 }

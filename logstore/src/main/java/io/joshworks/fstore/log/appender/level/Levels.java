@@ -107,6 +107,11 @@ public class Levels<T, L extends Log<T>> {
         });
     }
 
+    public synchronized void replace(int level, List<L> segments, L merged) {
+        remove(level, segments);
+        add(level + 1, merged);
+    }
+
     public synchronized void remove(int level, List<L> segments) {
         items.computeIfPresent(level, (k, v) -> {
             for (L segment : segments) {
@@ -119,12 +124,11 @@ public class Levels<T, L extends Log<T>> {
 
     public synchronized List<L> segmentsForCompaction(int level) {
         List<L> toBeCompacted = new ArrayList<>();
-        int numSegments = 0;
         for(L segment : segments(level)) {
             if(!compacting.contains(segment)) {
                 toBeCompacted.add(segment);
             }
-            if(numSegments++ > maxItemsPerLevel) {
+            if(toBeCompacted.size() >= maxItemsPerLevel) {
                 break;
             }
         }
@@ -137,7 +141,12 @@ public class Levels<T, L extends Log<T>> {
     }
 
     public Iterator<L> segments(Order order) {
-        LinkedList<L> flattened = items.values().stream().flatMap(Collection::stream).collect(Collectors.toCollection(LinkedList::new));
+        LinkedList<L> flattened = items.entrySet().stream()
+                .sorted(Comparator.comparingInt(Map.Entry::getKey))
+                .map(Map.Entry::getValue)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toCollection(LinkedList::new));
+
         if (Order.OLDEST.equals(order)) {
             return flattened.descendingIterator();
         }

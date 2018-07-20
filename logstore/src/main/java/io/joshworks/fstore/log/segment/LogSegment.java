@@ -34,7 +34,6 @@ public class LogSegment<T> implements Log<T> {
     private Header header;
 
 
-
     public LogSegment(Storage storage, Serializer<T> serializer, DataReader reader) {
         this(storage, serializer, reader, null); //when type is null,
     }
@@ -47,6 +46,9 @@ public class LogSegment<T> implements Log<T> {
         Header readHeader = readHeader(storage);
 
         if (Header.EMPTY.equals(readHeader)) { //new segment
+            if (type == null) {
+                throw new RuntimeException("Segment type must be provided when creating a new segment");
+            }
             this.header = createNewHeader(storage, type);
             this.position(Log.START);
             return;
@@ -66,7 +68,7 @@ public class LogSegment<T> implements Log<T> {
         ByteBuffer bb = ByteBuffer.allocate(Header.SIZE);
         storage.read(0, bb);
         bb.flip();
-        if(bb.remaining() == 0) {
+        if (bb.remaining() == 0) {
             return Header.EMPTY;
         }
         return headerSerializer.fromBytes(bb);
@@ -77,7 +79,14 @@ public class LogSegment<T> implements Log<T> {
         validateTypeProvided(type);
         Header newHeader = new Header(0, System.currentTimeMillis(), 0, type);
         ByteBuffer headerData = headerSerializer.toBytes(newHeader);
-        storage.write(headerData);
+        if (storage.write(headerData) != Header.SIZE) {
+            throw new RuntimeException("Failed to create header");
+        }
+        try {
+            storage.flush();
+        } catch (IOException e) {
+            throw RuntimeIOException.of(e);
+        }
         return newHeader;
     }
 

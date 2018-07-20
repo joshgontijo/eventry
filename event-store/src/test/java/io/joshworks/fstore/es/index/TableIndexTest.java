@@ -17,7 +17,7 @@ public class TableIndexTest {
 
     private TableIndex tableIndex;
     private File testDirectory;
-    private static final int FLUSH_THRESHOLD = 1000;
+    private static final int FLUSH_THRESHOLD = 1000000;
 
     @Before
     public void setUp() {
@@ -96,7 +96,7 @@ public class TableIndexTest {
     }
 
     @Test
-    public void version_added_to_isk_is_retrieved() {
+    public void version_added_to_disk_is_retrieved() {
         long stream = 1;
         int version = 1;
         tableIndex.add(stream, version, 0);
@@ -152,6 +152,28 @@ public class TableIndexTest {
         Stream<IndexEntry> dataStream = tableIndex.stream(Range.allOf(stream));
 
         assertEquals(2, dataStream.count());
+
+        Iterator<IndexEntry> it = tableIndex.stream().iterator();
+
+        assertEquals(1, it.next().version);
+        assertEquals(2, it.next().version);
+
+    }
+
+    @Test
+    public void stream_returns_data_from_disk_and_memory() {
+
+        //given
+        long stream = 1;
+        //2 segments + in memory
+        int size = (FLUSH_THRESHOLD * 2) + FLUSH_THRESHOLD / 2;
+        for (int i = 1; i <= size; i++) {
+            tableIndex.add(stream, i, 0);
+        }
+
+        Stream<IndexEntry> dataStream = tableIndex.stream();
+
+        assertEquals(size, dataStream.count());
 
         Iterator<IndexEntry> it = tableIndex.stream().iterator();
 
@@ -248,7 +270,7 @@ public class TableIndexTest {
         tableIndex.close();
 
         //given
-        int streams = 1000000;
+        int streams = 100000;
         try(TableIndex index = new TableIndex(testDirectory, 500000)) {
 
             for (int i = 0; i < streams; i++) {

@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
@@ -311,24 +310,29 @@ public class EventStoreIT {
     @Test
     public void linkTo() {
         int size = 1000000;
+
+        System.out.println("Creating entries");
         for (int i = 0; i < size; i++) {
-            store.add("test-stream", Event.create("test", UUID.randomUUID().toString().substring(0,8)));
+            store.add("test-stream", Event.create("test", UUID.randomUUID().toString().substring(0, 8)));
         }
 
-//        store.fromStream("test-stream").forEach(e -> {
-//            String firstLetter = e.data().substring(0,1);
-//            store.linkTo("letter-" + firstLetter, e);
-//        });
-//
-//        store.fromStream("test-stream").forEach(e -> {
-//            String firstLetter = e.data().substring(0,2);
-//            store.linkTo("letter-" + firstLetter, e);
-//        });
-//
-//        store.fromStream("test-stream").forEach(e -> {
-//            String firstLetter = e.data().substring(0,3);
-//            store.linkTo("letter-" + firstLetter, e);
-//        });
+        System.out.println("LinkTo 1");
+        store.fromStream("test-stream").forEach(e -> {
+            String firstLetter = Arrays.toString(e.data()).substring(0, 1);
+            store.linkTo("letter-" + firstLetter, e);
+        });
+
+        System.out.println("LinkTo 2");
+        store.fromStream("test-stream").forEach(e -> {
+            String firstLetter = Arrays.toString(e.data()).substring(0, 2);
+            store.linkTo("letter-" + firstLetter, e);
+        });
+
+        System.out.println("LinkTo 3");
+        store.fromStream("test-stream").forEach(e -> {
+            String firstLetter = Arrays.toString(e.data()).substring(0, 3);
+            store.linkTo("letter-" + firstLetter, e);
+        });
 
 
     }
@@ -373,17 +377,25 @@ public class EventStoreIT {
             store.add(allStream, Event.create("test", UUID.randomUUID().toString()));
         }
 
-        int numOtherIndexes = 1000000;
+        int numOtherIndexes = 5;
 
-        AtomicInteger streamName = new AtomicInteger();
+        long start = System.currentTimeMillis();
+
+        assertEquals(size, store.fromStream(allStream).count());
+
+        store.fromStream(allStream).forEach(e -> {
+            for (int i = 0; i < numOtherIndexes; i++) {
+                store.linkTo(String.valueOf(i), e);
+            }
+        });
+        System.out.println("Created " + numOtherIndexes + " in " + (System.currentTimeMillis() - start));
+
+        assertEquals(size, store.fromStream(allStream).count());
+
         for (int i = 0; i < numOtherIndexes; i++) {
-            long start = System.currentTimeMillis();
-            store.fromStream(allStream).forEach(e -> store.linkTo(String.valueOf(streamName.incrementAndGet()), e));
-            System.out.println("Created index " + i + " in " + (System.currentTimeMillis() - start));
+            long foundSize = store.fromStream(String.valueOf(i)).count();
+            assertEquals("Failed on iteration: " + i, size, foundSize);
         }
-
-        System.out.println("");
-
     }
 
     private void testWith(int streams, int numVersionPerStream) {

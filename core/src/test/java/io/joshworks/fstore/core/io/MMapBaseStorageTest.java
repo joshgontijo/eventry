@@ -3,6 +3,7 @@ package io.joshworks.fstore.core.io;
 import io.joshworks.fstore.core.utils.Utils;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -13,6 +14,7 @@ import java.util.Arrays;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 
+@Ignore
 public class MMapBaseStorageTest extends DiskStorageTest {
 
     private File mmapFile;
@@ -111,6 +113,24 @@ public class MMapBaseStorageTest extends DiskStorageTest {
         }
     }
 
+    @Test
+    public void readonly_file_returns_correct_data() {
+        int entrySize = 1024;
+        int bufferSize = entrySize * 2;
+        long fileSize = (long) bufferSize * 2;
+        try (var storage = new MMapStorage(mmapFile, fileSize, Mode.READ_WRITE, bufferSize)) {
+
+            var bb = ofSize(entrySize);
+            storage.write(bb);
+
+            storage.shrink();
+
+            var read = ByteBuffer.allocate(entrySize);
+            storage.read(0, read);
+
+            assertArrayEquals(bb.array(), read.flip().array());
+        }
+    }
 
     @Test
     public void entry_cannot_be_greater_than_buffer_size() {

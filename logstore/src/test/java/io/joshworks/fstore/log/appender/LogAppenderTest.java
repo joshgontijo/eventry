@@ -22,6 +22,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -39,7 +40,7 @@ public class LogAppenderTest {
         testDirectory = Utils.testFolder();
         testDirectory.deleteOnExit();
 
-        config = LogAppender.builder(testDirectory, new StringSerializer()).segmentSize(SEGMENT_SIZE).mmap(SEGMENT_SIZE);
+        config = LogAppender.builder(testDirectory, new StringSerializer()).segmentSize(SEGMENT_SIZE);
         appender = new SimpleLogAppender<>(config);
     }
 
@@ -298,6 +299,45 @@ public class LogAppenderTest {
     }
 
     @Test
+    public void reopen_reads_from_segment_header() {
+
+        appender.close();
+
+        //create
+        try (LogAppender<String, LogSegment<String>> testAppender = new SimpleLogAppender<>(config)) {
+            Log<String> testSegment = testAppender.current();
+
+            assertTrue(testSegment.created() > 0);
+            assertEquals(0, testSegment.entries());
+            assertEquals(0, testSegment.level());
+            assertFalse(testSegment.readOnly());
+        }
+
+        //duplicated code, part of the test, do not delete
+        //open
+        try (LogAppender<String, LogSegment<String>> testAppender = new SimpleLogAppender<>(config)) {
+            Log<String> testSegment = testAppender.current();
+
+            assertTrue(testSegment.created() > 0);
+            assertEquals(0, testSegment.entries());
+            assertEquals(0, testSegment.level());
+            assertFalse(testSegment.readOnly());
+        }
+
+        //open
+        try (LogAppender<String, LogSegment<String>> testAppender = new SimpleLogAppender<>(config)) {
+            Log<String> testSegment = testAppender.current();
+            testSegment.append("a");
+            testSegment.roll(1);
+
+            assertEquals(1, testSegment.entries());
+            assertEquals(1, testSegment.level());
+            assertTrue(testSegment.readOnly());
+
+        }
+    }
+
+    @Test
     public void compact() {
         appender.append("SEGMENT-A");
         appender.roll();
@@ -308,7 +348,7 @@ public class LogAppenderTest {
         assertEquals(3, appender.levels.numSegments());
         assertEquals(2, appender.entries());
 
-        appender.compact(1);
+        appender.compact();
 
         assertEquals(2, appender.levels.numSegments());
         assertEquals(3, appender.levels.depth());
@@ -328,7 +368,7 @@ public class LogAppenderTest {
         appender.append("SEGMENT-B");
         appender.roll();
 
-        appender.compact(1);
+        appender.compact();
 
         assertEquals(3, appender.depth());
 

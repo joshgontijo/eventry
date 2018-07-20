@@ -48,8 +48,6 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     private static final Logger logger = LoggerFactory.getLogger(LogAppender.class);
 
-    static final int COMPACTION_DISABLED = 0;
-
     private final File directory;
     private final Serializer<T> serializer;
     private final Metadata metadata;
@@ -69,11 +67,12 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     //state
     private final State state;
+    private final boolean compactionDisabled;
 //    private final History history;
 
     private AtomicBoolean closed = new AtomicBoolean();
 
-//    private final ScheduledExecutorService stateScheduler = Executors.newSingleThreadScheduledExecutor();
+    //    private final ScheduledExecutorService stateScheduler = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
 
     private final SedaContext sedaContext = new SedaContext();
@@ -129,10 +128,10 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             throw e;
         }
 
-        String compaction = config.maxSegmentsPerLevel == LogAppender.COMPACTION_DISABLED ? "DISABLED" : "ENABLED";
-        logger.info("Compaction is {}", compaction);
+        this.compactionDisabled = config.compactionDisabled;
+        logger.info("Compaction is {}", this.compactionDisabled ? "DISABLED" : "ENABLED");
 
-        this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataReader, namingStrategy, metadata.maxSegmentsPerLevel, levels, sedaContext);
+        this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataReader, namingStrategy, metadata.maxSegmentsPerLevel, levels, sedaContext, config.threadPerLevel);
 
 
         logger.info("SEGMENT BIT SHIFT: {}", metadata.segmentBitShift);
@@ -219,7 +218,9 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             state.lastRollTime(System.currentTimeMillis());
             state.flush();
 
-            compactor.newSegmentRolled();
+            if (!compactionDisabled) {
+                compactor.requestCompaction(1);
+            }
 
 
         } catch (Exception e) {
@@ -256,8 +257,8 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return segmentSize >= metadata.segmentSize && segmentSize > 0;
     }
 
-    public void compact(int level) {
-        throw new UnsupportedOperationException("TODO");
+    public void compact() {
+        compactor.requestCompaction(1);
     }
 
     public void appendAsync(T data, Consumer<Long> onComplete) {
@@ -286,7 +287,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             current = levels.current();
         }
         long positionOnSegment = current.append(data);
-        if(metadata.flushAfterWrite) {
+        if (metadata.flushAfterWrite) {
             flushInternal();
         }
         long segmentedPosition = toSegmentedPosition(levels.numSegments() - 1L, positionOnSegment);
@@ -303,6 +304,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return directory.getName();
     }
 
+    //TODO implement reader pool, instead using a new instance of reader, provide a pool of reader to better performance
     public LogIterator<T> scanner() {
         return new RollingSegmentReader(segments(Order.OLDEST), Log.START);
     }

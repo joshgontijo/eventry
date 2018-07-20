@@ -12,7 +12,8 @@ public class RafLogAppenderIT extends LogAppenderIT<LogSegment<String>> {
     @Override
     protected LogAppender<String, LogSegment<String>> appender(File testDirectory) {
         return new SimpleLogAppender<>(LogAppender.builder(testDirectory, Serializers.STRING)
-                .segmentSize(20971520)
-                .asyncFlush());
+                .segmentSize(83886080)
+                .threadPerLevelCompaction()
+                .disableCompaction());
     }
 }
