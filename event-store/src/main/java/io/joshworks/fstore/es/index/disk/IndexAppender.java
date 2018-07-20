@@ -3,10 +3,10 @@ package io.joshworks.fstore.es.index.disk;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.index.Index;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
-import io.joshworks.fstore.es.utils.Iterators;
 import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.Order;
@@ -42,7 +42,7 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
 
     @Override
     public Stream<IndexEntry> stream(Range range) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(range), Spliterator.ORDERED), false);
+        return Iterators.stream(iterator(range));
     }
 
     @Override

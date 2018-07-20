@@ -1,5 +1,7 @@
-package io.joshworks.fstore.log.appender;
+package io.joshworks.fstore.log.appender.appenders;
 
+import io.joshworks.fstore.log.appender.Config;
+import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.segment.LogSegment;
 
 public class SimpleLogAppender<T> extends LogAppender<T, LogSegment<T>> {

@@ -3,13 +3,13 @@ package io.joshworks.fstore.es.index.disk;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.index.Index;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.es.index.filter.BloomFilter;
 import io.joshworks.fstore.es.index.midpoint.Midpoint;
 import io.joshworks.fstore.es.index.midpoint.Midpoints;
-import io.joshworks.fstore.es.utils.Iterators;
 import io.joshworks.fstore.index.filter.Hash;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.segment.Type;
@@ -23,10 +23,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<IndexEntry>> implements Index {
 
@@ -96,7 +93,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
 
     @Override
     public Stream<IndexEntry> stream(Range range) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(range), Spliterator.ORDERED), false);
+        return Iterators.stream(iterator(range));
     }
 
     @Override

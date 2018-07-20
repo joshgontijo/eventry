@@ -3,7 +3,7 @@ package io.joshworks.fstore.log.segment.block;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.LogAppender;
-import io.joshworks.fstore.log.appender.SimpleLogAppender;
+import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 import io.joshworks.fstore.log.segment.LogSegment;
 import io.joshworks.fstore.serializer.Serializers;
 import org.junit.After;

@@ -1,5 +1,6 @@
 package io.joshworks.fstore.es;
 
+import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.hash.Murmur3Hash;
 import io.joshworks.fstore.es.hash.XXHash;
 import io.joshworks.fstore.es.index.IndexEntry;
@@ -21,10 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 public class EventStore implements Closeable {
 
@@ -58,12 +56,12 @@ public class EventStore implements Closeable {
 
     public Stream<Event> fromStreams(List<String> streams) {
         Iterator<Event> iterator = iterateStreams(streams);
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
+        return Iterators.stream(iterator);
     }
 
 //    public Stream<Event[]> fromStreamsParallel(List<String> streams) {
 //        Iterator<Event> iterator = iterateStreams(streams);
-//        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
+//        return Iterators.stream(iterator);
 //    }
 
     public Iterator<Event> iterateStreams(List<String> streams) {
@@ -96,7 +94,7 @@ public class EventStore implements Closeable {
 
     public Stream<Event> fromStream(String stream, int versionInclusive) {
         Iterator<Event> iterator = iterator(stream, versionInclusive);
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
+        return Iterators.stream(iterator);
     }
 
     public Iterator<Event> iterateAll() {

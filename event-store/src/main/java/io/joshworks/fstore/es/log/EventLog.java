@@ -2,7 +2,7 @@ package io.joshworks.fstore.es.log;
 
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.log.appender.Config;
-import io.joshworks.fstore.log.appender.SimpleLogAppender;
+import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 
 public class EventLog extends SimpleLogAppender<Event> {
 

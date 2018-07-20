@@ -1,14 +1,16 @@
 package io.joshworks.fstore.log.segment.block;
 
+import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.log.segment.SegmentState;
-import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.LogSegment;
+import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.Type;
 
+import java.io.IOException;
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
 import java.util.Queue;
@@ -177,6 +179,15 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
                 throw new NoSuchElementException();
             }
             return entries.poll();
+        }
+
+        @Override
+        public void close() {
+            try {
+                segmentIterator.close();
+            } catch (IOException e) {
+                throw RuntimeIOException.of(e);
+            }
         }
     }
 }

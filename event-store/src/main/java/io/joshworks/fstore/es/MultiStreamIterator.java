@@ -1,9 +1,9 @@
 package io.joshworks.fstore.es;
 
+import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.log.Event;
 import io.joshworks.fstore.es.log.EventLog;
-import io.joshworks.fstore.es.utils.Iterators;
 
 import java.util.Comparator;
 import java.util.Iterator;

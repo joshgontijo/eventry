@@ -1,12 +1,17 @@
-package io.joshworks.fstore.es.utils;
+package io.joshworks.fstore.core.util;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.NoSuchElementException;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
-public class Iterators<T> {
+public class Iterators {
 
     private Iterators() {
 
@@ -31,6 +36,23 @@ public class Iterators<T> {
     public static <T> Iterator<T> empty() {
         return new EmptyIterator<>();
     }
+
+    public static <T> List<T> toList(Iterator<T> iterator) {
+        List<T> copy = new ArrayList<T>();
+        while (iterator.hasNext())
+            copy.add(iterator.next());
+        return copy;
+    }
+
+    public static <T> Stream<T> stream(Iterator<T> iterator) {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
+    }
+
+    public static <T> Stream<T> stream(Iterator<T> iterator, int characteristics, boolean parallel) {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, characteristics), parallel);
+    }
+
+
 
     private static class EmptyIterator<T> implements Iterator<T> {
 

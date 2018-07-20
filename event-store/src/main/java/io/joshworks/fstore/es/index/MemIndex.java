@@ -1,6 +1,7 @@
 package io.joshworks.fstore.es.index;
 
-import io.joshworks.fstore.es.utils.Iterators;
+
+import io.joshworks.fstore.core.util.Iterators;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -66,12 +67,12 @@ public class MemIndex implements Index {
 
     @Override
     public Stream<IndexEntry> stream() {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(), Spliterator.ORDERED), false);
+        return Iterators.stream(iterator());
     }
 
     @Override
     public Stream<IndexEntry> stream(Range range) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(range), Spliterator.ORDERED), false);
+        return Iterators.stream(iterator(range));
     }
 
     @Override

@@ -1,12 +1,13 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 import io.joshworks.fstore.log.segment.block.Block;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 
-public class BlockAppender<T> extends SimpleLogAppender<Block<T>>{
+public class BlockAppender<T> extends SimpleLogAppender<Block<T>> {
 
     private final int blockSize;
     private final Serializer<T> serializer;

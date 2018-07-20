@@ -9,6 +9,7 @@ import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.core.seda.Stage;
 import io.joshworks.fstore.core.seda.StageHandler;
 import io.joshworks.fstore.core.seda.StageStats;
+import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.LogIterator;
@@ -28,15 +29,12 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 /**
  * Position address schema
@@ -186,7 +184,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         }
 
 
-        return Levels.load(metadata.maxSegmentsPerLevel, segments);
+        return Levels.create(metadata.maxSegmentsPerLevel, segments);
     }
 
     private L loadSegment(String segmentName) {
@@ -209,6 +207,9 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     public synchronized void roll() {
         try {
+            if (levels.current().entries() == 0) {
+                return;
+            }
             logger.info("Rolling appender");
             flush();
 
@@ -306,15 +307,15 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     //TODO implement reader pool, instead using a new instance of reader, provide a pool of reader to better performance
     public LogIterator<T> scanner() {
-        return new RollingSegmentReader(segments(Order.OLDEST), Log.START);
+        return new RollingSegmentReader(Log.START);
     }
 
     public Stream<T> stream() {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(scanner(), Spliterator.ORDERED), false);
+        return Iterators.stream(scanner());
     }
 
     public LogIterator<T> scanner(long position) {
-        return new RollingSegmentReader(segments(Order.OLDEST), position);
+        return new RollingSegmentReader(position);
     }
 
     public long position() {
@@ -340,12 +341,11 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     public long size() {
-        Stream<L> stream = StreamSupport.stream(Spliterators.spliteratorUnknownSize(segments(Order.NEWEST), Spliterator.ORDERED), false);
-        return stream.mapToLong(Log::size).sum();
+        return Iterators.stream(segments(Order.NEWEST)).mapToLong(Log::size).sum();
     }
 
     public Stream<L> streamSegments(Order order) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(segments(order), Spliterator.ORDERED), false);
+        return Iterators.stream(segments(order));
     }
 
     public long size(int level) {
@@ -441,24 +441,36 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return directory.toPath();
     }
 
+    /**
+     * This Reader only works when using OLDEST ordering.
+     */
     private class RollingSegmentReader implements LogIterator<T> {
 
-        private final Iterator<L> segments;
+        private final Iterator<LogIterator<T>> segmentsIterators;
         private LogIterator<T> current;
         private int segmentIdx;
 
-        RollingSegmentReader(Iterator<L> segments, long position) {
-            this.segments = segments;
-            this.segmentIdx = getSegment(position);
-            validateSegmentIdx(segmentIdx, position);
-            long positionOnSegment = getPositionOnSegment(position);
+        RollingSegmentReader(long startPosition) {
+            Iterator<L> segments = segments(Order.OLDEST);
+            this.segmentIdx = getSegment(startPosition);
+            validateSegmentIdx(segmentIdx, startPosition);
+            long positionOnSegment = getPositionOnSegment(startPosition);
 
-            L segment = null;
-            for (int i = 0; i <= segmentIdx; i++) {
-                segment = segments.next();
+            // skip
+            for (int i = 0; i <= segmentIdx - 1; i++) {
+                segments.next();
             }
 
-            this.current = segment.iterator(positionOnSegment);
+            if(segments.hasNext()) {
+                this.current = segments.next().iterator(positionOnSegment);
+            }
+
+            List<LogIterator<T>> subsequentIterators = new ArrayList<>();
+            while(segments.hasNext()) {
+                subsequentIterators.add(segments.next().iterator());
+            }
+            this.segmentsIterators = subsequentIterators.iterator();
+
         }
 
         @Override
@@ -473,10 +485,10 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             }
             boolean hasNext = current.hasNext();
             if (!hasNext) {
-                if (!segments.hasNext()) {
+                if (!segmentsIterators.hasNext()) {
                     return false;
                 }
-                current = segments.next().iterator();
+                current = segmentsIterators.next();
                 return current.hasNext();
             }
             return true;
@@ -485,6 +497,15 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         @Override
         public T next() {
             return current.next();
+        }
+
+        @Override
+        public void close() {
+            try {
+                current.close();
+            } catch (IOException e) {
+                throw RuntimeIOException.of(e);
+            }
         }
     }
 

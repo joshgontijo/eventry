@@ -1,13 +1,15 @@
 package io.joshworks.fstore.es.utils;
 
+import io.joshworks.fstore.core.util.Iterators;
 import org.junit.Test;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class IteratorsTest {
 

@@ -6,6 +6,7 @@ import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.Utils;
+import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.LogSegment;
 import io.joshworks.fstore.serializer.StringSerializer;
@@ -40,7 +41,7 @@ public class LogAppenderTest {
         testDirectory = Utils.testFolder();
         testDirectory.deleteOnExit();
 
-        config = LogAppender.builder(testDirectory, new StringSerializer()).segmentSize(SEGMENT_SIZE);
+        config = LogAppender.builder(testDirectory, new StringSerializer()).segmentSize(SEGMENT_SIZE).disableCompaction();
         appender = new SimpleLogAppender<>(config);
     }
 
@@ -371,6 +372,31 @@ public class LogAppenderTest {
         appender.compact();
 
         assertEquals(3, appender.depth());
+    }
+
+    @Test
+    public void iterator_returns_all_elements() {
+        int size = 10000;
+        int numSegments = 5;
+
+        for (int i = 0; i < size; i++) {
+            appender.append(String.valueOf(i));
+            if(i > 0 && i % (size / numSegments) == 0) {
+                appender.roll();
+            }
+        }
+
+        assertEquals(size, appender.stream().count());
+        assertEquals(size, appender.entries());
+
+        LogIterator<String> scanner = appender.scanner();
+
+        int val = 0;
+        while(scanner.hasNext()) {
+            String next = scanner.next();
+            assertEquals(String.valueOf(val++), next);
+        }
+
 
     }
 }

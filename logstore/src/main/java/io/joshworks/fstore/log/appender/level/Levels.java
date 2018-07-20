@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.appender.level;
 
+import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.log.appender.Order;
 import io.joshworks.fstore.log.segment.Log;
 
@@ -51,14 +52,14 @@ public class Levels<T, L extends Log<T>> {
         return items.size();
     }
 
-    public static <T, L extends Log<T>> Levels<T, L> load(int maxItemsPerLevel, List<L> segments) {
+    public static <T, L extends Log<T>> Levels<T, L> create(int maxItemsPerLevel, List<L> segments) {
         return new Levels<>(maxItemsPerLevel, segments);
     }
 
     public void promoteLevelZero(L newLevelZero) {
         List<L> levelZero = items.get(0);
         if (levelZero != null) {
-            items.putIfAbsent(1, new ArrayList<>(maxItemsPerLevel));
+            items.putIfAbsent(1, new LinkedList<>());
             L toBePromoted = levelZero.remove(0);
             toBePromoted.roll(1);
 
@@ -140,17 +141,20 @@ public class Levels<T, L extends Log<T>> {
         return current;
     }
 
+    //TODO make (all) accesses synchronized ?
     public Iterator<L> segments(Order order) {
-        LinkedList<L> flattened = items.entrySet().stream()
+        List<Iterator<L>> iteratorStream = items.entrySet().stream()
                 .sorted(Comparator.comparingInt(Map.Entry::getKey))
                 .map(Map.Entry::getValue)
-                .flatMap(Collection::stream)
-                .collect(Collectors.toCollection(LinkedList::new));
+                .map(Iterators::reversed)
+                .collect(Collectors.toList());
 
+
+        Iterator<L> ordered = Iterators.concat(iteratorStream);
         if (Order.OLDEST.equals(order)) {
-            return flattened.descendingIterator();
+            return Iterators.reversed(Iterators.toList(ordered));
         }
-        return flattened.iterator();
+        return ordered;
     }
 
     @Override

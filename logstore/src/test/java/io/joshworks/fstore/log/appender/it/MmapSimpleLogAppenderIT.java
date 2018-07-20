@@ -1,7 +1,7 @@
 package io.joshworks.fstore.log.appender.it;
 
 import io.joshworks.fstore.log.appender.LogAppender;
-import io.joshworks.fstore.log.appender.SimpleLogAppender;
+import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 import io.joshworks.fstore.log.segment.LogSegment;
 import io.joshworks.fstore.serializer.Serializers;
 import org.junit.Ignore;

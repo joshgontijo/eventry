@@ -1,8 +1,8 @@
 package io.joshworks.fstore.es.index;
 
+import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.index.disk.IndexAppender;
 import io.joshworks.fstore.es.index.disk.IndexEntrySerializer;
-import io.joshworks.fstore.es.utils.Iterators;
 import io.joshworks.fstore.log.appender.LogAppender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,12 +91,12 @@ public class TableIndex implements Index, Flushable {
 
     @Override
     public Stream<IndexEntry> stream(Range range) {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(range), Spliterator.ORDERED), false);
+        return Iterators.stream(iterator(range));
     }
 
     @Override
     public Stream<IndexEntry> stream() {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(), Spliterator.ORDERED), false);
+        return Iterators.stream(iterator());
     }
 
     @Override
