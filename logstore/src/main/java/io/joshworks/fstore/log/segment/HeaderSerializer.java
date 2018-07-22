@@ -23,7 +23,8 @@ public class HeaderSerializer implements Serializer<Header> {
         dest.putInt(data.type.val);
         dest.putLong(data.created);
         dest.putInt(data.level);
-        dest.putInt(data.entries);
+        dest.putLong(data.entries);
+        dest.putLong(data.size);
     }
 
     @Override
@@ -39,7 +40,8 @@ public class HeaderSerializer implements Serializer<Header> {
         int type = buffer.getInt();
         long created = buffer.getLong();
         int level = buffer.getInt();
-        int entries = buffer.getInt();
+        long entries = buffer.getLong();
+        long size = buffer.getLong();
 
         if(created == 0 || type == 0) { //empty
             return Header.EMPTY;
@@ -49,7 +51,7 @@ public class HeaderSerializer implements Serializer<Header> {
             throw new CorruptedSegmentException("Invalid segment magic: '" + magic + "'");
         }
 
-        return new Header(entries, created, level, Type.of(type));
+        return new Header(entries, created, level, Type.of(type), size);
 
     }
 }

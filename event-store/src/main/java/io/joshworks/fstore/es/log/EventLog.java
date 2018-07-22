@@ -13,7 +13,7 @@ public class EventLog extends SimpleLogAppender<Event> {
     public Event get(String stream, IndexEntry key) {
         Event event = get(key.position);
         if(event == null) {
-            throw new IllegalArgumentException("No event found for " + key);
+            throw new IllegalArgumentException("No event found for " + key + ", stream: " + stream);
         }
         event.stream(stream);
         event.version(key.version);

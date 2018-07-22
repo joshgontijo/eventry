@@ -65,6 +65,7 @@ public class Midpoints {
         dirty = false;
     }
 
+
     private List<Midpoint> load(File handler) {
         if (!handler.exists()) {
             return new ArrayList<>();

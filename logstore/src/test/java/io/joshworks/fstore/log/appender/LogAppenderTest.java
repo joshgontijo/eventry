@@ -9,6 +9,7 @@ import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.LogSegment;
+import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.serializer.StringSerializer;
 import org.junit.After;
 import org.junit.Before;
@@ -17,6 +18,7 @@ import org.junit.Test;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -336,6 +338,28 @@ public class LogAppenderTest {
             assertTrue(testSegment.readOnly());
 
         }
+    }
+
+    @Test
+    public void get_return_all_items() {
+
+        File location = Utils.testFolder();
+        try(SimpleLogAppender<String> testAppender = new SimpleLogAppender<>(new Config<>(location, Serializers.STRING).segmentSize(209715200))) {
+            List<Long> positions = new ArrayList<>();
+            int size = 500000;
+            for (int i = 0; i < size; i++) {
+                long pos = testAppender.append(String.valueOf(i));
+                positions.add(pos);
+            }
+
+            for (int i = 0; i < size; i++) {
+                String val = testAppender.get(positions.get(i));
+                assertEquals(String.valueOf(i), val);
+            }
+        }
+
+
+
     }
 
     @Test

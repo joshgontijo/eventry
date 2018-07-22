@@ -375,8 +375,6 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             IOUtils.closeQuietly(segment);
         });
 
-        sedaContext.shutdown();
-
     }
 
     public void flush() {
@@ -415,7 +413,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return levels.current().name();
     }
 
-    public L current() {
+    L current() {
         return levels.current();
     }
 
@@ -423,7 +421,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return levels.segments(order);
     }
 
-    public List<L> segments(int level) {
+    private List<L> segments(int level) {
         if (level < 0) {
             throw new IllegalArgumentException("Level must be at least zero");
         }

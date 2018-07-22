@@ -34,7 +34,7 @@ public interface Log<T> extends Writer<T>, Closeable {
 
     boolean readOnly();
 
-    int entries();
+    long entries();
 
     int level();
 

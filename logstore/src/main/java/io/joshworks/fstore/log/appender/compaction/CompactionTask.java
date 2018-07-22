@@ -14,10 +14,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import java.util.function.Consumer;
 
 import static io.joshworks.fstore.log.appender.compaction.Compactor.COMPACTION_CLEANUP_STAGE;
 
@@ -60,8 +61,8 @@ public class CompactionTask<T, L extends Log<T>> implements StageHandler<Compact
             Storage storage = storageProvider.create(segmentFile, totalSize);
             target = segmentFactory.createOrOpen(storage, serializer, dataReader, Type.MERGE_OUT);
 
-            List<Stream<T>> entriesStream = segments.stream().map(Log::stream).collect(Collectors.toList());
-            combiner.merge(entriesStream, target::append);
+//            List<Stream<T>> entriesStream = segments.stream().map(Log::stream).collect(Collectors.toList());
+            combiner.merge(segments, target);
 
             target.roll(nextLevel);
 
@@ -75,4 +76,31 @@ public class CompactionTask<T, L extends Log<T>> implements StageHandler<Compact
             context.submit(COMPACTION_CLEANUP_STAGE, CompactionResult.failure(segments, target, level, e));
         }
     }
+
+//    private static <T> Consumer<T> bufferedWriter(int size, Consumer<T> delegate) {
+//        Consumer<T> buffer = item -> {
+//
+//        };
+//    }
+
+    //TODO this class required log segment to accept bytebuffer
+    private final class BufferedConsumer implements Consumer<T> {
+
+        private final int size;
+        private final Serializer<T> serializer;
+        private final Consumer<T> delegate;
+        private List<ByteBuffer> data = new ArrayList<>();
+
+        private BufferedConsumer(int size, Serializer<T> serializer, Consumer<T> delegate) {
+            this.size = size;
+            this.delegate = delegate;
+            this.serializer = serializer;
+        }
+
+        @Override
+        public void accept(T t) {
+
+        }
+    }
+
 }

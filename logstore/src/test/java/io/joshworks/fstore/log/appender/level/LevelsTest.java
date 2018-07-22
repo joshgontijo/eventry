@@ -162,6 +162,37 @@ public class LevelsTest {
         assertEquals(seg31, segments.get(6));
     }
 
+    @Test
+    public void get_return_segment_for_given_index() {
+        DummySegment zero = new DummySegment(0);
+        Levels<String, DummySegment> levels = Levels.create(3, Arrays.asList(zero));
+
+        DummySegment seg11 = new DummySegment("seg11", 1);
+        DummySegment seg12 = new DummySegment("seg12", 1);
+        DummySegment seg21 = new DummySegment("seg21", 2);
+        DummySegment seg22 = new DummySegment("seg22", 2);
+        DummySegment seg31 = new DummySegment("seg31", 3);
+        DummySegment seg32 = new DummySegment("seg32", 3);
+
+        levels.add(1, seg11);
+        levels.add(1, seg12);
+        levels.add(2, seg21);
+        levels.add(2, seg22);
+        levels.add(3, seg31);
+        levels.add(3, seg32);
+
+
+        assertEquals(zero, levels.get(0));
+        assertEquals(seg12, levels.get(1));
+        assertEquals(seg11, levels.get(2));
+        assertEquals(seg22, levels.get(3));
+        assertEquals(seg21, levels.get(4));
+        assertEquals(seg32, levels.get(5));
+        assertEquals(seg31, levels.get(6));
+    }
+
+
+
 
     private static final class DummySegment implements Log<String> {
 
@@ -233,7 +264,7 @@ public class LevelsTest {
         }
 
         @Override
-        public int entries() {
+        public long entries() {
             return 0;
         }
 

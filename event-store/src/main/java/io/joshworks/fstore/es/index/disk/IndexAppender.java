@@ -19,16 +19,13 @@ import java.io.File;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> implements Index {
 
     public IndexAppender(Config<IndexEntry> config, int numElements) {
-        super(config.segmentSize(numElements * IndexEntry.BYTES), new IndexSegmentFactory(config.directory, numElements));
+        super(config, new IndexSegmentFactory(config.directory, numElements));
     }
 
     @Override

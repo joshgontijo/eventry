@@ -129,7 +129,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     }
 
     @Override
-    public int entries() {
+    public long entries() {
         //TODO this will return the number of blocks
         return delegate.entries();
     }

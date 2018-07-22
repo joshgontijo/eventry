@@ -8,15 +8,17 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Checksum;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.appender.LogReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -29,9 +31,11 @@ public class LogSegment<T> implements Log<T> {
     private final Storage storage;
     private final DataReader reader;
 
-    private int entries;
+    private long entries;
 
     private Header header;
+
+    private final Set<LogReader> readers = ConcurrentHashMap.newKeySet();
 
 
     public LogSegment(Storage storage, Serializer<T> serializer, DataReader reader) {
@@ -77,7 +81,7 @@ public class LogSegment<T> implements Log<T> {
 
     private Header createNewHeader(Storage storage, Type type) {
         validateTypeProvided(type);
-        Header newHeader = new Header(0, System.currentTimeMillis(), 0, type);
+        Header newHeader = new Header(0, System.currentTimeMillis(), 0, type, 0);
         ByteBuffer headerData = headerSerializer.toBytes(newHeader);
         if (storage.write(headerData) != Header.SIZE) {
             throw new RuntimeException("Failed to create header");
@@ -147,7 +151,7 @@ public class LogSegment<T> implements Log<T> {
 
     @Override
     public LogIterator<T> iterator() {
-        return new LogReader<>(storage, reader, serializer);
+        return newLogReader(Log.START);
     }
 
     @Override
@@ -157,7 +161,7 @@ public class LogSegment<T> implements Log<T> {
 
     @Override
     public LogIterator<T> iterator(long position) {
-        return new LogReader<>(storage, reader, serializer, position);
+        return newLogReader(position);
     }
 
     @Override
@@ -190,7 +194,7 @@ public class LogSegment<T> implements Log<T> {
                 position = logIterator.position();
             }
         } catch (Exception e) {
-            logger.warn("Found inconsistent entry on position {}, segment '{}'", position, name());
+            logger.warn("Found inconsistent entry on position {}, segment '{}': {}", position, name(), e.getMessage());
         }
         logger.info("Log state restored, current position {}", position);
         if (position < Header.SIZE) {
@@ -201,7 +205,25 @@ public class LogSegment<T> implements Log<T> {
 
     @Override
     public void delete() {
-        storage.delete();
+
+        new Thread(() -> {
+            while (!readers.isEmpty()) {
+                try {
+                    logger.info("Awaiting readers, size: {}", readers.size());
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                for (LogReader logReader : readers) {
+                    if (logReader.lastReadTs - System.currentTimeMillis() > 10000) {
+                        logger.warn("Removing reader after 10s inactivity");
+                    }
+                }
+            }
+            storage.delete();
+
+        }).start();
+
     }
 
     @Override
@@ -215,12 +237,18 @@ public class LogSegment<T> implements Log<T> {
     }
 
     private void writeHeader(int level) {
-        this.header = new Header(entries, header.created, level, Type.READ_ONLY);
         long position = storage.position();
+        this.header = new Header(entries, header.created, level, Type.READ_ONLY, position);
         storage.position(0);
         ByteBuffer headerData = headerSerializer.toBytes(this.header);
         storage.write(headerData);
         storage.position(position);
+    }
+
+    private LogReader newLogReader(long pos) {
+        LogReader logReader = new LogReader(storage, reader, serializer, pos);
+        readers.add(logReader);
+        return logReader;
     }
 
     @Override
@@ -229,7 +257,7 @@ public class LogSegment<T> implements Log<T> {
     }
 
     @Override
-    public int entries() {
+    public long entries() {
         return entries;
     }
 
@@ -278,5 +306,75 @@ public class LogSegment<T> implements Log<T> {
                 ", entries=" + entries +
                 ", header=" + header +
                 '}';
+    }
+
+    //NOT THREAD SAFE
+    private class LogReader implements LogIterator<T> {
+
+        private final Storage storage;
+        private final DataReader reader;
+        private final Serializer<T> serializer;
+
+        private T data;
+        protected long position;
+        private long readAheadPosition;
+        private long lastReadSize;
+
+        private long lastReadTs;
+
+        public LogReader(Storage storage, DataReader reader, Serializer<T> serializer) {
+            this(storage, reader, serializer, Log.START);
+        }
+
+        public LogReader(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition) {
+            if (initialPosition < Log.START) {
+                throw new IllegalArgumentException("Position must be equals or greater than " + Log.START);
+            }
+            this.storage = storage;
+            this.reader = reader;
+            this.serializer = serializer;
+            this.position = initialPosition;
+            this.readAheadPosition = initialPosition;
+            this.data = readAhead();
+        }
+
+        @Override
+        public long position() {
+            return position;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return data != null;
+        }
+
+        @Override
+        public T next() {
+            if (data == null) {
+                throw new NoSuchElementException();
+            }
+            lastReadTs = System.currentTimeMillis();
+
+            T current = data;
+            position += lastReadSize;
+            data = readAhead();
+            return current;
+        }
+
+        private T readAhead() {
+            ByteBuffer bb = reader.read(storage, readAheadPosition);
+            if (bb.remaining() == 0) { //EOF
+                close();
+                return null;
+            }
+            lastReadSize = bb.limit();
+            readAheadPosition += bb.limit();
+            return serializer.fromBytes(bb);
+        }
+
+        @Override
+        public void close() {
+            readers.remove(this);
+        }
     }
 }

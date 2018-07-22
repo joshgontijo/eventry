@@ -10,6 +10,7 @@ import io.joshworks.fstore.es.index.TableIndex;
 import io.joshworks.fstore.es.log.Event;
 import io.joshworks.fstore.es.log.EventLog;
 import io.joshworks.fstore.es.log.EventSerializer;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.io.Closeable;
@@ -42,6 +43,10 @@ public class EventStore implements Closeable {
 
     public static EventStore open(File rootDir) {
         return new EventStore(rootDir);
+    }
+
+    public Iterator<IndexEntry> keys() {
+        return index.iterator(Range.allOf(hasher.hash("all")));
     }
 
     public Iterator<Event> iterator(String stream) {
@@ -97,11 +102,11 @@ public class EventStore implements Closeable {
         return Iterators.stream(iterator);
     }
 
-    public Iterator<Event> iterateAll() {
+    public LogIterator<Event> iterateAll() {
         return eventLog.scanner();
     }
 
-    //TODO from won't return the stream in the event ?
+    //TODO won't return the stream in the event ?
     public Stream<Event> fromAll() {
         return eventLog.stream();
     }
@@ -117,6 +122,10 @@ public class EventStore implements Closeable {
 
     public void emit(String stream, Event event) {
 
+    }
+
+    public Event getTest(long position) {
+        return eventLog.get(position);
     }
 
     public Optional<Event> get(String stream, int version) {

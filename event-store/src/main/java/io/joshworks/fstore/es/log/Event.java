@@ -1,7 +1,6 @@
 package io.joshworks.fstore.es.log;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 
@@ -83,7 +82,6 @@ public class Event {
     public String toString() {
         return "Event{" + "uuid='" + uuid + '\'' +
                 ", type='" + type + '\'' +
-                ", data='" + Arrays.toString(data) + '\'' +
                 ", timestamp=" + timestamp +
                 ", stream='" + stream + '\'' +
                 ", version=" + version +

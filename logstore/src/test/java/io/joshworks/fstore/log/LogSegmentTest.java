@@ -114,12 +114,12 @@ public abstract class LogSegmentTest {
         LogIterator<String> logIterator1 = segment.iterator();
         assertTrue(logIterator1.hasNext());
         assertEquals(data, logIterator1.next());
-        assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE  + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
 
         LogIterator<String> logIterator2 = segment.iterator();
         assertTrue(logIterator2.hasNext());
         assertEquals(data, logIterator2.next());
-        assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE  + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -184,7 +184,7 @@ public abstract class LogSegmentTest {
             assertTrue(testSegment.readOnly());
 
         } finally {
-            if(testSegment != null) {
+            if (testSegment != null) {
                 testSegment.close();
             }
             Utils.tryDelete(file);
@@ -211,6 +211,36 @@ public abstract class LogSegmentTest {
         testScanner(1000);
     }
 
+    @Test
+    public void segment_is_only_deleted_when_no_readers_are_active() {
+        File file = Utils.testFile();
+        try (Log<String> testSegment = create(file)) {
+
+            for (int i = 0; i < 100; i++) {
+                testSegment.append("a");
+            }
+
+            LogIterator<String> reader = testSegment.iterator();
+            new Thread(() -> {
+                while (reader.hasNext()) {
+                    String next = reader.next();
+                    try {
+                        Thread.sleep(50);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+            }).start();
+
+            testSegment.delete();
+
+        } catch (Exception e) {
+            Utils.tryDelete(file);
+        }
+
+
+    }
+
     private void testScanner(int items) throws IOException {
         List<String> values = new ArrayList<>();
         for (int i = 0; i < items; i++) {
@@ -220,10 +250,10 @@ public abstract class LogSegmentTest {
         }
         segment.flush();
 
-        int i =0;
+        int i = 0;
 
         LogIterator<String> logIterator = segment.iterator();
-        while(logIterator.hasNext()) {
+        while (logIterator.hasNext()) {
             assertEquals("Failed on iteration " + i, values.get(i), logIterator.next());
             i++;
         }
@@ -235,7 +265,7 @@ public abstract class LogSegmentTest {
         segment.append("a");
         segment.append("b");
 
-        assertEquals(Header.SIZE +  (Log.ENTRY_HEADER_SIZE + 1) * 2, segment.size());
+        assertEquals(Header.SIZE + (Log.ENTRY_HEADER_SIZE + 1) * 2, segment.size());
 
         segment.position();
         segment.close();

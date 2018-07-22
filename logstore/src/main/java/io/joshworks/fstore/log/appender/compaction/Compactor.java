@@ -112,8 +112,8 @@ public class Compactor<T, L extends Log<T>> {
         return maxSegmentsPerLevel > 0 && levels.requiresCompaction(level);
     }
 
-    private void cleanup(EventContext<CompactionResult<T, L>> event) {
-        CompactionResult<T, L> result = event.data;
+    private void cleanup(EventContext<CompactionResult<T, L>> context) {
+        CompactionResult<T, L> result = context.data;
         if (!result.successful()) {
             //TODO
             logger.error("Compaction error", result.exception);
@@ -124,8 +124,9 @@ public class Compactor<T, L extends Log<T>> {
 
         levels.replace(result.level, result.sources, result.target);
 
-        sedaContext.submit(COMPACTION_MANAGER, result.level);
-        sedaContext.submit(COMPACTION_MANAGER, result.level + 1);
+        context.submit(COMPACTION_MANAGER, result.level);
+        context.submit(COMPACTION_MANAGER, result.level + 1);
+
 
         for (L segment : result.sources) {
             logger.info("Deleting {}", segment.name());

@@ -27,8 +27,9 @@ import java.util.stream.Stream;
 
 public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<IndexEntry>> implements Index {
 
-    final BloomFilter<Long> filter;
+    BloomFilter<Long> filter;
     final Midpoints midpoints;
+    final File directory;
 
     private static final double FALSE_POSITIVE_PROB = 0.01;
 
@@ -39,6 +40,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
                         File directory,
                         int numElements) {
         super(storage, serializer, reader, type);
+        this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, new Hash.Murmur64<>(Serializers.LONG));
     }
@@ -72,6 +74,13 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     }
 
     @Override
+    public void delete() {
+        super.delete();
+        filter.delete();
+        midpoints.delete();
+    }
+
+    @Override
     public Iterator<IndexEntry> iterator(Range range) {
         if (!mightHaveEntries(range)) {
             return Iterators.empty();
@@ -84,6 +93,10 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
 
         LogIterator<IndexEntry> logIterator = iterator(lowBound.position);
         return new RangeIndexEntryIterator(range, logIterator);
+    }
+
+    void newBloomFilter(long numElements) {
+        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, new Hash.Murmur64<>(Serializers.LONG));
     }
 
     private boolean mightHaveEntries(Range range) {
@@ -156,17 +169,17 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
 
         private final IndexEntry end;
         private final IndexEntry start;
-        private final Iterator<IndexEntry> segmentIterator;
+        private final LogIterator<IndexEntry> segmentIterator;
         private IndexEntry current;
 
-        private RangeIndexEntryIterator(Range range, Iterator<IndexEntry> segmentIterator) {
+        private RangeIndexEntryIterator(Range range, LogIterator<IndexEntry> logIterator) {
             this.end = range.end();
             this.start = range.start();
-            this.segmentIterator = segmentIterator;
+            this.segmentIterator = logIterator;
 
             //initial load skipping less than queuedTime
-            while (segmentIterator.hasNext()) {
-                IndexEntry next = segmentIterator.next();
+            while (logIterator.hasNext()) {
+                IndexEntry next = logIterator.next();
                 if (next.greatOrEqualsTo(start)) {
                     current = next;
                     break;

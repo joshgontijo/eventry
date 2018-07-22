@@ -1,11 +1,11 @@
 package io.joshworks.fstore.log.appender.merge;
 
+import io.joshworks.fstore.log.segment.Log;
+
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Consumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public abstract class MergeCombiner<T extends Comparable<T>>  implements SegmentCombiner<T> {
 
@@ -14,10 +14,9 @@ public abstract class MergeCombiner<T extends Comparable<T>>  implements Segment
     protected abstract boolean isEmpty();
 
     @Override
-    public void merge(List<Stream<T>> segments, Consumer<T> writer) {
+    public void merge(List<? extends Log<T>> segments, Log<T> output) {
 
-
-        List<Iterator<T>> iterators = segments.stream().map(Stream::iterator).collect(Collectors.toList());
+        List<Iterator<T>> iterators = segments.stream().map(Log::iterator).collect(Collectors.toList());
 
         for (Iterator<T> iterator : iterators) {
             IteratorContainer<T> container = new IteratorContainer<>(iterator);
@@ -28,7 +27,7 @@ public abstract class MergeCombiner<T extends Comparable<T>>  implements Segment
 
         while (!isEmpty()) {
             IteratorContainer<T> ac = pollFirst();
-            writer.accept(ac.current);
+            output.append(ac.current);
 
             if (ac.next()) {
                 add(ac);

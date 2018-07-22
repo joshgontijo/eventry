@@ -2,6 +2,7 @@ package io.joshworks.fstore.es.index;
 
 import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.index.disk.IndexAppender;
+import io.joshworks.fstore.es.index.disk.IndexCompactor;
 import io.joshworks.fstore.es.index.disk.IndexEntrySerializer;
 import io.joshworks.fstore.log.appender.LogAppender;
 import org.slf4j.Logger;
@@ -12,15 +13,12 @@ import java.io.Flushable;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Optional;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 public class TableIndex implements Index, Flushable {
 
     private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
-    public static final int DEFAULT_FLUSH_THRESHOLD = 1000000;
+    public static final int DEFAULT_FLUSH_THRESHOLD = 4000000;
     private static final String INDEX_DIR = "index";
     private final int flushThreshold;
 
@@ -37,6 +35,9 @@ public class TableIndex implements Index, Flushable {
         }
         diskIndex = new IndexAppender(LogAppender
                 .builder(new File(rootDirectory, INDEX_DIR), new IndexEntrySerializer())
+                .compactionStrategy(new IndexCompactor())
+                .disableCompaction()
+                .segmentSize(flushThreshold * IndexEntry.BYTES)
                 .namingStrategy(new IndexAppender.IndexNaming()), flushThreshold);
 
         this.flushThreshold = flushThreshold;

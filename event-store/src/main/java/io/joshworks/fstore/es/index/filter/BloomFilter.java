@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.util.BitSet;
 import java.util.Objects;
 
@@ -32,7 +33,7 @@ public class BloomFilter<T> {
      * @param p       The acceptable false positive rate
      * @param hash    The hash implementation
      */
-    private BloomFilter(File handler, int n, double p, Hash<T> hash) {
+    private BloomFilter(File handler, long n, double p, Hash<T> hash) {
         Objects.requireNonNull(handler, "Handler");
         Objects.requireNonNull(hash, "Hash");
 
@@ -60,7 +61,7 @@ public class BloomFilter<T> {
         this.k = k;
     }
 
-    public static <T> BloomFilter<T> openOrCreate(File indexDir, String segmentFileName, int n, double p, Hash<T> hash) {
+    public static <T> BloomFilter<T> openOrCreate(File indexDir, String segmentFileName, long n, double p, Hash<T> hash) {
         File handler = getFile(indexDir, segmentFileName);
         if (handler.exists()) {
             return load(handler, hash);
@@ -70,6 +71,14 @@ public class BloomFilter<T> {
 
     private static File getFile(File indexDir, String segmentName) {
         return new File(indexDir, segmentName.split("\\.")[0] + "-FILTER.dat");
+    }
+
+    public void delete() {
+        try {
+            Files.delete(handler.toPath());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**

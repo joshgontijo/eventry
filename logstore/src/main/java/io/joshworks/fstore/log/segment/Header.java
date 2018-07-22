@@ -4,24 +4,24 @@ import java.util.Objects;
 
 public class Header {
 
-    public static final Header EMPTY = new Header(0, 0, -1, Type.EMPTY);
+    public static final Header EMPTY = new Header(0, 0, -1, Type.EMPTY, 0);
 
     public static final String LOG_MAGIC = "e7297e9a-6469-11e8-adc0-fa7ae01bbebc";
     public static final int SIZE = 1024;
 
-
-
     public final String magic = LOG_MAGIC;
-    public final int entries;
+    public final long entries;
     public final long created;
+    public final long size;
     public final int level;
     public final Type type;
 
-    Header(int entries, long created, int level, Type type) {
+    Header(long entries, long created, int level, Type type, long size) {
         this.entries = entries;
         this.created = created;
         this.level = level;
         this.type = type;
+        this.size = size;
     }
 
     @Override
@@ -31,14 +31,15 @@ public class Header {
         Header header = (Header) o;
         return entries == header.entries &&
                 created == header.created &&
+                size == header.size &&
                 level == header.level &&
-                type == header.type &&
-                Objects.equals(magic, header.magic);
+                Objects.equals(magic, header.magic) &&
+                type == header.type;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(magic, entries, created, level, type);
+        return Objects.hash(magic, entries, created, size, level, type);
     }
 
     @Override
@@ -48,6 +49,7 @@ public class Header {
                 ", created=" + created +
                 ", level=" + level +
                 ", type=" + type +
+                ", size=" + size +
                 '}';
     }
 }
