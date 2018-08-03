@@ -201,8 +201,8 @@ public class IndexSegmentTest {
 
         //given
         long stream = 0;
-        int startVersion = 1;
-        int endVersion = 10;
+        int startVersion = 0;
+        int endVersion = 9;
         IndexSegment diskIndex = indexWithSameStreamWithVersionRanging(stream, startVersion, endVersion);
 
         //when
@@ -217,14 +217,14 @@ public class IndexSegmentTest {
 
         //given
         long stream = 123L;
-        int lastVersion = 500;
-        IndexSegment diskIndex = indexWithSameStreamWithVersionRanging(stream, 1, lastVersion);
+        int endVersion = 499;
+        IndexSegment diskIndex = indexWithSameStreamWithVersionRanging(stream, 0, endVersion);
 
         //when
         int version = diskIndex.version(stream);
 
         //then
-        assertEquals(lastVersion, version);
+        assertEquals(endVersion, version);
     }
 
     @Test
@@ -248,15 +248,15 @@ public class IndexSegmentTest {
         //given
         int startStream = 1;
         int endStream = 10000;
-        int numVersions = 500;
-        IndexSegment diskIndex = indexWithXStreamsWithYEventsEach(endStream, numVersions);
+        int endVersion = 499;
+        IndexSegment diskIndex = indexWithXStreamsWithYEventsEach(endStream, endVersion);
 
         //when
         for (int i = startStream; i < endStream; i++) {
-            long size = diskIndex.stream(Range.allOf(i)).count();
+            long count = diskIndex.stream(Range.allOf(i)).count();
 
             //then
-            assertEquals("Failed on position " + i, numVersions, size);
+            assertEquals("Failed on position " + i, endVersion + 1, count);
         }
     }
 
@@ -272,7 +272,7 @@ public class IndexSegmentTest {
         for (int i = startStream; i <= endStream; i++) {
             int version = diskIndex.version(i);
             //then
-            assertEquals("Failed on iteration " + i, 1, version);
+            assertEquals("Failed on iteration " + i, 0, version);
         }
     }
 
@@ -282,7 +282,7 @@ public class IndexSegmentTest {
         //given
         int startStream = 1;
         int endStream = 10000;
-        int numVersions = 10;
+        int numVersions = 9;
         IndexSegment diskIndex = indexWithXStreamsWithYEventsEach(endStream, numVersions);
 
         //when
@@ -297,15 +297,15 @@ public class IndexSegmentTest {
     public void iterator_return_all_entries_with_index_containing_same_stream() {
 
         long stream = 1;
-        int latestVersion = 1000;
-        IndexSegment diskIndex = indexWithSameStreamWithVersionRanging(stream, 1, latestVersion);
+        int endVersion = 999;
+        IndexSegment diskIndex = indexWithSameStreamWithVersionRanging(stream, 0, endVersion);
 
-        for (int i = 0; i < latestVersion; i++) {
+        for (int i = 0; i < endVersion; i++) {
             //when
             Iterator<IndexEntry> iterator = diskIndex.iterator(Range.allOf(stream));
 
             //then
-            assertIteratorHasAllEntries(stream, latestVersion, iterator);
+            assertIteratorHasAllEntries(stream, endVersion, iterator);
         }
     }
 
@@ -324,7 +324,7 @@ public class IndexSegmentTest {
             IndexEntry next = iterator.next();
 
             assertEquals(stream, next.stream);
-            assertEquals(1, next.version);
+            assertEquals(0, next.version);
             assertFalse("Failed on " + stream, iterator.hasNext());
         }
     }
@@ -333,13 +333,13 @@ public class IndexSegmentTest {
     public void iterator_with_multiple_events_and_streams() {
 
         int numStreams = 200;
-        int numEvents = 500;
+        int endVersion = 499;
 
-        IndexSegment diskIndex = indexWithXStreamsWithYEventsEach(numStreams, numEvents);
+        IndexSegment diskIndex = indexWithXStreamsWithYEventsEach(numStreams, endVersion);
 
         for (int stream = 0; stream < numStreams; stream++) {
             Iterator<IndexEntry> iterator = diskIndex.iterator(Range.allOf(stream));
-            assertIteratorHasAllEntries(stream, numEvents, iterator);
+            assertIteratorHasAllEntries(stream, endVersion, iterator);
         }
     }
 
@@ -347,9 +347,9 @@ public class IndexSegmentTest {
     public void full_scan_iterator() {
 
         int numStreams = 200;
-        int numEvents = 500;
+        int endVersion = 499;
 
-        IndexSegment diskIndex = indexWithXStreamsWithYEventsEach(numStreams, numEvents);
+        IndexSegment diskIndex = indexWithXStreamsWithYEventsEach(numStreams, endVersion);
 
         Iterator<IndexEntry> iterator = diskIndex.iterator();
 
@@ -364,7 +364,7 @@ public class IndexSegmentTest {
             count++;
         }
 
-        assertEquals(numStreams * numEvents, count);
+        assertEquals(numStreams * (endVersion + 1), count);
     }
 
     @Test
@@ -475,7 +475,7 @@ public class IndexSegmentTest {
             int version = testSegment.version(i);
 
             //then
-            assertEquals("Failed on iteration " + i, 1, version);
+            assertEquals("Failed on iteration " + i, 0, version);
         }
 
     }
@@ -493,32 +493,30 @@ public class IndexSegmentTest {
             int version = testSegment.version(i);
 
             //then
-            assertEquals("Failed on iteration " + i, 0, version);
+            assertEquals("Failed on iteration " + i, IndexEntry.NO_VERSION, version);
         }
 
     }
 
-
-    private void assertIteratorHasAllEntries(long stream, int latestVersion, Iterator<IndexEntry> iterator) {
-        int previousVersion = 0;
+    private void assertIteratorHasAllEntries(long stream, int lastEventVersion, Iterator<IndexEntry> iterator) {
+        int expectedVersion = 0;
         int count = 0;
         while (iterator.hasNext()) {
             IndexEntry next = iterator.next();
 
             assertEquals(stream, next.stream);
-            assertEquals(previousVersion + 1, next.version);
-            previousVersion = next.version;
+            assertEquals(expectedVersion, next.version);
+            expectedVersion = next.version + 1;
             count++;
         }
 
-        assertEquals(latestVersion, previousVersion);
-        assertEquals(latestVersion, count);
+        assertEquals(lastEventVersion + 1, count);
     }
 
     private IndexSegment indexWithStreamRanging(int from, int to) {
         //given
         for (int i = from; i <= to; i++) {
-            segment.append(IndexEntry.of(i, 1, 0));
+            segment.append(IndexEntry.of(i, 0, 0));
         }
         segment.roll(1);
         return segment;
@@ -532,10 +530,10 @@ public class IndexSegmentTest {
         return segment;
     }
 
-    private IndexSegment indexWithXStreamsWithYEventsEach(int streamQtd, int eventsPerStream) {
+    private IndexSegment indexWithXStreamsWithYEventsEach(int streamQtd, int endVersion) {
         //given
         for (int stream = 0; stream < streamQtd; stream++) {
-            for (int version = 1; version <= eventsPerStream; version++) {
+            for (int version = 0; version <= endVersion; version++) {
                 segment.append(IndexEntry.of(stream, version, 0));
             }
         }

@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
@@ -376,31 +377,30 @@ public class EventStoreIT {
 
     @Test
     public void name() throws IOException {
-        asas
-        EventStore store = EventStore.open(new File("J:\\event-store\\c7a39d49"));
+        EventStore store = EventStore.open(new File("C:\\Users\\jgontijo\\fstore\\a724567f"));
 
-        try (BufferedWriter bw = new BufferedWriter(new FileWriter("test.txt"))) {
-            LogIterator<Event> eventIterator = store.iterateAll();
-            while (eventIterator.hasNext()) {
-                long position = eventIterator.position();
-                Event next = eventIterator.next();
-                bw.write(position + " | " + next);
-                bw.newLine();
-            }
-        }
-
-        try (BufferedWriter bw = new BufferedWriter(new FileWriter("idx.txt"))) {
-            Iterator<IndexEntry> eventIterator = store.keys();
-            while (eventIterator.hasNext()) {
-                IndexEntry next = eventIterator.next();
-                bw.write(next.toString());
-                bw.newLine();
-            }
-        }
+//        try (BufferedWriter bw = new BufferedWriter(new FileWriter("C:\\Users\\jgontijo\\fstore\\ftest.txt"))) {
+//            LogIterator<Event> eventIterator = store.iterateAll();
+//            while (eventIterator.hasNext()) {
+//                long position = eventIterator.position();
+//                Event next = eventIterator.next();
+//                bw.write(position + " | " + next);
+//                bw.newLine();
+//            }
+//        }
+//
+//        try (BufferedWriter bw = new BufferedWriter(new FileWriter("C:\\Users\\jgontijo\\fstore\\idx.txt"))) {
+//            Iterator<IndexEntry> eventIterator = store.keys();
+//            while (eventIterator.hasNext()) {
+//                IndexEntry next = eventIterator.next();
+//                bw.write(next.toString());
+//                bw.newLine();
+//            }
+//        }
 
 //        assertEquals(4000000, store.fromAll().count());
 
-        Event test = store.getTest(90286824);
+//        Event test = store.getTest(90286824);
 //        Event test1 = store.getTest(190286824);
 
         assertEquals(3000000, store.fromStream("all").count());
@@ -416,17 +416,15 @@ public class EventStoreIT {
 
         int numOtherIndexes = 5;
 
-        long start = System.currentTimeMillis();
-
         assertEquals(size, store.fromAll().count());
         assertEquals(size, store.fromStream(allStream).count());
 
-        store.fromStream(allStream).forEach(e -> {
-            for (int i = 0; i < numOtherIndexes; i++) {
-                store.linkTo(String.valueOf(i), e);
-            }
+        IntStream.range(0, numOtherIndexes).forEach(i -> {
+            long start = System.currentTimeMillis();
+            store.fromStream(allStream).forEach(e -> store.linkTo(String.valueOf(i), e));
+            System.out.println("LinkTo " + size + " events to stream " + i + " in " + (System.currentTimeMillis() - start));
         });
-        System.out.println("Created " + numOtherIndexes + " in " + (System.currentTimeMillis() - start));
+
 
         assertEquals(size, store.fromStream(allStream).count());
 

@@ -16,8 +16,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public class Compactor<T, L extends Log<T>> {
 
@@ -38,6 +41,8 @@ public class Compactor<T, L extends Log<T>> {
     private Levels<T, L> levels;
     private final SedaContext sedaContext;
     private final boolean threadPerLevel;
+
+    private final Set<L> compacting = new HashSet<>();
 
     private final CompactionTask<T, L> compactionTask = new CompactionTask<>();
 
@@ -75,11 +80,14 @@ public class Compactor<T, L extends Log<T>> {
     private void compact(EventContext<Integer> event) {
         int level = event.data;
 
-        List<L> segmentsForCompaction = getSegmentsForCompaction(level);
+        List<L> segmentsForCompaction = segmentsForCompaction(level);
         if (segmentsForCompaction.size() <= 1) {
-            logger.info("Nothing to compact on level {}", level);
+            long count = compacting.stream().filter(l -> l.level() == level).count();
+            logger.info("Nothing to compact on level {} (compacting {})", level, count);
             return;
         }
+        compacting.addAll(segmentsForCompaction);
+
         logger.info("Compacting level {}", level);
 
         File targetFile = LogFileUtils.newSegmentFile(directory, namingStrategy, level + 1);
@@ -95,23 +103,6 @@ public class Compactor<T, L extends Log<T>> {
         return threadPerLevel ? "compaction-level-" + level : "compaction";
     }
 
-    private List<L> getSegmentsForCompaction(int level) {
-        if (level <= 0) {
-            throw new IllegalArgumentException("Level must be greater than zero");
-        }
-        if (levels.depth() <= level) {
-            throw new IllegalArgumentException("No level " + level);
-        }
-        if (!requiresCompaction(level)) {
-            return Collections.emptyList();
-        }
-        return levels.segmentsForCompaction(level);
-    }
-
-    private boolean requiresCompaction(int level) {
-        return maxSegmentsPerLevel > 0 && levels.requiresCompaction(level);
-    }
-
     private void cleanup(EventContext<CompactionResult<T, L>> context) {
         CompactionResult<T, L> result = context.data;
         if (!result.successful()) {
@@ -122,7 +113,9 @@ public class Compactor<T, L extends Log<T>> {
             return;
         }
 
-        levels.replace(result.level, result.sources, result.target);
+        levels.merge(result.sources, result.target);
+        compacting.removeAll(result.sources);
+
 
         context.submit(COMPACTION_MANAGER, result.level);
         context.submit(COMPACTION_MANAGER, result.level + 1);
@@ -132,6 +125,36 @@ public class Compactor<T, L extends Log<T>> {
             logger.info("Deleting {}", segment.name());
             segment.delete();
         }
+    }
+
+    private synchronized boolean requiresCompaction(int level) {
+        if (maxSegmentsPerLevel <= 0 || level < 0) {
+            return false;
+        }
+
+        long compactingForLevel = new ArrayList<>(compacting).stream().filter(l -> l.level() == level).count();
+        int levelSize = levels.segments(level).size();
+        return levelSize - compactingForLevel >= levels.compactionThreshold();
+    }
+
+    private synchronized List<L> segmentsForCompaction(int level) {
+        List<L> toBeCompacted = new ArrayList<>();
+        if (level <= 0) {
+            throw new IllegalArgumentException("Level must be greater than zero");
+        }
+        if (!requiresCompaction(level)) {
+            return toBeCompacted;
+        }
+
+        for (L segment : levels.segments(level)) {
+            if (!compacting.contains(segment)) {
+                toBeCompacted.add(segment);
+            }
+            if (toBeCompacted.size() >= levels.compactionThreshold()) {
+                break;
+            }
+        }
+        return toBeCompacted;
     }
 
 }

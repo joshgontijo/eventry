@@ -26,10 +26,8 @@ public class SingleStreamIterator implements Iterator<Event> {
     @Override
     public Event next() {
         IndexEntry indexEntry = indexIterator.next();
-        Event event = eventLog.get(stream, indexEntry);
-        if(event == null) {
-            throw new IllegalStateException("Event not found for " + indexEntry);
-        }
+        Event event = eventLog.get(indexEntry.position);
+        event.streamInfo(stream, indexEntry);
         return event;
     }
 }

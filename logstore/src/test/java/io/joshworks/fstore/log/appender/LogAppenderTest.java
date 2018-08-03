@@ -13,6 +13,7 @@ import io.joshworks.fstore.serializer.Serializers;
 import io.joshworks.fstore.serializer.StringSerializer;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -58,15 +59,17 @@ public class LogAppenderTest {
         appender.append("data");
         String firstSegment = appender.currentSegment();
 
-        assertEquals(1, appender.levels.depth());
+        assertEquals(0, appender.levels.depth());
 
         appender.roll();
 
         String secondSegment = appender.currentSegment();
         assertNotEquals(firstSegment, secondSegment);
+
         assertEquals(2, appender.levels.numSegments());
         assertEquals(2, appender.levels.depth());
-        assertEquals(firstSegment, appender.levels.get(1).name());
+        assertEquals(firstSegment, appender.levels.get(0).name());
+        assertEquals(secondSegment, appender.levels.get(1).name());
     }
 
     @Test
@@ -385,6 +388,7 @@ public class LogAppenderTest {
     }
 
     @Test
+    @Ignore("Compact is async")
     public void depth_is_correct_after_merge() {
 
         appender.append("SEGMENT-A");

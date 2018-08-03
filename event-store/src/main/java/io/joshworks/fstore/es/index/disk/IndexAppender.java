@@ -1,7 +1,10 @@
 package io.joshworks.fstore.es.index.disk;
 
+import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.core.io.Mode;
+import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.index.Index;
@@ -14,8 +17,12 @@ import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -61,7 +68,7 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
         while (segments.hasNext()) {
             IndexSegment segment = segments.next();
             int version = segment.version(stream);
-            if (version > 0) {
+            if (version >= 0) {
                 return version;
             }
         }

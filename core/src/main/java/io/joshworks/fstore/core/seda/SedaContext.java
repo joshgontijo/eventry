@@ -117,7 +117,9 @@ public class SedaContext implements Closeable {
                     completed = completed && stageCompleted;
                 }
 
-                sleep();
+                if(!completed) {
+                    sleep();
+                }
             } while (!completed);
             logger.info("All stages completed");
 

@@ -1,15 +1,24 @@
 package io.joshworks.fstore.es.index;
 
+import io.joshworks.fstore.core.RuntimeIOException;
+import io.joshworks.fstore.core.io.Mode;
+import io.joshworks.fstore.core.io.RafStorage;
+import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.index.disk.IndexAppender;
 import io.joshworks.fstore.es.index.disk.IndexCompactor;
 import io.joshworks.fstore.es.index.disk.IndexEntrySerializer;
+import io.joshworks.fstore.es.log.Event;
+import io.joshworks.fstore.es.log.EventLog;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.Flushable;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Optional;
@@ -18,34 +27,38 @@ import java.util.stream.Stream;
 public class TableIndex implements Index, Flushable {
 
     private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
-    public static final int DEFAULT_FLUSH_THRESHOLD = 4000000;
+    public static final int DEFAULT_FLUSH_THRESHOLD = 1000000;
     private static final String INDEX_DIR = "index";
     private final int flushThreshold;
+    private final File directory;
 
-    private MemIndex memIndex = new MemIndex();
+//    private final EventLog log;
     private final IndexAppender diskIndex;
+    private MemIndex memIndex = new MemIndex();
 
     public TableIndex(File rootDirectory) {
         this(rootDirectory, DEFAULT_FLUSH_THRESHOLD);
     }
 
     public TableIndex(File rootDirectory, int flushThreshold) {
+//        this.log = log;
         if (flushThreshold < 1000) {//arbitrary number
             throw new IllegalArgumentException("Flush threshold must be at least 1000");
         }
         diskIndex = new IndexAppender(LogAppender
                 .builder(new File(rootDirectory, INDEX_DIR), new IndexEntrySerializer())
                 .compactionStrategy(new IndexCompactor())
-                .disableCompaction()
+                .maxSegmentsPerLevel(2)
                 .segmentSize(flushThreshold * IndexEntry.BYTES)
                 .namingStrategy(new IndexAppender.IndexNaming()), flushThreshold);
 
         this.flushThreshold = flushThreshold;
+        this.directory = rootDirectory;
     }
 
     public void add(long stream, int version, long position) {
-        if (version <= 0) {
-            throw new IllegalArgumentException("Version must be greater than zero");
+        if (version <= IndexEntry.NO_VERSION) {
+            throw new IllegalArgumentException("Version must be greater than or equals to zero");
         }
         if (position < 0) {
             throw new IllegalArgumentException("Position must be greater than zero");
@@ -66,13 +79,15 @@ public class TableIndex implements Index, Flushable {
             diskIndex.append(indexEntry);
         }
         diskIndex.roll();
+//        long checkpoint = log.position();
+//        writeCheckpoint(checkpoint);
         memIndex = new MemIndex();
     }
 
     @Override
     public int version(long stream) {
         int version = memIndex.version(stream);
-        if (version > 0) {
+        if (version > IndexEntry.NO_VERSION) {
             return version;
         }
 
@@ -126,4 +141,58 @@ public class TableIndex implements Index, Flushable {
     public void flush() {
         writeToDisk();
     }
+
+//    private MemIndex restoreFromCheckpoint(){
+//        long checkpoint = readCheckpoint();
+//
+//        MemIndex memIndex = new MemIndex();
+//        if(checkpoint > 0) {
+//            return memIndex;
+//        }
+//
+//        try(LogIterator<Event> scanner = log.scanner(checkpoint)) {
+//            while(scanner.hasNext()) {
+//                long position = scanner.position();
+//                Event next = scanner.next();
+//                String stream = next.stream();
+//                int version = version(next.version());
+//
+//                memIndex.add(IndexEntry.of(stream, version, position));
+//
+//            }
+//        } catch (IOException e) {
+//            throw new IllegalStateException("Failed to restore index from checkpoint at position " + checkpoint, e);
+//        }
+//
+//
+//    }
+//
+//    private long readCheckpoint() {
+//        logger.info("Loading index checkpoint");
+//        try(Storage storage = new RafStorage(new File(directory, ".checkpoint"), 1024, Mode.READ_WRITE)) {
+//
+//            ByteBuffer bb = ByteBuffer.allocate(1024);
+//            storage.read(0, bb);
+//            bb.flip();
+//            if(bb.hasRemaining()) {
+//                return  bb.getLong();
+//            }
+//            return 0;
+//        } catch (IOException e) {
+//            throw RuntimeIOException.of(e);
+//        }
+//    }
+//
+//    private void writeCheckpoint(long checkpoint) {
+//        logger.info("Updating index checkpoint");
+//        try(Storage storage = new RafStorage(new File(directory, ".checkpoint"), 1024, Mode.READ_WRITE)) {
+//
+//            ByteBuffer bb = ByteBuffer.allocate(1024);
+//            bb.putLong(checkpoint);
+//            bb.flip();
+//            storage.write(bb);
+//        } catch (IOException e) {
+//            throw RuntimeIOException.of(e);
+//        }
+//    }
 }

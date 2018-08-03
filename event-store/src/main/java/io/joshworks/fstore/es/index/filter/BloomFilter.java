@@ -70,7 +70,7 @@ public class BloomFilter<T> {
     }
 
     private static File getFile(File indexDir, String segmentName) {
-        return new File(indexDir, segmentName.split("\\.")[0] + "-FILTER.dat");
+        return new File(indexDir, segmentName.split("\\.")[0] + ".ftr");
     }
 
     public void delete() {

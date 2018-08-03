@@ -7,8 +7,8 @@ import static org.junit.Assert.*;
 public class IndexEntryTest {
 
     @Test(expected = IllegalArgumentException.class)
-    public void version_must_start_from_one() {
-        IndexEntry.of(0, 0, 0);
+    public void version_must_start_from_zero() {
+        IndexEntry.of(0, -1, 0);
     }
 
     @Test

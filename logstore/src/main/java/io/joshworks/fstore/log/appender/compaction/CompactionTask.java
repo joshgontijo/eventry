@@ -32,7 +32,7 @@ public class CompactionTask<T, L extends Log<T>> implements StageHandler<Compact
 
 
         int level = data.level;
-        int nextLevel = level + 1;
+        int nextLevel = data.level + 1;
         File segmentFile = data.segmentFile;
         SegmentCombiner<T> combiner = data.combiner;
         List<L> segments = data.segments;

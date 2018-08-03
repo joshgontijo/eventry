@@ -10,9 +10,11 @@ public class IndexEntry implements Comparable<IndexEntry> {
     public final int version;
     public final long position;
 
+    public static final int NO_VERSION = -1;
+
     private IndexEntry(long stream, int version, long position) {
-        if(version <= 0) {
-            throw new IllegalArgumentException("Version must be greater than zero");
+        if(version <= NO_VERSION) {
+            throw new IllegalArgumentException("Version must be at least zero");
         }
         if(position < 0) {
             throw new IllegalArgumentException("Position must be positive");

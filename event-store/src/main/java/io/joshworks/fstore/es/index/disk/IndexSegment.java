@@ -140,13 +140,13 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     public int version(long stream) {
         Range range = Range.allOf(stream);
         if (!mightHaveEntries(range)) {
-            return 0;
+            return IndexEntry.NO_VERSION;
         }
 
         IndexEntry end = range.end();
         Midpoint lowBound = midpoints.getMidpointFor(end);
         if (lowBound == null) {//false positive on the bloom filter and entry was within range of this segment
-            return 0;
+            return IndexEntry.NO_VERSION;
         }
 
         FixedSizeEntryBlock<IndexEntry> block = getBlock(lowBound.position);

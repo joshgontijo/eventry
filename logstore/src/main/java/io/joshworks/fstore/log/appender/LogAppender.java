@@ -207,14 +207,12 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     public synchronized void roll() {
         try {
-            if (levels.current().entries() == 0) {
-                return;
-            }
+
             logger.info("Rolling appender");
             flush();
 
             L newSegment = createCurrentSegment(metadata.segmentSize);
-            levels.promoteLevelZero(newSegment);
+            levels.appendSegment(newSegment);
 
             state.lastRollTime(System.currentTimeMillis());
             state.flush();

@@ -37,22 +37,22 @@ public class TableIndexTest {
 
         long stream = 1;
 
+        tableIndex.add(stream, 0, 0);
+        tableIndex.flush();
         tableIndex.add(stream, 1, 0);
         tableIndex.flush();
         tableIndex.add(stream, 2, 0);
         tableIndex.flush();
-        tableIndex.add(stream, 3, 0);
-        tableIndex.flush();
-        tableIndex.add(stream, 4, 0); //memory
+        tableIndex.add(stream, 3, 0); //memory
 
         Iterator<IndexEntry> it = tableIndex.iterator();
 
         tableIndex.forEach(System.out::println);
 
+        assertEquals(0, it.next().version);
         assertEquals(1, it.next().version);
         assertEquals(2, it.next().version);
         assertEquals(3, it.next().version);
-        assertEquals(4, it.next().version);
     }
 
     @Test
@@ -72,7 +72,7 @@ public class TableIndexTest {
     public void data_added_to_the_disk_is_retrieved() {
 
         long stream = 1;
-        int version = 1;
+        int version = 0;
         tableIndex.add(stream, version, 0);
 
         tableIndex.flush();
@@ -98,7 +98,7 @@ public class TableIndexTest {
     @Test
     public void version_added_to_disk_is_retrieved() {
         long stream = 1;
-        int version = 1;
+        int version = 0;
         tableIndex.add(stream, version, 0);
 
         tableIndex.flush();
@@ -145,9 +145,9 @@ public class TableIndexTest {
     public void range_stream_with_range_returns_data_from_disk_and_memory() {
         long stream = 1;
 
-        tableIndex.add(stream, 1, 0);
+        tableIndex.add(stream, 0, 0);
         tableIndex.flush();
-        tableIndex.add(stream, 2, 0);
+        tableIndex.add(stream, 1, 0);
 
         Stream<IndexEntry> dataStream = tableIndex.stream(Range.allOf(stream));
 
@@ -155,8 +155,8 @@ public class TableIndexTest {
 
         Iterator<IndexEntry> it = tableIndex.stream().iterator();
 
+        assertEquals(0, it.next().version);
         assertEquals(1, it.next().version);
-        assertEquals(2, it.next().version);
 
     }
 
@@ -167,7 +167,7 @@ public class TableIndexTest {
         long stream = 1;
         //2 segments + in memory
         int size = (FLUSH_THRESHOLD * 2) + FLUSH_THRESHOLD / 2;
-        for (int i = 1; i <= size; i++) {
+        for (int i = 0; i < size; i++) {
             tableIndex.add(stream, i, 0);
         }
 
@@ -177,8 +177,8 @@ public class TableIndexTest {
 
         Iterator<IndexEntry> it = tableIndex.stream().iterator();
 
+        assertEquals(0, it.next().version);
         assertEquals(1, it.next().version);
-        assertEquals(2, it.next().version);
 
     }
 
@@ -189,7 +189,7 @@ public class TableIndexTest {
         long stream = 1;
         //2 segments + in memory
         int size = (FLUSH_THRESHOLD * 2) + FLUSH_THRESHOLD / 2;
-        for (int i = 1; i <= size; i++) {
+        for (int i = 0; i < size; i++) {
             tableIndex.add(stream, i, 0);
         }
 
@@ -199,8 +199,8 @@ public class TableIndexTest {
 
         Iterator<IndexEntry> it = tableIndex.stream().iterator();
 
+        assertEquals(0, it.next().version);
         assertEquals(1, it.next().version);
-        assertEquals(2, it.next().version);
 
     }
 
@@ -211,7 +211,7 @@ public class TableIndexTest {
         long stream = 1;
         //1 segment + in memory
         int size = FLUSH_THRESHOLD + (FLUSH_THRESHOLD / 2);
-        for (int i = 1; i <= size; i++) {
+        for (int i = 0; i < size; i++) {
             tableIndex.add(stream, i, 0);
         }
 
@@ -225,8 +225,8 @@ public class TableIndexTest {
 
         Iterator<IndexEntry> it = tableIndex.stream().iterator();
 
+        assertEquals(0, it.next().version);
         assertEquals(1, it.next().version);
-        assertEquals(2, it.next().version);
 
     }
 
@@ -237,7 +237,7 @@ public class TableIndexTest {
         long stream = 1;
         //1 segment + in memory
         int size = FLUSH_THRESHOLD + (FLUSH_THRESHOLD / 2);
-        for (int i = 1; i <= size; i++) {
+        for (int i = 0; i <= size; i++) {
             tableIndex.add(stream, i, 0);
         }
 

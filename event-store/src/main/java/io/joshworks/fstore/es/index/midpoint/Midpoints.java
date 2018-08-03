@@ -89,7 +89,7 @@ public class Midpoints {
     }
 
     private static File getFile(File indexDir, String segmentName) {
-        return new File(indexDir, segmentName.split("\\.")[0] + "-MIDPOINT.dat");
+        return new File(indexDir, segmentName.split("\\.")[0] + ".mdp");
     }
 
     public int getMidpointIdx(IndexEntry entry) {

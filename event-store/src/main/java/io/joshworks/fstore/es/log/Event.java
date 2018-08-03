@@ -1,31 +1,33 @@
 package io.joshworks.fstore.es.log;
 
+import io.joshworks.fstore.es.index.IndexEntry;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.UUID;
 
 public class Event {
 
-    private final String uuid;
     private final String type;
     private final byte[] data;
     private final long timestamp;
+    private long sequence;
     //from index
     private String stream;
-    private int version;
-    private long position; //TODO experimental
+    private int version = -1;
+    private long position = -1; //TODO experimental
 
     private Map<String, Object> map;
 
-    private Event(String uuid, String type, byte[] data, long timestamp) {
-        this.uuid = uuid;
+    private Event(long sequence, String type, byte[] data, long timestamp) {
         this.type = type;
         this.data = data;
         this.timestamp = timestamp;
+        this.sequence = sequence;
     }
 
-    static Event load(String uuid, String type, byte[] data, long timestamp) {
-        return new Event(uuid, type, data, timestamp);
+    static Event load(long sequence, String type, byte[] data, long timestamp) {
+        return new Event(sequence, type, data, timestamp);
     }
 
     public static Event create(String type, String data) {
@@ -33,17 +35,30 @@ public class Event {
     }
 
     public static Event create(String type, byte[] data) {
-        return new Event(UUID.randomUUID().toString(), type, data, System.currentTimeMillis());
+        return new Event(-1, type, data, System.currentTimeMillis());
     }
 
-    void stream(String stream) {
+    public void stream(String stream) {
         this.stream = stream;
     }
 
-    void version(int version) {
+    public void version(int version) {
         this.version = version;
     }
 
+    void sequence(long sequence) {
+        this.sequence = sequence;
+    }
+
+    public long sequence() {
+        return sequence;
+    }
+
+    public void streamInfo(String stream, IndexEntry key) {
+        stream(stream);
+        version(key.version);
+        position(key.position);
+    }
 
     public void position(long position) {
         this.position = position;
@@ -55,10 +70,6 @@ public class Event {
 
     public int version() {
         return version;
-    }
-
-    public String uuid() {
-        return uuid;
     }
 
     public String type() {
@@ -77,14 +88,15 @@ public class Event {
         return position;
     }
 
-
     @Override
     public String toString() {
-        return "Event{" + "uuid='" + uuid + '\'' +
-                ", type='" + type + '\'' +
+        return "Event{" +
+                "type='" + type + '\'' +
                 ", timestamp=" + timestamp +
+                ", sequence=" + sequence +
                 ", stream='" + stream + '\'' +
                 ", version=" + version +
+                ", position=" + position +
                 '}';
     }
 }

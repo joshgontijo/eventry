@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.hash.Murmur3Hash;
 import io.joshworks.fstore.es.hash.XXHash;
 import io.joshworks.fstore.es.index.IndexEntry;
+import io.joshworks.fstore.es.index.MemIndex;
 import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.es.index.StreamHasher;
 import io.joshworks.fstore.es.index.TableIndex;
@@ -15,6 +16,7 @@ import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -27,6 +29,9 @@ import java.util.stream.Stream;
 
 public class EventStore implements Closeable {
 
+    //TODO
+    private static final int LRU_CACHE_SIZE = 1000000;
+
     private final TableIndex index;
     private final StreamHasher hasher;
 
@@ -38,7 +43,7 @@ public class EventStore implements Closeable {
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer()).segmentSize(209715200).disableCompaction());
         this.index = new TableIndex(rootDir);
         this.hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
-        this.streamVersion = new LRUCache<>(1000000, this.index::version);
+        this.streamVersion = new LRUCache<>(LRU_CACHE_SIZE, this.index::version);
     }
 
     public static EventStore open(File rootDir) {
@@ -64,10 +69,15 @@ public class EventStore implements Closeable {
         return Iterators.stream(iterator);
     }
 
-//    public Stream<Event[]> fromStreamsParallel(List<String> streams) {
-//        Iterator<Event> iterator = iterateStreams(streams);
-//        return Iterators.stream(iterator);
-//    }
+    public Stream<Event> zipStreams(List<String> streams) {
+        //TODO ordering by timestamp here is tricky, since the index is used as guide, might no even work really
+        //fromCategory (TO be implemented) should give the same results
+       throw new UnsupportedOperationException("TODO");
+    }
+
+    public Stream<Stream<Event>> fromStreamsParallel(List<String> streams) {
+        throw new UnsupportedOperationException("TODO ?????");
+    }
 
     public Iterator<Event> iterateStreams(List<String> streams) {
         Set<String> uniqueStreams = new LinkedHashSet<>(streams);
@@ -106,7 +116,7 @@ public class EventStore implements Closeable {
         return eventLog.scanner();
     }
 
-    //TODO won't return the stream in the event ?
+    //Won't return the stream in the event !
     public Stream<Event> fromAll() {
         return eventLog.stream();
     }
@@ -124,17 +134,17 @@ public class EventStore implements Closeable {
 
     }
 
-    public Event getTest(long position) {
-        return eventLog.get(position);
-    }
-
     public Optional<Event> get(String stream, int version) {
         if (version <= 0) {
             throw new IllegalArgumentException("Version must be greater than zero");
         }
         long streamHash = hasher.hash(stream);
         Range range = Range.of(streamHash, version, version + 1);
-        return index.stream(range).map(i -> eventLog.get(stream, i)).findFirst();
+        return index.stream(range).map(i -> {
+            Event event = eventLog.get(i.position);
+            event.streamInfo(stream, i);
+            return event;
+        }).findFirst();
     }
 
     public void add(String stream, Event event) {
@@ -142,14 +152,19 @@ public class EventStore implements Closeable {
     }
 
     public void add(String stream, Event event, int expectedVersion) {
+        if (stream == null || stream.isEmpty()) {
+            throw new IllegalArgumentException("Invalid stream");
+        }
+
         long streamHash = hasher.hash(stream);
         int currentVersion = streamVersion.get(streamHash);
 
-        if (expectedVersion > 0 && currentVersion != expectedVersion) {
+        if (expectedVersion >= Range.START_VERSION && currentVersion != expectedVersion) {
             //TODO return result, no need for exception here
         }
 
         int newVersion = currentVersion + 1;
+
 
         long position = eventLog.append(event);
         index.add(streamHash, newVersion, position);

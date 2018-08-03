@@ -17,7 +17,7 @@ public class MultiStreamIterator implements Iterator<Event> {
     private final EventLog eventLog;
     private final Queue<Iterators.PeekingIterator<IndexEntry>> queue;
 
-    public MultiStreamIterator(Map<Long, String> streamHashMappings, Iterable<? extends Iterator<IndexEntry>> iterators, EventLog eventLog) {
+    MultiStreamIterator(Map<Long, String> streamHashMappings, Iterable<? extends Iterator<IndexEntry>> iterators, EventLog eventLog) {
         this.streamHashMappings = streamHashMappings;
         this.eventLog = eventLog;
         this.queue = new PriorityQueue<>(10, Comparator.comparingLong(o -> o.peek().position));
@@ -36,18 +36,16 @@ public class MultiStreamIterator implements Iterator<Event> {
     @Override
     public Event next() {
         Iterators.PeekingIterator<IndexEntry> nextIterator = queue.remove();
-        IndexEntry next = nextIterator.next();
+        IndexEntry indexEntry = nextIterator.next();
         if (nextIterator.hasNext()) {
             queue.add(nextIterator);
         }
-        String name = streamHashMappings.get(next.stream);
-        if(name == null) {
-            throw new IllegalStateException("Invalid stream mapping for " + next.stream);
+        String stream = streamHashMappings.get(indexEntry.stream);
+        if (stream == null) {
+            throw new IllegalStateException("Invalid stream mapping for " + indexEntry.stream);
         }
-        Event event = eventLog.get(name, next);
-        if (event == null) {
-            throw new IllegalStateException("Event not found for " + next);
-        }
+        Event event = eventLog.get(indexEntry.position);
+        event.streamInfo(stream, indexEntry);
         return event;
     }
 

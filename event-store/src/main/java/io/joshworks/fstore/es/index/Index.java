@@ -15,6 +15,8 @@ public interface Index extends Closeable, Iterable<IndexEntry> {
 
     Optional<IndexEntry> get(long stream, int version);
 
+//    void delete(long stream);
+
     int version(long stream);
 
 }

@@ -6,9 +6,11 @@ public class Range {
     public final int startVersionInclusive;
     public final int endVersionExclusive;
 
+    public static final int START_VERSION = 0;
+
     private Range(long stream, int startVersionInclusive, int endVersionExclusive) {
-        if(startVersionInclusive <= 0) {
-            throw new IllegalArgumentException("Version range must be greater than zero");
+        if(startVersionInclusive < START_VERSION) {
+            throw new IllegalArgumentException("Version range must be greater or equals zero");
         }
         this.stream = stream;
         this.startVersionInclusive = startVersionInclusive;
@@ -24,15 +26,15 @@ public class Range {
     }
 
     public static Range allOf(long stream) {
-        return new Range(stream, 1, Integer.MAX_VALUE);
+        return new Range(stream, START_VERSION, Integer.MAX_VALUE);
     }
 
     public IndexEntry start() {
-        return IndexEntry.of(stream, startVersionInclusive, 0);
+        return IndexEntry.of(stream, startVersionInclusive, START_VERSION);
     }
 
     public IndexEntry end() {
-        return IndexEntry.of(stream, endVersionExclusive, 0);
+        return IndexEntry.of(stream, endVersionExclusive, START_VERSION);
     }
 
 
