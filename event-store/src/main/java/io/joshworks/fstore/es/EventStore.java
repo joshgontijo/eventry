@@ -72,7 +72,7 @@ public class EventStore implements Closeable {
     public Stream<Event> zipStreams(List<String> streams) {
         //TODO ordering by timestamp here is tricky, since the index is used as guide, might no even work really
         //fromCategory (TO be implemented) should give the same results
-       throw new UnsupportedOperationException("TODO");
+        throw new UnsupportedOperationException("TODO");
     }
 
     public Stream<Stream<Event>> fromStreamsParallel(List<String> streams) {
@@ -160,7 +160,7 @@ public class EventStore implements Closeable {
         int currentVersion = streamVersion.get(streamHash);
 
         if (expectedVersion >= Range.START_VERSION && currentVersion != expectedVersion) {
-            //TODO return result, no need for exception here
+            throw new IllegalArgumentException("Version mismatch: expected stream " + stream + " version: " + expectedVersion + ", got " + currentVersion);
         }
 
         int newVersion = currentVersion + 1;
