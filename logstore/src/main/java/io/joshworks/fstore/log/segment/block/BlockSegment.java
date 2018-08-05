@@ -6,11 +6,12 @@ import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.LogSegment;
+import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.Type;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
 import java.util.Queue;
@@ -22,10 +23,10 @@ import java.util.stream.StreamSupport;
 public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
     private B block;
-    private final LogSegment<B> delegate;
+    private final Segment<B> delegate;
 
-    public BlockSegment(Storage storage, Serializer<B> serializer, DataReader reader, Type type) {
-        delegate = new LogSegment<>(storage, serializer, reader, type);
+    public BlockSegment(Storage storage, Serializer<B> serializer, DataReader reader, String magic, Type type) {
+        delegate = new Segment<>(storage, serializer, reader, magic, type);
         this.block = createBlock();
     }
 
@@ -116,6 +117,18 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
         block = createBlock();
         delegate.delete();
     }
+
+
+    @Override
+    public void roll(int level, ByteBuffer footer) {
+        delegate.roll(level, footer);
+    }
+
+    @Override
+    public ByteBuffer readFooter() {
+        return delegate.readFooter();
+    }
+
 
     @Override
     public void roll(int level) {

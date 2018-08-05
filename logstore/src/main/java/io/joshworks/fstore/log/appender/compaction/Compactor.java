@@ -17,7 +17,6 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -38,6 +37,7 @@ public class Compactor<T, L extends Log<T>> {
     private DataReader dataReader;
     private NamingStrategy namingStrategy;
     private final int maxSegmentsPerLevel;
+    private final String magic;
     private Levels<T, L> levels;
     private final SedaContext sedaContext;
     private final boolean threadPerLevel;
@@ -54,6 +54,7 @@ public class Compactor<T, L extends Log<T>> {
                      DataReader dataReader,
                      NamingStrategy namingStrategy,
                      int maxSegmentsPerLevel,
+                     String magic,
                      Levels<T, L> levels,
                      SedaContext sedaContext,
                      boolean threadPerLevel) {
@@ -65,6 +66,7 @@ public class Compactor<T, L extends Log<T>> {
         this.dataReader = dataReader;
         this.namingStrategy = namingStrategy;
         this.maxSegmentsPerLevel = maxSegmentsPerLevel;
+        this.magic = magic;
         this.levels = levels;
         this.sedaContext = sedaContext;
         this.threadPerLevel = threadPerLevel;
@@ -73,30 +75,46 @@ public class Compactor<T, L extends Log<T>> {
         sedaContext.addStage(COMPACTION_MANAGER, this::compact, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
     }
 
-    public void requestCompaction(int level) {
-        sedaContext.submit(COMPACTION_MANAGER, level);
+    public void forceCompaction(int level) {
+        if (level <= 0) {
+            throw new IllegalArgumentException("Level must be greater than 1");
+        }
+        sedaContext.submit(COMPACTION_MANAGER, new CompactionRequest(level, true));
     }
 
-    private void compact(EventContext<Integer> event) {
-        int level = event.data;
-
-        List<L> segmentsForCompaction = segmentsForCompaction(level);
-        if (segmentsForCompaction.size() <= 1) {
-            long count = compacting.stream().filter(l -> l.level() == level).count();
-            logger.info("Nothing to compact on level {} (compacting {})", level, count);
-            return;
+    public void requestCompaction(int level) {
+        if (level <= 0) {
+            throw new IllegalArgumentException("Level must be greater than 1");
         }
-        compacting.addAll(segmentsForCompaction);
+        sedaContext.submit(COMPACTION_MANAGER, new CompactionRequest(level, false));
+    }
 
-        logger.info("Compacting level {}", level);
+    private void compact(EventContext<CompactionRequest> event) {
+        int level = event.data.level;
+        boolean force = event.data.force;
 
-        File targetFile = LogFileUtils.newSegmentFile(directory, namingStrategy, level + 1);
+        synchronized (this) {
+            if (!requiresCompaction(level) && !force) {
+                return;
+            }
+            List<L> segmentsForCompaction = segmentsForCompaction(level);
+            if (segmentsForCompaction.size() <= 1) {
+                long count = compacting.stream().filter(l -> l.level() == level).count();
+                logger.info("Nothing to compact on level {} (compacting {})", level, count);
+                return;
+            }
+            compacting.addAll(segmentsForCompaction);
 
-        String stageName = stageName(level);
-        if (!sedaContext.stages().contains(stageName)) {
-            sedaContext.addStage(stageName, compactionTask, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
+            logger.info("Compacting level {}", level);
+
+            File targetFile = LogFileUtils.newSegmentFile(directory, namingStrategy, level + 1);
+
+            String stageName = stageName(level);
+            if (!sedaContext.stages().contains(stageName)) {
+                sedaContext.addStage(stageName, compactionTask, new Stage.Builder().corePoolSize(1).maximumPoolSize(1));
+            }
+            event.submit(stageName, new CompactionEvent<>(segmentsForCompaction, segmentCombiner, targetFile, segmentFactory, storageProvider, serializer, dataReader, level, magic));
         }
-        sedaContext.submit(stageName, new CompactionEvent<>(segmentsForCompaction, segmentCombiner, targetFile, segmentFactory, storageProvider, serializer, dataReader, level));
     }
 
     private String stageName(int level) {
@@ -116,10 +134,8 @@ public class Compactor<T, L extends Log<T>> {
         levels.merge(result.sources, result.target);
         compacting.removeAll(result.sources);
 
-
-        context.submit(COMPACTION_MANAGER, result.level);
-        context.submit(COMPACTION_MANAGER, result.level + 1);
-
+        context.submit(COMPACTION_MANAGER, new CompactionRequest(result.level, false));
+        context.submit(COMPACTION_MANAGER, new CompactionRequest(result.level + 1, false));
 
         for (L segment : result.sources) {
             logger.info("Deleting {}", segment.name());
@@ -137,15 +153,11 @@ public class Compactor<T, L extends Log<T>> {
         return levelSize - compactingForLevel >= levels.compactionThreshold();
     }
 
-    private synchronized List<L> segmentsForCompaction(int level) {
+    private List<L> segmentsForCompaction(int level) {
         List<L> toBeCompacted = new ArrayList<>();
         if (level <= 0) {
             throw new IllegalArgumentException("Level must be greater than zero");
         }
-        if (!requiresCompaction(level)) {
-            return toBeCompacted;
-        }
-
         for (L segment : levels.segments(level)) {
             if (!compacting.contains(segment)) {
                 toBeCompacted.add(segment);
@@ -155,6 +167,16 @@ public class Compactor<T, L extends Log<T>> {
             }
         }
         return toBeCompacted;
+    }
+
+    private static class CompactionRequest {
+        private final int level;
+        private final boolean force;
+
+        private CompactionRequest(int level, boolean force) {
+            this.level = level;
+            this.force = force;
+        }
     }
 
 }

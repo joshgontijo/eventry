@@ -19,8 +19,9 @@ class CompactionEvent<T, L extends Log<T>> {
     final Serializer<T> serializer;
     final DataReader dataReader;
     final int level;
+    final String magic;
 
-    CompactionEvent(List<L> segments, SegmentCombiner<T> combiner, File segmentFile, SegmentFactory<T, L> segmentFactory, StorageProvider storageProvider, Serializer<T> serializer, DataReader dataReader, int level) {
+    CompactionEvent(List<L> segments, SegmentCombiner<T> combiner, File segmentFile, SegmentFactory<T, L> segmentFactory, StorageProvider storageProvider, Serializer<T> serializer, DataReader dataReader, int level, String magic) {
         this.segments = segments;
         this.combiner = combiner;
         this.segmentFile = segmentFile;
@@ -29,5 +30,6 @@ class CompactionEvent<T, L extends Log<T>> {
         this.serializer = serializer;
         this.dataReader = dataReader;
         this.level = level;
+        this.magic = magic;
     }
 }

@@ -30,7 +30,7 @@ public class CompactionTask<T, L extends Log<T>> implements StageHandler<Compact
 
         CompactionEvent<T, L> data = context.data;
 
-
+        String magic = data.magic;
         int level = data.level;
         int nextLevel = data.level + 1;
         File segmentFile = data.segmentFile;
@@ -49,24 +49,23 @@ public class CompactionTask<T, L extends Log<T>> implements StageHandler<Compact
             long totalSize = segments.stream().mapToLong(Log::size).sum();
 
             String names = Arrays.toString(segments.stream().map(Log::name).toArray());
-            logger.info("Compacting {} from level {} using {}, new segment size: {}", names, level, combiner.getClass().getSimpleName(), totalSize);
+            logger.info("Compacting {} from level {} using {}, new segment logSize: {}", names, level, combiner.getClass().getSimpleName(), totalSize);
 
             for (int i = 0; i < segments.size(); i++) {
                 L segment = segments.get(i);
-                logger.info("Segment[{}] {} - size: {}, entries: {}", i, segment.name(), segment.size(), segment.entries());
+                logger.info("Segment[{}] {} - logSize: {}, entries: {}", i, segment.name(), segment.size(), segment.entries());
             }
 
             long start = System.currentTimeMillis();
 
             Storage storage = storageProvider.create(segmentFile, totalSize);
-            target = segmentFactory.createOrOpen(storage, serializer, dataReader, Type.MERGE_OUT);
+            target = segmentFactory.createOrOpen(storage, serializer, dataReader, magic, Type.MERGE_OUT);
 
-//            List<Stream<T>> entriesStream = segments.stream().map(Log::stream).collect(Collectors.toList());
             combiner.merge(segments, target);
 
             target.roll(nextLevel);
 
-            logger.info("Result Segment {} - size: {}, entries: {}", target.name(), target.size(), target.entries());
+            logger.info("Result Segment {} - logSize: {}, entries: {}", target.name(), target.size(), target.entries());
 
             logger.info("Compaction completed, took {}ms", (System.currentTimeMillis() - start));
             context.submit(COMPACTION_CLEANUP_STAGE, CompactionResult.success(segments, target, level));
@@ -77,7 +76,7 @@ public class CompactionTask<T, L extends Log<T>> implements StageHandler<Compact
         }
     }
 
-//    private static <T> Consumer<T> bufferedWriter(int size, Consumer<T> delegate) {
+//    private static <T> Consumer<T> bufferedWriter(int logSize, Consumer<T> delegate) {
 //        Consumer<T> buffer = item -> {
 //
 //        };

@@ -20,6 +20,6 @@ public interface Storage extends Flushable, Closeable {
 
     String name();
 
-    void shrink();
+    void truncate(long pos);
 
 }

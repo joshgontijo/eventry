@@ -6,16 +6,14 @@ import io.joshworks.fstore.log.segment.Log;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 public class Levels<T, L extends Log<T>> {
 
     private final int maxItemsPerLevel;
-    private final List<L> segments = new ArrayList<>();
+    private List<L> segments = new ArrayList<>();
 
     private Levels(int maxItemsPerLevel, List<L> segments) {
         this.maxItemsPerLevel = maxItemsPerLevel;
@@ -94,9 +92,11 @@ public class Levels<T, L extends Log<T>> {
             return;
         }
 
+        List<L> copy = new ArrayList<>(this.segments);
+
         int latestIndex = -1;
         for (L seg : segments) {
-            int i = this.segments.indexOf(seg);
+            int i = copy.indexOf(seg);
             if (i < 0) {
                 throw new IllegalStateException("Segment not found: " + seg.name());
             }
@@ -106,11 +106,12 @@ public class Levels<T, L extends Log<T>> {
             latestIndex = i;
         }
 
-        int firstIdx = this.segments.indexOf(segments.get(0));
-        this.segments.set(firstIdx, merged);
+        int firstIdx = copy.indexOf(segments.get(0));
+        copy.set(firstIdx, merged);
         for (int i = 1; i < segments.size(); i++) {
-            this.segments.remove(firstIdx + 1);
+            copy.remove(firstIdx + 1);
         }
+        this.segments = copy;
 
     }
 
@@ -120,7 +121,7 @@ public class Levels<T, L extends Log<T>> {
 
     public Iterator<L> segments(Order order) {
         ArrayList<L> copy = new ArrayList<>(segments);
-        return Order.OLDEST.equals(order) ?copy.iterator() : Iterators.reversed(copy);
+        return Order.FORWARD.equals(order) ?copy.iterator() : Iterators.reversed(copy);
     }
 
     @Override

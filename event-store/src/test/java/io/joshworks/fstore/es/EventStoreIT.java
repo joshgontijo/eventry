@@ -2,18 +2,13 @@ package io.joshworks.fstore.es;
 
 import io.joshworks.fstore.es.hash.Murmur3Hash;
 import io.joshworks.fstore.es.hash.XXHash;
-import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.StreamHasher;
 import io.joshworks.fstore.es.log.Event;
-import io.joshworks.fstore.log.LogIterator;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -373,37 +368,6 @@ public class EventStoreIT {
             assertEquals(stream, event.get().stream());
             assertEquals(1, event.get().version());
         }
-    }
-
-    @Test
-    public void name() throws IOException {
-        EventStore store = EventStore.open(new File("C:\\Users\\jgontijo\\fstore\\a724567f"));
-
-//        try (BufferedWriter bw = new BufferedWriter(new FileWriter("C:\\Users\\jgontijo\\fstore\\ftest.txt"))) {
-//            LogIterator<Event> eventIterator = store.iterateAll();
-//            while (eventIterator.hasNext()) {
-//                long position = eventIterator.position();
-//                Event next = eventIterator.next();
-//                bw.write(position + " | " + next);
-//                bw.newLine();
-//            }
-//        }
-//
-//        try (BufferedWriter bw = new BufferedWriter(new FileWriter("C:\\Users\\jgontijo\\fstore\\idx.txt"))) {
-//            Iterator<IndexEntry> eventIterator = store.keys();
-//            while (eventIterator.hasNext()) {
-//                IndexEntry next = eventIterator.next();
-//                bw.write(next.toString());
-//                bw.newLine();
-//            }
-//        }
-
-//        assertEquals(4000000, store.fromAll().count());
-
-//        Event test = store.getTest(90286824);
-//        Event test1 = store.getTest(190286824);
-
-        assertEquals(3000000, store.fromStream("all").count());
     }
 
     @Test

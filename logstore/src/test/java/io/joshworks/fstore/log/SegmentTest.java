@@ -5,7 +5,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.reader.FixedBufferDataReader;
 import io.joshworks.fstore.log.segment.Header;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.LogSegment;
+import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.Type;
 import io.joshworks.fstore.serializer.StringSerializer;
 import org.junit.After;
@@ -14,15 +14,18 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
-public abstract class LogSegmentTest {
+public abstract class SegmentTest {
 
     private Log<String> segment;
     private File testFile;
@@ -33,12 +36,12 @@ public abstract class LogSegmentTest {
 
     private Log<String> create(File theFile) {
         Storage storage = getStorage(theFile, FILE_SIZE);
-        return new LogSegment<>(storage, new StringSerializer(), new FixedBufferDataReader(), Type.LOG_HEAD);
+        return new Segment<>(storage, new StringSerializer(), new FixedBufferDataReader(), "magic", Type.LOG_HEAD);
     }
 
     private Log<String> open(File theFile) {
         Storage storage = getStorage(theFile, FILE_SIZE);
-        return new LogSegment<>(storage, new StringSerializer(), new FixedBufferDataReader());
+        return new Segment<>(storage, new StringSerializer(), new FixedBufferDataReader(), "magic");
     }
 
     @Before
@@ -58,7 +61,7 @@ public abstract class LogSegmentTest {
         String data = "hello";
         segment.append(data);
 
-        assertEquals(Header.SIZE + 4 + 4 + data.length(), segment.position()); // 4 + 4 (header) + data length
+        assertEquals(Header.BYTES + 4 + 4 + data.length(), segment.position()); // 4 + 4 (header) + data length
     }
 
     @Test
@@ -82,7 +85,7 @@ public abstract class LogSegmentTest {
         LogIterator<String> logIterator = segment.iterator();
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
-        assertEquals(Header.SIZE + 4 + 4 + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + 4 + 4 + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -103,7 +106,7 @@ public abstract class LogSegmentTest {
         assertEquals(position, segment.position());
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
-        assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + Log.ENTRY_HEADER_SIZE + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -114,12 +117,12 @@ public abstract class LogSegmentTest {
         LogIterator<String> logIterator1 = segment.iterator();
         assertTrue(logIterator1.hasNext());
         assertEquals(data, logIterator1.next());
-        assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
 
         LogIterator<String> logIterator2 = segment.iterator();
         assertTrue(logIterator2.hasNext());
         assertEquals(data, logIterator2.next());
-        assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -134,7 +137,7 @@ public abstract class LogSegmentTest {
         LogIterator<String> logIterator1 = segment.iterator();
         assertTrue(logIterator1.hasNext());
         assertEquals(data, logIterator1.next());
-        assertEquals(Header.SIZE + Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
 
     }
 
@@ -189,6 +192,44 @@ public abstract class LogSegmentTest {
             }
             Utils.tryDelete(file);
         }
+    }
+
+    @Test
+    public void scanner_ends_before_footer() {
+
+        int numEntries = 10;
+        for (int i = 0; i < numEntries; i++) {
+            segment.append(String.valueOf(i));
+        }
+
+        //footer
+        byte[] fData = new byte[100];
+        Arrays.fill(fData, (byte) 1);
+
+        segment.roll(1, ByteBuffer.wrap(fData));
+
+
+        Stream<String> stream = segment.stream();
+        assertEquals(numEntries, stream.count());
+    }
+
+    @Test
+    public void get_data_from_footer_is_not_allowed() {
+
+        int numEntries = 10;
+        for (int i = 0; i < numEntries; i++) {
+            segment.append(String.valueOf(i));
+        }
+
+        //footer
+        byte[] fData = new byte[100];
+        Arrays.fill(fData, (byte) 1);
+
+        segment.roll(1, ByteBuffer.wrap(fData));
+
+
+        Stream<String> stream = segment.stream();
+        assertEquals(numEntries, stream.count());
     }
 
     @Test
@@ -265,13 +306,29 @@ public abstract class LogSegmentTest {
         segment.append("a");
         segment.append("b");
 
-        assertEquals(Header.SIZE + (Log.ENTRY_HEADER_SIZE + 1) * 2, segment.size());
+        assertEquals(Header.BYTES + (Log.ENTRY_HEADER_SIZE + 1) * 2, segment.size());
 
         segment.position();
         segment.close();
 
         segment = open(testFile);
-        assertEquals(Header.SIZE + (Log.ENTRY_HEADER_SIZE + 1) * 2, segment.size());
+        assertEquals(Header.BYTES + (Log.ENTRY_HEADER_SIZE + 1) * 2, segment.size());
     }
+
+    @Test
+    public void writeFooter() {
+        segment.append("a");
+
+        byte[] fData = new byte[100];
+        Arrays.fill(fData, (byte) 1);
+
+        segment.roll(1, ByteBuffer.wrap(fData));
+
+        ByteBuffer read = segment.readFooter();
+
+        assertTrue(Arrays.equals(fData, read.array()));
+    }
+
+
 
 }

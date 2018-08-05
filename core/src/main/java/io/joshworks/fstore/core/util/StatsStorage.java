@@ -70,8 +70,8 @@ public class StatsStorage implements Storage {
     }
 
     @Override
-    public void shrink() {
-        delegate.shrink();
+    public void truncate(long pos) {
+        delegate.truncate(pos);
     }
 
 

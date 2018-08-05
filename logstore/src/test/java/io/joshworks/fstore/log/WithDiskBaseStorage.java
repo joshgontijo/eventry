@@ -6,7 +6,7 @@ import io.joshworks.fstore.core.io.Storage;
 
 import java.io.File;
 
-public class WithDiskBaseStorage extends LogSegmentTest {
+public class WithDiskBaseStorage extends SegmentTest {
 
     @Override
     Storage getStorage(File file, long size) {

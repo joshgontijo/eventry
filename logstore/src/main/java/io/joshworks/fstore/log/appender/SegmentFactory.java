@@ -8,7 +8,7 @@ import io.joshworks.fstore.log.segment.Type;
 
 public interface SegmentFactory<T, L extends Log<T>> {
 
-    L createOrOpen(Storage storage, Serializer<T> serializer, DataReader reader, Type type);
+    L createOrOpen(Storage storage, Serializer<T> serializer, DataReader reader, String magic, Type type);
 
 
 }

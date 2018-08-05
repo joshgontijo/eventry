@@ -1,10 +1,7 @@
 package io.joshworks.fstore.es.index.disk;
 
-import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
-import io.joshworks.fstore.core.io.Mode;
-import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.index.Index;
@@ -17,12 +14,8 @@ import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -37,7 +30,7 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
 
     @Override
     public Iterator<IndexEntry> iterator(Range range) {
-        List<Iterator<IndexEntry>> iterators = streamSegments(Order.OLDEST)
+        List<Iterator<IndexEntry>> iterators = streamSegments(Order.FORWARD)
                 .map(idxSeg -> idxSeg.iterator(range))
                 .collect(Collectors.toList());
 
@@ -51,7 +44,7 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
 
     @Override
     public Optional<IndexEntry> get(long stream, int version) {
-        Iterator<IndexSegment> segments = segments(Order.NEWEST);
+        Iterator<IndexSegment> segments = segments(Order.BACKWARD);
         while (segments.hasNext()) {
             IndexSegment next = segments.next();
             Optional<IndexEntry> fromDisk = next.get(stream, version);
@@ -64,7 +57,7 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
 
     @Override
     public int version(long stream) {
-        Iterator<IndexSegment> segments = segments(Order.NEWEST);
+        Iterator<IndexSegment> segments = segments(Order.BACKWARD);
         while (segments.hasNext()) {
             IndexSegment segment = segments.next();
             int version = segment.version(stream);
@@ -77,7 +70,7 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
 
     @Override
     public Iterator<IndexEntry> iterator() {
-        List<Iterator<IndexEntry>> segments = streamSegments(Order.NEWEST).map(Log::iterator).collect(Collectors.toList());
+        List<Iterator<IndexEntry>> segments = streamSegments(Order.FORWARD).map(Log::iterator).collect(Collectors.toList());
         return Iterators.concat(segments);
     }
 
@@ -99,8 +92,8 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
         }
 
         @Override
-        public IndexSegment createOrOpen(Storage storage, Serializer<IndexEntry> serializer, DataReader reader, Type type) {
-            return new IndexSegment(storage, new FixedSizeBlockSerializer<>(serializer, IndexEntry.BYTES), reader, type, directory, numElements);
+        public IndexSegment createOrOpen(Storage storage, Serializer<IndexEntry> serializer, DataReader reader, String magic, Type type) {
+            return new IndexSegment(storage, new FixedSizeBlockSerializer<>(serializer, IndexEntry.BYTES), reader, magic, type, directory, numElements);
         }
     }
 

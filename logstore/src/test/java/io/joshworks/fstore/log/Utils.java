@@ -55,7 +55,7 @@ public class Utils {
         }
     }
 
-    public static File TEST_DIR = new File("C:\\Users\\jgontijo\\fstore");
+    public static File TEST_DIR = new File("J:\\event-store\\");
 
     public static File testFile() {
         return testFile(UUID.randomUUID().toString().substring(0, 8));

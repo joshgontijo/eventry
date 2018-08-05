@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.reader;
 
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.LogSegment;
+import io.joshworks.fstore.log.segment.Segment;
 
 import java.nio.ByteBuffer;
 
@@ -18,7 +18,7 @@ public class HeaderLengthDataReader extends ChecksumDataReader {
 
     @Override
     public ByteBuffer read(Storage storage, long position) {
-        ByteBuffer header = ByteBuffer.allocate(LogSegment.ENTRY_HEADER_SIZE);
+        ByteBuffer header = ByteBuffer.allocate(Segment.ENTRY_HEADER_SIZE);
         storage.read(position, header);
         header.flip();
 

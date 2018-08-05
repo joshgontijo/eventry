@@ -129,7 +129,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         this.compactionDisabled = config.compactionDisabled;
         logger.info("Compaction is {}", this.compactionDisabled ? "DISABLED" : "ENABLED");
 
-        this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataReader, namingStrategy, metadata.maxSegmentsPerLevel, levels, sedaContext, config.threadPerLevel);
+        this.compactor = new Compactor<>(directory, config.combiner, factory, storageProvider, serializer, dataReader, namingStrategy, metadata.maxSegmentsPerLevel, metadata.magic, levels, sedaContext, config.threadPerLevel);
 
 
         logger.info("SEGMENT BIT SHIFT: {}", metadata.segmentBitShift);
@@ -156,7 +156,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         File segmentFile = LogFileUtils.newSegmentFile(directory, namingStrategy, 1);
         Storage storage = storageProvider.create(segmentFile, size + (size / 10));
 
-        return factory.createOrOpen(storage, serializer, dataReader, Type.LOG_HEAD);
+        return factory.createOrOpen(storage, serializer, dataReader, metadata.magic, Type.LOG_HEAD);
     }
 
     private Levels<T, L> loadSegments() {
@@ -192,7 +192,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         try {
             File segmentFile = LogFileUtils.getSegmentHandler(directory, segmentName);
             storage = storageProvider.open(segmentFile);
-            L segment = factory.createOrOpen(storage, serializer, dataReader, null);
+            L segment = factory.createOrOpen(storage, serializer, dataReader, metadata.magic, null);
             logger.info("Loaded segment {}", segment);
             return segment;
         } catch (Exception e) {
@@ -257,7 +257,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     public void compact() {
-        compactor.requestCompaction(1);
+        compactor.forceCompaction(1);
     }
 
     public void appendAsync(T data, Consumer<Long> onComplete) {
@@ -339,7 +339,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     public long size() {
-        return Iterators.stream(segments(Order.NEWEST)).mapToLong(Log::size).sum();
+        return Iterators.stream(segments(Order.BACKWARD)).mapToLong(Log::size).sum();
     }
 
     public Stream<L> streamSegments(Order order) {
@@ -368,7 +368,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         state.flush();
         state.close();
 
-        streamSegments(Order.OLDEST).forEach(segment -> {
+        streamSegments(Order.FORWARD).forEach(segment -> {
             logger.info("Closing segment {}", segment.name());
             IOUtils.closeQuietly(segment);
         });
@@ -400,7 +400,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     public List<String> segmentsNames() {
-        return streamSegments(Order.OLDEST).map(Log::name).collect(Collectors.toList());
+        return streamSegments(Order.FORWARD).map(Log::name).collect(Collectors.toList());
     }
 
     public long entries() {
@@ -447,7 +447,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         private int segmentIdx;
 
         RollingSegmentReader(long startPosition) {
-            Iterator<L> segments = segments(Order.OLDEST);
+            Iterator<L> segments = segments(Order.FORWARD);
             this.segmentIdx = getSegment(startPosition);
             validateSegmentIdx(segmentIdx, startPosition);
             long positionOnSegment = getPositionOnSegment(startPosition);

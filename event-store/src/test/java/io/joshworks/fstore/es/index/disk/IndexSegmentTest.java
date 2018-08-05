@@ -51,6 +51,7 @@ public class IndexSegmentTest {
                 new RafStorage(location, size, Mode.READ_WRITE),
                 new FixedSizeBlockSerializer<>(new IndexEntrySerializer(), IndexEntry.BYTES),
                 new HeaderLengthDataReader(),
+                "magic",
                 Type.LOG_HEAD,
                 indexDir,
                 NUMBER_OF_ELEMENTS);
@@ -464,7 +465,7 @@ public class IndexSegmentTest {
 
 
     @Test
-    public void version_of_large_items() {
+    public void version_of_many_items() {
 
         //given
         int numStreams = 1000000;

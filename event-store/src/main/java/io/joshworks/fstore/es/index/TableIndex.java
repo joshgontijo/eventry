@@ -1,24 +1,15 @@
 package io.joshworks.fstore.es.index;
 
-import io.joshworks.fstore.core.RuntimeIOException;
-import io.joshworks.fstore.core.io.Mode;
-import io.joshworks.fstore.core.io.RafStorage;
-import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.index.disk.IndexAppender;
 import io.joshworks.fstore.es.index.disk.IndexCompactor;
 import io.joshworks.fstore.es.index.disk.IndexEntrySerializer;
-import io.joshworks.fstore.es.log.Event;
-import io.joshworks.fstore.es.log.EventLog;
-import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.Flushable;
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Optional;

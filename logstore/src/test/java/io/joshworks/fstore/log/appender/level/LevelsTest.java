@@ -8,6 +8,7 @@ import io.joshworks.fstore.log.segment.SegmentState;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -90,7 +91,7 @@ public class LevelsTest {
                         seg3));
 
 
-        Iterator<DummySegment> it = levels.segments(Order.OLDEST);
+        Iterator<DummySegment> it = levels.segments(Order.FORWARD);
 
         List<DummySegment> segments = Iterators.toList(it);
 
@@ -122,7 +123,7 @@ public class LevelsTest {
                         seg31,
                         seg32));
 
-        Iterator<DummySegment> it = levels.segments(Order.OLDEST);
+        Iterator<DummySegment> it = levels.segments(Order.FORWARD);
 
         List<DummySegment> segments = Iterators.toList(it);
 
@@ -157,7 +158,7 @@ public class LevelsTest {
                         seg31,
                         seg32));
 
-        Iterator<DummySegment> it = levels.segments(Order.NEWEST);
+        Iterator<DummySegment> it = levels.segments(Order.BACKWARD);
 
         List<DummySegment> segments = Iterators.toList(it);
 
@@ -339,6 +340,17 @@ public class LevelsTest {
         public void roll(int level) {
             this.level = level;
             this.readOnly = true;
+        }
+
+        @Override
+        public void roll(int level, ByteBuffer footer) {
+            this.level = level;
+            this.readOnly = true;
+        }
+
+        @Override
+        public ByteBuffer readFooter() {
+            return ByteBuffer.allocate(0);
         }
 
         @Override

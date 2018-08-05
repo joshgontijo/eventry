@@ -10,8 +10,8 @@ public class DefaultBlockSegment<T> extends BlockSegment<T, Block<T>> {
     private final Serializer<T> serializer;
     private final int maxBlockSize;
 
-    public DefaultBlockSegment(Storage storage, Serializer<T> serializer, DataReader reader, Type type, int maxBlockSize) {
-        super(storage, new BlockSerializer<>(serializer), reader, type);
+    public DefaultBlockSegment(Storage storage, Serializer<T> serializer, DataReader reader, String magic, Type type, int maxBlockSize) {
+        super(storage, new BlockSerializer<>(serializer), reader, magic, type);
         this.serializer = serializer;
         this.maxBlockSize = maxBlockSize;
     }

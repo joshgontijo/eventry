@@ -183,6 +183,27 @@ public class TableIndexTest {
     }
 
     @Test
+    public void iterator_runs_forward_in_the_log() {
+
+        //given
+        long stream = 1;
+        //2 segments + in memory
+        int size = (FLUSH_THRESHOLD * 2) + FLUSH_THRESHOLD / 2;
+        for (int i = 0; i < size; i++) {
+            tableIndex.add(stream, i, 0);
+        }
+
+        Iterator<IndexEntry> it = tableIndex.iterator();
+
+        int expectedVersion = 0;
+        while (it.hasNext()) {
+            IndexEntry next = it.next();
+            assertEquals(expectedVersion, next.version);
+            expectedVersion = next.version + 1;
+        }
+    }
+
+    @Test
     public void stream_with_range_returns_data_from_disk_and_memory() {
 
         //given
@@ -194,14 +215,7 @@ public class TableIndexTest {
         }
 
         Stream<IndexEntry> dataStream = tableIndex.stream(Range.allOf(stream));
-
         assertEquals(size, dataStream.count());
-
-        Iterator<IndexEntry> it = tableIndex.stream().iterator();
-
-        assertEquals(0, it.next().version);
-        assertEquals(1, it.next().version);
-
     }
 
     @Test
@@ -271,7 +285,7 @@ public class TableIndexTest {
 
         //given
         int streams = 100000;
-        try(TableIndex index = new TableIndex(testDirectory, 500000)) {
+        try (TableIndex index = new TableIndex(testDirectory, 500000)) {
 
             for (int i = 0; i < streams; i++) {
                 index.add(i, 1, 0);
@@ -284,7 +298,6 @@ public class TableIndexTest {
                 assertEquals(1, version);
             }
         }
-
 
 
     }

@@ -8,7 +8,7 @@ import org.junit.Ignore;
 import java.io.File;
 
 @Ignore
-public class WithMMapBaseStorage extends LogSegmentTest {
+public class WithMMapBaseStorage extends SegmentTest {
 
     @Override
     Storage getStorage(File file, long size) {

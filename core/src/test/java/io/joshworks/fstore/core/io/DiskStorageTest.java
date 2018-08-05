@@ -191,7 +191,7 @@ public abstract class DiskStorageTest {
         storage.write(bb);
 
         long pos = storage.position();
-        storage.shrink();
+        storage.truncate(pos);
 
         assertEquals(pos, storage.length());
     }

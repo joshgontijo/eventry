@@ -123,7 +123,7 @@
 //            var bb = ofSize(entrySize);
 //            storage.write(bb);
 //
-//            storage.shrink();
+//            storage.truncate();
 //
 //            var read = ByteBuffer.allocate(entrySize);
 //            storage.read(0, read);

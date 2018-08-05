@@ -5,7 +5,7 @@ import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.segment.LogSegment;
+import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.reader.HeaderLengthDataReader;
 import io.joshworks.fstore.log.segment.Type;
 import io.joshworks.fstore.serializer.VStringSerializer;
@@ -23,11 +23,11 @@ import java.util.StringJoiner;
 public class History {
 
     private static final String FILE_NAME = ".history";
-    private final LogSegment<SegmentStateChange> history;
+    private final Segment<SegmentStateChange> history;
 
-    History(File directory) {
+    History(File directory, String magic) {
         Storage storage = new RafStorage(new File(directory, FILE_NAME), 4096, Mode.READ_WRITE);
-        this.history = new LogSegment<>(storage, new HistorySerializer(), new HeaderLengthDataReader(1), Type.LOG_HEAD);
+        this.history = new Segment<>(storage, new HistorySerializer(), new HeaderLengthDataReader(1), magic, Type.LOG_HEAD);
     }
 
     public synchronized void push(SegmentStateChange change) {

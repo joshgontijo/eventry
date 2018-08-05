@@ -36,10 +36,11 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     IndexSegment(Storage storage,
                         Serializer<FixedSizeEntryBlock<IndexEntry>> serializer,
                         DataReader reader,
+                        String magic,
                         Type type,
                         File directory,
                         int numElements) {
-        super(storage, serializer, reader, type);
+        super(storage, serializer, reader, magic, type);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, new Hash.Murmur64<>(Serializers.LONG));

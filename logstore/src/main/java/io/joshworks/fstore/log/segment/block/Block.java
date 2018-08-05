@@ -11,7 +11,7 @@ import java.util.NoSuchElementException;
 
 public class Block<T> implements Iterable<T> {
 
-    private static final double BLOCK_SIZE_EXTRA = 0.1; //10% of the size to avoid resizing
+    private static final double BLOCK_SIZE_EXTRA = 0.1; //10% of the logSize to avoid resizing
 
     protected final Serializer<T> serializer;
     protected final int maxSize;

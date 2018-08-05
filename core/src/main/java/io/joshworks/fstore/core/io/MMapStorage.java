@@ -239,13 +239,13 @@ public class MMapStorage extends DiskStorage {
     }
 
     @Override
-    public void shrink() {
+    public void truncate(long pos) {
         super.mode = Mode.READ;
         int remaining = current.flip().remaining();
         buffers.remove(buffers.size() - 1);
 
         unmap(current);
-        super.shrink();
+        super.truncate(pos);
 
         long start = buffers.size() * bufferSize;
         current = map(start, remaining);

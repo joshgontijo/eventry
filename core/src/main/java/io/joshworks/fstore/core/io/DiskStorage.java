@@ -32,7 +32,7 @@ public abstract class DiskStorage implements Storage {
         }
 
         if (length < target.length()) {
-            logger.error("The specified ({}) is less than the actual file length ({}), this may cause loss of data, use 'shrink()' instead", length, target.length());
+            logger.error("The specified ({}) is less than the actual file length ({}), this may cause loss of data, use 'truncate()' instead", length, target.length());
             throw new StorageException("The specified length (" + length + ") is less than the actual file length (" + target.length() + ")");
         }
 
@@ -122,9 +122,9 @@ public abstract class DiskStorage implements Storage {
     }
 
     @Override
-    public void shrink() {
+    public void truncate(long pos) {
         try {
-            channel.truncate(position);
+            channel.truncate(pos);
         } catch (Exception e) {
             throw new StorageException(e);
         }
