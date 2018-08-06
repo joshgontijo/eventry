@@ -4,7 +4,6 @@ import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.hash.Murmur3Hash;
 import io.joshworks.fstore.es.hash.XXHash;
 import io.joshworks.fstore.es.index.IndexEntry;
-import io.joshworks.fstore.es.index.MemIndex;
 import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.es.index.StreamHasher;
 import io.joshworks.fstore.es.index.TableIndex;
@@ -16,7 +15,6 @@ import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.io.Closeable;
 import java.io.File;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -128,10 +126,6 @@ public class EventStore implements Closeable {
         int newVersion = currentVersion + 1;
         index.add(streamHash, newVersion, event.position());
         streamVersion.set(streamHash, newVersion);
-    }
-
-    public void emit(String stream, Event event) {
-
     }
 
     public Optional<Event> get(String stream, int version) {

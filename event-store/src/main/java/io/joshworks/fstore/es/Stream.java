@@ -33,7 +33,7 @@ public class Stream {
     }
 
 
-    private static enum Permission {
+    public enum Permission {
         NONE, READ, WRITE
     }
 

@@ -4,7 +4,6 @@ import io.joshworks.fstore.es.index.IndexEntry;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.UUID;
 
 public class Event {
 
@@ -15,7 +14,7 @@ public class Event {
     //from index
     private String stream;
     private int version = -1;
-    private long position = -1; //TODO experimental
+    private long position = -1;
 
     private Map<String, Object> map;
 

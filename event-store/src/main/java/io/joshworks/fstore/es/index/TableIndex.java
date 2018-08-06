@@ -111,7 +111,7 @@ public class TableIndex implements Index, Flushable {
         Iterator<IndexEntry> cacheIterator = memIndex.iterator(range);
         Iterator<IndexEntry> diskIterator = diskIndex.iterator(range);
 
-        return Iterators.concat(Arrays.asList(cacheIterator, diskIterator));
+        return joiningDiskAndMem(diskIterator, cacheIterator);
     }
 
     @Override
@@ -125,7 +125,11 @@ public class TableIndex implements Index, Flushable {
 
     @Override
     public Iterator<IndexEntry> iterator() {
-        return Iterators.concat(Arrays.asList(diskIndex.iterator(), memIndex.iterator()));
+        return joiningDiskAndMem(diskIndex.iterator(), memIndex.iterator());
+    }
+
+    private Iterator<IndexEntry> joiningDiskAndMem(Iterator<IndexEntry> diskIterator, Iterator<IndexEntry> memIndex) {
+        return Iterators.concat(Arrays.asList(diskIterator, memIndex));
     }
 
     @Override

@@ -204,6 +204,27 @@ public class TableIndexTest {
     }
 
     @Test
+    public void iterator_with_range_runs_forward_in_the_log() {
+
+        //given
+        long stream = 1;
+        //2 segments + in memory
+        int size = (FLUSH_THRESHOLD * 2) + FLUSH_THRESHOLD / 2;
+        for (int i = 0; i < size; i++) {
+            tableIndex.add(stream, i, 0);
+        }
+
+        Iterator<IndexEntry> it = tableIndex.iterator(Range.allOf(stream));
+
+        int expectedVersion = 0;
+        while (it.hasNext()) {
+            IndexEntry next = it.next();
+            assertEquals(expectedVersion, next.version);
+            expectedVersion = next.version + 1;
+        }
+    }
+
+    @Test
     public void stream_with_range_returns_data_from_disk_and_memory() {
 
         //given
