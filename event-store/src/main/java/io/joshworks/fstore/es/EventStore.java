@@ -188,5 +188,6 @@ public class EventStore implements Closeable {
     public void close() {
         index.close();
         eventLog.close();
+        streams.close();
     }
 }

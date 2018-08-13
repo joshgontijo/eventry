@@ -6,6 +6,7 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
@@ -17,7 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class Streams {
+public class Streams implements Closeable {
 
     //TODO LRU cache ? there's no way of getting item by stream name, need to use an indexed lsm-tree
     //LRU map that reads the last version from the index
@@ -25,9 +26,11 @@ public class Streams {
     private final Map<Long, EventStream> streamsMap;
     private final SimpleLogAppender<EventStream> appender;
 
+    private static final String DIRECTORY = "streams";
+
 
     public Streams(File root, int versionLruCacheSize, Function<Long, Integer> versionFetcher) {
-        this.appender = new SimpleLogAppender<>(LogAppender.builder(new File(root, "streams"), new EventStreamSerializer()));
+        this.appender = new SimpleLogAppender<>(LogAppender.builder(new File(root, DIRECTORY), new EventStreamSerializer()));
         this.streamsMap = loadFromDisk(this.appender);
         this.versions = new LRUCache<>(versionLruCacheSize, streamHash -> new AtomicInteger(versionFetcher.apply(streamHash)));
     }
@@ -60,9 +63,9 @@ public class Streams {
         if(expected < 0) {
             return versionCounter.incrementAndGet();
         }
-        int newValue = versionCounter.compareAndExchange(expected, expected);
-        if(newValue != expected) {
-            throw new IllegalArgumentException("Version mismatch: expected stream " + stream + " version: " + expected + ", got " + newValue);
+        int newValue = expected + 1;
+        if(!versionCounter.compareAndSet(expected, newValue)) {
+            throw new IllegalArgumentException("Version mismatch: expected stream " + stream + " version is higher than expected: " + expected);
         }
         return newValue;
     }
@@ -82,7 +85,11 @@ public class Streams {
         }
 
         return map;
+    }
 
+    @Override
+    public void close() {
+        appender.close();
     }
 
 }

@@ -40,8 +40,8 @@ public class EventStoreIT {
     @After
     public void tearDown() {
         store.close();
-//        Utils.tryDelete(new File(directory, "index"));
-//        Utils.tryDelete(directory);
+        Utils.tryDelete(new File(directory, "index"));
+        Utils.tryDelete(directory);
     }
 
     @Test

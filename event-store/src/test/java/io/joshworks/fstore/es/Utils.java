@@ -22,18 +22,16 @@ public class Utils {
                                 tryDelete(item);
                             }
                             System.out.println("Deleting " + item);
-                            if (!Files.deleteIfExists(item.toPath())) {
-                                throw new RuntimeException("Failed to delete file");
-                            }
+                            Files.deleteIfExists(item.toPath());
                         }
                     }
                 }
-                if (!Files.deleteIfExists(file.toPath())) {
-                    throw new RuntimeException("Failed to delete file");
-                }
+                System.out.println("Deleting " + file);
+                Files.deleteIfExists(file.toPath());
                 break;
             } catch (Exception e) {
-                System.err.println(":: LOCK NOT RELEASED YET :: " + e.getMessage());
+                System.err.println(":: FAILED TO DELETE FILE :: " + e.getMessage());
+                e.printStackTrace();
                 sleep(2000);
             }
         }
