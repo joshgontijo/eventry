@@ -11,7 +11,7 @@ import java.util.NoSuchElementException;
 
 public class Block<T> implements Iterable<T> {
 
-    private static final double BLOCK_SIZE_EXTRA = 0.1; //10% of the logSize to avoid resizing
+    private static final double BLOCK_SIZE_EXTRA = 0.1; //10% of the size to avoid resizing
 
     protected final Serializer<T> serializer;
     protected final int maxSize;
@@ -32,7 +32,7 @@ public class Block<T> implements Iterable<T> {
     protected Block(Serializer<T> serializer, List<Integer> lengths, ByteBuffer data) {
         this.serializer = serializer;
         this.lengths = lengths;
-        this.buffer = data;
+        this.buffer = data.asReadOnlyBuffer();
         this.readOnly = true;
         this.maxSize = -1;
     }
@@ -56,13 +56,13 @@ public class Block<T> implements Iterable<T> {
         return buffer.position() >= maxSize;
     }
 
-    public ByteBuffer readOnlyBuffer() {
+    ByteBuffer readOnlyBuffer() {
         ByteBuffer readOnlyBuffer = buffer.asReadOnlyBuffer();
         //if not readonly, this block is being written to, flip it
         return readOnly ? readOnlyBuffer : (ByteBuffer) readOnlyBuffer.flip();
     }
 
-    public ByteBuffer pack() {
+    ByteBuffer pack() {
         return (ByteBuffer) buffer.asReadOnlyBuffer().flip();
     }
 
@@ -79,8 +79,7 @@ public class Block<T> implements Iterable<T> {
         if(!cached.isEmpty()) {
             return new ArrayList<>(cached);
         }
-        ByteBuffer readBuffer = buffer.asReadOnlyBuffer();
-        readBuffer.position(0);
+        ByteBuffer readBuffer = readOnly ? buffer : buffer.asReadOnlyBuffer();
         for (Integer length : lengths) {
             T entry = readEntry(readBuffer, serializer, length);
             cached.add(entry);
@@ -92,9 +91,11 @@ public class Block<T> implements Iterable<T> {
         if(data.remaining() == 0 || data.remaining() < length) {
             return null;
         }
-        byte[] entryData = new byte[length];
-        data.get(entryData);
-        return serializer.fromBytes(ByteBuffer.wrap(entryData));
+        int original = data.limit();
+        data.limit(data.position() + length);
+        T entry = serializer.fromBytes(data);
+        data.limit(original);
+        return entry;
     }
 
     public T first() {
@@ -115,7 +116,7 @@ public class Block<T> implements Iterable<T> {
             position += lengths.get(i);
         }
 
-        ByteBuffer readOnlyBb = buffer.asReadOnlyBuffer();
+        ByteBuffer readOnlyBb = readOnly ? buffer : buffer.asReadOnlyBuffer();
         readOnlyBb.position(position);
         return readEntry(readOnlyBb, serializer, lengths.get(pos));
     }
@@ -126,7 +127,7 @@ public class Block<T> implements Iterable<T> {
 
     @Override
     public Iterator<T> iterator() {
-        ByteBuffer readBuffer = buffer.asReadOnlyBuffer();
+        ByteBuffer readBuffer = readOnly ? buffer : buffer.asReadOnlyBuffer();
         readBuffer.position(0);
         return new BlockIterator<>(serializer, readBuffer, lengths);
     }

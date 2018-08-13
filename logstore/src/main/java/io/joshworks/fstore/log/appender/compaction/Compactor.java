@@ -140,6 +140,7 @@ public class Compactor<T, L extends Log<T>> {
         for (L segment : result.sources) {
             logger.info("Deleting {}", segment.name());
             segment.delete();
+            logger.info("Deleted {}", segment.name());
         }
     }
 

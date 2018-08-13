@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Queue;
 
+//Ordered by log position multiple streams
 public class MultiStreamIterator implements Iterator<Event> {
 
     private final Map<Long, String> streamHashMappings;
@@ -20,7 +21,7 @@ public class MultiStreamIterator implements Iterator<Event> {
     MultiStreamIterator(Map<Long, String> streamHashMappings, Iterable<? extends Iterator<IndexEntry>> iterators, EventLog eventLog) {
         this.streamHashMappings = streamHashMappings;
         this.eventLog = eventLog;
-        this.queue = new PriorityQueue<>(10, Comparator.comparingLong(o -> o.peek().position));
+        this.queue = new PriorityQueue<>(1000, Comparator.comparingLong(o -> o.peek().position));
         for (Iterator<IndexEntry> iterator : iterators) {
             if (iterator.hasNext()) {
                 queue.add(Iterators.peekingIterator(iterator));

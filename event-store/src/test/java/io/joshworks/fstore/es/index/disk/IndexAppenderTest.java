@@ -23,7 +23,7 @@ public class IndexAppenderTest {
     public void setUp() {
         location = new File("J:\\EVENT-STORE\\" + UUID.randomUUID().toString().substring(0, 8));
         Config<IndexEntry> config = LogAppender.builder(location, new IndexEntrySerializer()).disableCompaction();
-        appender = new IndexAppender(config, 10000);
+        appender = new IndexAppender(config, 10000, true);
     }
 
     @After

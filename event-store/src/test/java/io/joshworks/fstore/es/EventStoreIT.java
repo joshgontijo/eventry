@@ -12,10 +12,12 @@ import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -53,7 +55,7 @@ public class EventStoreIT {
         System.out.println("WRITE: " + (System.currentTimeMillis() - start));
 
 
-        Iterator<Event> events = store.iterator("test-stream");
+        Iterator<Event> events = store.fromStreamIter("test-stream");
         int found = 0;
 
         start = System.currentTimeMillis();
@@ -220,7 +222,7 @@ public class EventStoreIT {
 
         //when
         for (int i = 0; i < numEvents; i++) {
-            Iterator<Event> events = store.iterator("test-" + i, 1);
+            Iterator<Event> events = store.fromStreamIter("test-" + i, 1);
 
             int size = 0;
             while (events.hasNext()) {
@@ -248,7 +250,7 @@ public class EventStoreIT {
 
         List<String> streams = Arrays.asList("test-0", "test-1", "test-10", "test-100", "test-1000");
 
-        Iterator<Event> eventStream = store.iterateStreams(streams);
+        Iterator<Event> eventStream = store.zipStreamsIter(new HashSet<>(streams));
 
         int eventCounter = 0;
         while (eventStream.hasNext()) {
@@ -268,7 +270,7 @@ public class EventStoreIT {
             store.add("stream-" + i, Event.create("test", "data"));
         }
 
-        Iterator<Event> it = store.iterateAll();
+        Iterator<Event> it = store.fromAllIter();
 
         Event last = null;
         int total = 0;
@@ -296,7 +298,7 @@ public class EventStoreIT {
         }
 
         String eventToQuery = "test-1";
-        Iterator<Event> eventStream = store.iterateStreams(Arrays.asList(eventToQuery));
+        Iterator<Event> eventStream = store.zipStreamsIter(Set.of(eventToQuery));
 
         int eventCounter = 0;
         while (eventStream.hasNext()) {
@@ -396,6 +398,36 @@ public class EventStoreIT {
             long foundSize = store.fromStream(String.valueOf(i)).count();
             assertEquals("Failed on iteration: " + i, size, foundSize);
         }
+    }
+
+    @Test
+    public void fromStreamsStartingWith_returns_orderedEvents() {
+        //given
+        int numStreams = 1000;
+        int numVersions = 50;
+        String streamPrefix = "test-";
+
+        for (int stream = 0; stream < numStreams; stream++) {
+            for (int version = 1; version <= numVersions; version++) {
+                store.add(streamPrefix + stream, Event.create(String.valueOf("type"), "data-" + stream));
+            }
+        }
+
+        //some other stream we don't care about
+        for (int version = 1; version <= numVersions; version++) {
+            store.add("someOtherStream-", Event.create(String.valueOf("type"), "data-" + version));
+        }
+
+        Iterator<Event> eventStream = store.zipStreamsIter(streamPrefix);
+
+        int eventCounter = 0;
+        while (eventStream.hasNext()) {
+            Event event = eventStream.next();
+            int streamIdx = eventCounter++ / numVersions;
+            assertTrue(event.stream().startsWith(streamPrefix));
+        }
+
+        assertEquals(numStreams * numVersions, eventCounter);
     }
 
     private void testWith(int streams, int numVersionPerStream) {

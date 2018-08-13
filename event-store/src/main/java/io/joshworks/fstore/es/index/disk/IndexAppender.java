@@ -24,8 +24,8 @@ import java.util.stream.Stream;
 
 public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> implements Index {
 
-    public IndexAppender(Config<IndexEntry> config, int numElements) {
-        super(config, new IndexSegmentFactory(config.directory, numElements));
+    public IndexAppender(Config<IndexEntry> config, int numElements, boolean compress) {
+        super(config, new IndexSegmentFactory(config.directory, numElements, compress));
     }
 
     @Override
@@ -85,15 +85,17 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
 
         private final File directory;
         private final int numElements;
+        private final boolean compress;
 
-        private IndexSegmentFactory(File directory, int numElements) {
+        private IndexSegmentFactory(File directory, int numElements, boolean compress) {
             this.directory = directory;
             this.numElements = numElements;
+            this.compress = compress;
         }
 
         @Override
         public IndexSegment createOrOpen(Storage storage, Serializer<IndexEntry> serializer, DataReader reader, String magic, Type type) {
-            return new IndexSegment(storage, new FixedSizeBlockSerializer<>(serializer, IndexEntry.BYTES), reader, magic, type, directory, numElements);
+            return new IndexSegment(storage, new FixedSizeBlockSerializer<>(serializer, IndexEntry.BYTES, compress), reader, magic, type, directory, numElements);
         }
     }
 

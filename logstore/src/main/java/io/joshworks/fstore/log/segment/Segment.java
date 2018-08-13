@@ -21,6 +21,7 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -239,14 +240,15 @@ public class Segment<T> implements Log<T> {
         new Thread(() -> {
             while (!readers.isEmpty()) {
                 try {
-                    logger.info("Awaiting readers, logSize: {}", readers.size());
-                    Thread.sleep(1000);
+                    logger.info("Awaiting {} readers to be released", readers.size());
+                    Thread.sleep(5000);
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
                 for (LogReader logReader : readers) {
-                    if (logReader.lastReadTs - System.currentTimeMillis() > 10000) {
-                        logger.warn("Removing reader after 10s inactivity");
+                    if (System.currentTimeMillis() - logReader.lastReadTs > TimeUnit.SECONDS.toMillis(10)) {
+                        logger.warn("Removing reader after 10s of inactivity");
+                        readers.remove(logReader);
                     }
                 }
             }
@@ -314,6 +316,17 @@ public class Segment<T> implements Log<T> {
     }
 
     private LogReader newLogReader(long pos) {
+
+        while(readers.size() >= 10) {
+            try {
+                Thread.sleep(1000);
+                logger.info("Waiting to acquire reader");
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                Thread.currentThread().interrupt();
+            }
+        }
+
         LogReader logReader = new LogReader(storage, reader, serializer, pos);
         readers.add(logReader);
         return logReader;
@@ -413,6 +426,7 @@ public class Segment<T> implements Log<T> {
         @Override
         public T next() {
             if (data == null) {
+                close();
                 throw new NoSuchElementException();
             }
             lastReadTs = System.currentTimeMillis();

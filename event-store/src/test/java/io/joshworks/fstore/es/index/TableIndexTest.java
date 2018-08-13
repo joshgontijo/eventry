@@ -18,11 +18,12 @@ public class TableIndexTest {
     private TableIndex tableIndex;
     private File testDirectory;
     private static final int FLUSH_THRESHOLD = 1000000;
+    private static final boolean USE_COMPRESSION = true;
 
     @Before
     public void setUp() {
         testDirectory = Utils.testFolder();
-        tableIndex = new TableIndex(testDirectory, FLUSH_THRESHOLD);
+        tableIndex = new TableIndex(testDirectory, FLUSH_THRESHOLD, USE_COMPRESSION);
     }
 
     @After
@@ -174,12 +175,6 @@ public class TableIndexTest {
         Stream<IndexEntry> dataStream = tableIndex.stream();
 
         assertEquals(size, dataStream.count());
-
-        Iterator<IndexEntry> it = tableIndex.stream().iterator();
-
-        assertEquals(0, it.next().version);
-        assertEquals(1, it.next().version);
-
     }
 
     @Test
@@ -252,7 +247,7 @@ public class TableIndexTest {
 
         tableIndex.close();
 
-        tableIndex = new TableIndex(testDirectory, FLUSH_THRESHOLD);
+        tableIndex = new TableIndex(testDirectory, FLUSH_THRESHOLD, USE_COMPRESSION);
 
         Stream<IndexEntry> dataStream = tableIndex.stream();
 
@@ -278,7 +273,7 @@ public class TableIndexTest {
 
         tableIndex.close();
 
-        tableIndex = new TableIndex(testDirectory, FLUSH_THRESHOLD);
+        tableIndex = new TableIndex(testDirectory, FLUSH_THRESHOLD, USE_COMPRESSION);
 
         Stream<IndexEntry> dataStream = tableIndex.stream(Range.of(stream, 1, 11));
 
@@ -306,7 +301,7 @@ public class TableIndexTest {
 
         //given
         int streams = 100000;
-        try (TableIndex index = new TableIndex(testDirectory, 500000)) {
+        try (TableIndex index = new TableIndex(testDirectory, 500000, USE_COMPRESSION)) {
 
             for (int i = 0; i < streams; i++) {
                 index.add(i, 1, 0);

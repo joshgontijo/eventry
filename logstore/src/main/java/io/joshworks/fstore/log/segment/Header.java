@@ -67,7 +67,7 @@ public class Header {
                 ", type=" + type +
                 ", segmentSize=" + segmentSize +
                 ", logStart=" + logStart +
-                ", logSize=" + logEnd +
+                ", size=" + logEnd +
                 ", entries=" + entries +
                 ", footerPos=" + footerStart +
                 ", footerSize=" + footerEnd +

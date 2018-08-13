@@ -49,7 +49,7 @@ public class IndexSegmentTest {
         long size = location.length() == 0 ? 1048576 : location.length();
         return new IndexSegment(
                 new RafStorage(location, size, Mode.READ_WRITE),
-                new FixedSizeBlockSerializer<>(new IndexEntrySerializer(), IndexEntry.BYTES),
+                new FixedSizeBlockSerializer<>(new IndexEntrySerializer(), IndexEntry.BYTES, true),
                 new HeaderLengthDataReader(),
                 "magic",
                 Type.LOG_HEAD,

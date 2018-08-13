@@ -19,19 +19,19 @@ public class TableIndex implements Index, Flushable {
 
     private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
     public static final int DEFAULT_FLUSH_THRESHOLD = 1000000;
+    public static final boolean DEFAULT_USE_COMPRESSION = true;
     private static final String INDEX_DIR = "index";
-    private final int flushThreshold;
-    private final File directory;
+    private final int flushThreshold; //TODO externalize
 
 //    private final EventLog log;
     private final IndexAppender diskIndex;
     private MemIndex memIndex = new MemIndex();
 
     public TableIndex(File rootDirectory) {
-        this(rootDirectory, DEFAULT_FLUSH_THRESHOLD);
+        this(rootDirectory, DEFAULT_FLUSH_THRESHOLD, DEFAULT_USE_COMPRESSION);
     }
 
-    public TableIndex(File rootDirectory, int flushThreshold) {
+    public TableIndex(File rootDirectory, int flushThreshold, boolean useCompression) {
 //        this.log = log;
         if (flushThreshold < 1000) {//arbitrary number
             throw new IllegalArgumentException("Flush threshold must be at least 1000");
@@ -41,10 +41,9 @@ public class TableIndex implements Index, Flushable {
                 .compactionStrategy(new IndexCompactor())
                 .maxSegmentsPerLevel(2)
                 .segmentSize(flushThreshold * IndexEntry.BYTES)
-                .namingStrategy(new IndexAppender.IndexNaming()), flushThreshold);
+                .namingStrategy(new IndexAppender.IndexNaming()), flushThreshold, useCompression);
 
         this.flushThreshold = flushThreshold;
-        this.directory = rootDirectory;
     }
 
     public void add(long stream, int version, long position) {
@@ -137,6 +136,7 @@ public class TableIndex implements Index, Flushable {
         writeToDisk();
     }
 
+    //TODO LogAppender's LOG_HEAD segment must be able to store different data layout: with stream name in this case
 //    private MemIndex restoreFromCheckpoint(){
 //        long checkpoint = readCheckpoint();
 //

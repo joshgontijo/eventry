@@ -124,7 +124,7 @@ public class BitUtil {
     }
 
     /**
-     * returns a one-logSize BitSet with value.
+     * returns a one-size BitSet with value.
      *
      * @param value the value of the bitSet
      * @return the BitSet

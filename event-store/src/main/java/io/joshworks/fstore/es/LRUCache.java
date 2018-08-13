@@ -28,6 +28,11 @@ public class LRUCache<K, V> {
         return value;
     }
 
+    public V getOrElse(K key, V defaultValue) {
+        V v = get(key);
+        return v == null ? defaultValue : v;
+    }
+
     public V set(K key, V value) {
         V prev = map.remove(key);
         if (map.size() >= capacity) {

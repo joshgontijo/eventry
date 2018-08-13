@@ -1,5 +1,6 @@
 package io.joshworks.fstore.es.index.disk;
 
+import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.Storage;
@@ -18,6 +19,7 @@ import io.joshworks.fstore.log.segment.block.FixedSizeEntryBlock;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -166,7 +168,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
         return new FixedSizeEntryBlock<>(new IndexEntrySerializer(), 204, IndexEntry.BYTES);
     }
 
-    private static final class RangeIndexEntryIterator implements Iterator<IndexEntry> {
+    private static final class RangeIndexEntryIterator implements LogIterator<IndexEntry> {
 
         private final IndexEntry end;
         private final IndexEntry start;
@@ -190,17 +192,36 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
 
         @Override
         public boolean hasNext() {
-            return current != null && current.lessThan(end);
+            boolean hasNext = current != null && current.lessThan(end);
+            if(!hasNext) {
+                close();
+            }
+            return hasNext;
+        }
+
+        @Override
+        public void close() {
+            try {
+                segmentIterator.close();
+            } catch (IOException e) {
+                throw RuntimeIOException.of(e);
+            }
         }
 
         @Override
         public IndexEntry next() {
             if (current == null) {
+                close();
                 throw new NoSuchElementException();
             }
             IndexEntry curr = current;
             current = segmentIterator.hasNext() ? segmentIterator.next() : null;
             return curr;
+        }
+
+        @Override
+        public long position() {
+            return segmentIterator.position();
         }
     }
 
