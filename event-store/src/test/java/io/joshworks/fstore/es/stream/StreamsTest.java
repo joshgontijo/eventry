@@ -10,6 +10,7 @@ import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class StreamsTest {
 
@@ -63,6 +64,12 @@ public class StreamsTest {
     public void version_of_nonExisting_stream_returns_zero() {
         int version = streams.tryIncrementVersion(123, -1);
         assertEquals(0, version);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void unexpected_version_throws_exception() {
+        streams.tryIncrementVersion(123, 1);
+        fail("Expected version mismatch");
     }
 
     @Test
