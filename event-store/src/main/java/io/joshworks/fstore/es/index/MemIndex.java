@@ -8,13 +8,10 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.SortedSet;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 public class MemIndex implements Index {
 
@@ -35,7 +32,7 @@ public class MemIndex implements Index {
     public int version(long stream) {
         SortedSet<IndexEntry> entries = index.get(stream);
         if(entries == null) {
-            return 0;
+            return IndexEntry.NO_VERSION;
         }
 
         return entries.last().version;

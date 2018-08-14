@@ -291,7 +291,7 @@ public class EventStoreIT {
         int numStreams = 10000;
         int numVersions = 50;
         for (int stream = 0; stream < numStreams; stream++) {
-            for (int version = 1; version <= numVersions; version++) {
+            for (int version = 0; version < numVersions; version++) {
                 String streamName = "test-" + stream;
                 store.add(streamName, Event.create(streamName, "data-" + stream));
             }
@@ -308,6 +308,54 @@ public class EventStoreIT {
         }
 
         assertEquals(numVersions, eventCounter);
+    }
+
+    @Test
+    public void fromStream_returns_data_within_maxCount() {
+        //given
+
+        String stream = "test-stream";
+        int maxCount = 10;
+        int numVersions = 50;
+        store.createStream(stream, maxCount, -1);
+
+        for (int version = 0; version < numVersions; version++) {
+            store.add(stream, Event.create(stream, "data-" + stream));
+        }
+
+        Iterator<Event> eventStream = store.fromStreamIter(stream);
+
+        int eventCounter = 0;
+        while (eventStream.hasNext()) {
+            Event event = eventStream.next();
+            System.out.println(event.version());
+            assertTrue(event.version() >= numVersions - maxCount);
+            eventCounter++;
+        }
+
+        assertEquals(maxCount, eventCounter);
+    }
+
+    @Test
+    public void fromStream_returns_data_within_maxAge() throws InterruptedException {
+        //given
+
+        String stream = "test-stream";
+        int maxAgeSeconds = 5;
+        int numVersions = 50;
+        store.createStream(stream, -1, maxAgeSeconds);
+
+        for (int version = 0; version < numVersions; version++) {
+            store.add(stream, Event.create(stream, "data-" + stream));
+        }
+
+        long count = store.fromStream(stream).count();
+        assertEquals(numVersions, count);
+
+        Thread.sleep(maxAgeSeconds * 1000);
+
+        count = store.fromStream(stream).count();
+        assertEquals(numVersions, count);
     }
 
     @Test

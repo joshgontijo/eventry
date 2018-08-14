@@ -23,8 +23,8 @@ public class Streams implements Closeable {
     //TODO LRU cache ? there's no way of getting item by stream name, need to use an indexed lsm-tree
     //LRU map that reads the last version from the index
     private final LRUCache<Long, AtomicInteger> versions;
-    private final Map<Long, EventStream> streamsMap;
-    private final SimpleLogAppender<EventStream> appender;
+    private final Map<Long, StreamMetadata> streamsMap;
+    private final SimpleLogAppender<StreamMetadata> appender;
 
     private static final String DIRECTORY = "streams";
 
@@ -35,13 +35,13 @@ public class Streams implements Closeable {
         this.versions = new LRUCache<>(versionLruCacheSize, streamHash -> new AtomicInteger(versionFetcher.apply(streamHash)));
     }
 
-    public Optional<EventStream> get(long streamHash) {
+    public Optional<StreamMetadata> get(long streamHash) {
         return Optional.ofNullable(streamsMap.get(streamHash));
     }
 
     //TODO implement 'remove'
     //TODO field validation needed
-    public void add(EventStream stream) {
+    public void add(StreamMetadata stream) {
         Objects.requireNonNull(stream);
         appender.append(stream);
         streamsMap.put(stream.hash, stream);
@@ -71,12 +71,12 @@ public class Streams implements Closeable {
     }
 
 
-    private static Map<Long, EventStream> loadFromDisk(SimpleLogAppender<EventStream> appender) {
-        Map<Long, EventStream> map = new ConcurrentHashMap<>();
-        try (LogIterator<EventStream> scanner = appender.scanner()) {
+    private static Map<Long, StreamMetadata> loadFromDisk(SimpleLogAppender<StreamMetadata> appender) {
+        Map<Long, StreamMetadata> map = new ConcurrentHashMap<>();
+        try (LogIterator<StreamMetadata> scanner = appender.scanner()) {
 
             while (scanner.hasNext()) {
-                EventStream next = scanner.next();
+                StreamMetadata next = scanner.next();
                 map.put(next.hash, next);
             }
 

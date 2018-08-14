@@ -32,13 +32,13 @@ public class StreamsTest {
 
     @Test
     public void get_returns_correct_stream() {
-        streams.add(new EventStream("a", 1, 0));
+        streams.add(new StreamMetadata("a", 1, 0));
         assertTrue(streams.get(1).isPresent());
     }
 
     @Test
     public void get_returns_correct_stream_after_reopening() {
-        streams.add(new EventStream("a", 1, 0));
+        streams.add(new StreamMetadata("a", 1, 0));
         streams.close();
 
         streams = new Streams(directory, 10, streamHash -> -1);
@@ -48,10 +48,10 @@ public class StreamsTest {
     @Test
     public void streamsStartingWith() {
 
-        streams.add(new EventStream("abc-123", 1, 0));
-        streams.add(new EventStream("abc-345", 2, 0));
-        streams.add(new EventStream("another1", 3, 0));
-        streams.add(new EventStream("another2", 4, 0));
+        streams.add(new StreamMetadata("abc-123", 1, 0));
+        streams.add(new StreamMetadata("abc-345", 2, 0));
+        streams.add(new StreamMetadata("another1", 3, 0));
+        streams.add(new StreamMetadata("another2", 4, 0));
 
         Set<String> names = streams.streamsStartingWith("abc-");
 
@@ -80,9 +80,5 @@ public class StreamsTest {
 
         int version2 = streams.tryIncrementVersion(123, 1);
         assertEquals(2, version2);
-    }
-
-    @Test
-    public void tryIncrementVersion() {
     }
 }

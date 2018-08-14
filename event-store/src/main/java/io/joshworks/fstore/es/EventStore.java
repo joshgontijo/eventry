@@ -10,7 +10,7 @@ import io.joshworks.fstore.es.index.TableIndex;
 import io.joshworks.fstore.es.log.Event;
 import io.joshworks.fstore.es.log.EventLog;
 import io.joshworks.fstore.es.log.EventSerializer;
-import io.joshworks.fstore.es.stream.EventStream;
+import io.joshworks.fstore.es.stream.StreamMetadata;
 import io.joshworks.fstore.es.stream.Streams;
 import io.joshworks.fstore.es.utils.Tuple;
 import io.joshworks.fstore.log.LogIterator;
@@ -20,6 +20,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -43,7 +44,6 @@ public class EventStore implements Closeable {
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer()).segmentSize(209715200).disableCompaction());
         this.index = new TableIndex(rootDir);
         this.hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
-
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, this.index::version);
     }
 
@@ -53,6 +53,19 @@ public class EventStore implements Closeable {
 
     public Iterator<IndexEntry> keys() {
         throw new UnsupportedOperationException("TODO");
+    }
+
+    public void createStream(String name) {
+        createStream(name, -1, -1);
+    }
+
+    public void createStream(String name, int maxCount, long maxAge) {
+        createStream(name, maxCount, maxAge, new HashMap<>(), new HashMap<>());
+    }
+
+    public void createStream(String name, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
+        long hash = hasher.hash(name);
+        streams.add(new StreamMetadata(name, hash, System.currentTimeMillis(), maxAge, maxCount, permissions, metadata));
     }
 
     public Iterator<Event> fromStreamIter(String stream) {
@@ -66,7 +79,8 @@ public class EventStore implements Closeable {
     public Iterator<Event> fromStreamIter(String stream, int versionInclusive) {
         long streamHash = hasher.hash(stream);
         Iterator<IndexEntry> addresses = index.iterator(Range.of(streamHash, versionInclusive));
-        return new SingleStreamIterator(stream, addresses, eventLog);
+        addresses = withMaxCountFilter(streamHash, addresses);
+        return withMaxAgeFilter(Set.of(streamHash), new SingleStreamIterator(stream, addresses, eventLog));
     }
 
     public Stream<Event> fromStream(String stream, int versionInclusive) {
@@ -93,18 +107,20 @@ public class EventStore implements Closeable {
 
         List<Iterator<IndexEntry>> indexes = new ArrayList<>(streams.size());
         Map<Long, String> mappings = new HashMap<>();
+        Set<Long> hashes = new HashSet<>();
         for (String stream : uniqueStreams) {
             if (stream == null || stream.isEmpty()) {
                 throw new IllegalArgumentException("Stream cannot empty");
             }
             long streamHash = hasher.hash(stream);
+            hashes.add(streamHash);
             Iterator<IndexEntry> indexStream = index.iterator(Range.allOf(streamHash));
 
             indexes.add(indexStream);
             mappings.put(streamHash, stream);
         }
 
-        return new MultiStreamIterator(mappings, indexes, eventLog);
+        return withMaxAgeFilter(hashes, new MultiStreamIterator(mappings, indexes, eventLog));
     }
 
     public Stream<Stream<Event>> fromStreams(Set<String> streams) {
@@ -161,12 +177,12 @@ public class EventStore implements Closeable {
             throw new IllegalArgumentException("Invalid stream");
         }
         long streamHash = hasher.hash(streamName);
-        EventStream stream = streams.get(streamHash).orElseGet(() -> createStream(streamName, streamHash));
+        StreamMetadata stream = streams.get(streamHash).orElseGet(() -> createStream(streamName, streamHash));
 
         add(stream, event, expectedVersion);
     }
 
-    private void add(EventStream stream, Event event, int expectedVersion) {
+    private void add(StreamMetadata stream, Event event, int expectedVersion) {
         if(stream == null) {
             throw new IllegalArgumentException("EventStream cannot be null");
         }
@@ -178,10 +194,28 @@ public class EventStore implements Closeable {
         index.add(streamHash, version, position);
     }
 
-    private EventStream createStream(String name, long hash) {
-        EventStream eventStream = new EventStream(name, hash, System.currentTimeMillis());
-        streams.add(eventStream);
-        return eventStream;
+    private StreamMetadata createStream(String name, long hash) {
+        StreamMetadata streamMetadata = new StreamMetadata(name, hash, System.currentTimeMillis());
+        streams.add(streamMetadata);
+        return streamMetadata;
+    }
+
+    private Iterator<IndexEntry> withMaxCountFilter(long streamHash, Iterator<IndexEntry> iterator) {
+        return streams.get(streamHash)
+                .map(stream -> stream.maxCount)
+                .filter(maxCount -> maxCount > 0)
+                .map(maxCount -> MaxCountFilteringIterator.of(maxCount, streams.version(streamHash), iterator))
+                .orElse(iterator);
+    }
+
+    private Iterator<Event> withMaxAgeFilter(Set<Long> streamHashes, Iterator<Event> iterator) {
+        Map<String, StreamMetadata> metadataMap = streamHashes.stream()
+                .map(streams::get)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toMap(StreamMetadata::name, meta -> meta));
+
+        return new MaxAgeFilteringIterator(metadataMap, iterator);
     }
 
     @Override

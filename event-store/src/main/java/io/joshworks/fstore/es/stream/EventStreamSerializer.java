@@ -9,13 +9,13 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class EventStreamSerializer implements Serializer<EventStream> {
+public class EventStreamSerializer implements Serializer<StreamMetadata> {
 
     private final Serializer<Map<String, Integer>> permissionSerializer = Serializers.mapSerializer(Serializers.VSTRING, Serializers.INTEGER, VStringSerializer::sizeOf, v -> Integer.BYTES, ConcurrentHashMap::new);
     private final Serializer<Map<String, String>> metadataSerializer = Serializers.mapSerializer(Serializers.VSTRING, Serializers.VSTRING, VStringSerializer::sizeOf, VStringSerializer::sizeOf, ConcurrentHashMap::new);
 
     @Override
-    public ByteBuffer toBytes(EventStream data) {
+    public ByteBuffer toBytes(StreamMetadata data) {
         int nameSize = VStringSerializer.sizeOf(data.name);
         int permissionsSize = MapSerializer.sizeOfMap(data.permissions, VStringSerializer::sizeOf, v -> Integer.BYTES);
         int metadataSize = MapSerializer.sizeOfMap(data.metadata, VStringSerializer::sizeOf, VStringSerializer::sizeOf);
@@ -29,7 +29,7 @@ public class EventStreamSerializer implements Serializer<EventStream> {
     }
 
     @Override
-    public void writeTo(EventStream data, ByteBuffer dest) {
+    public void writeTo(StreamMetadata data, ByteBuffer dest) {
         dest.putLong(data.hash);
         dest.putLong(data.created);
         dest.putLong(data.maxAge);
@@ -41,7 +41,7 @@ public class EventStreamSerializer implements Serializer<EventStream> {
     }
 
     @Override
-    public EventStream fromBytes(ByteBuffer buffer) {
+    public StreamMetadata fromBytes(ByteBuffer buffer) {
         long hash = buffer.getLong();
         long created = buffer.getLong();
         long maxAge = buffer.getLong();
@@ -51,7 +51,7 @@ public class EventStreamSerializer implements Serializer<EventStream> {
         Map<String, Integer> permissions = permissionSerializer.fromBytes(buffer);
         Map<String, String> metadata = metadataSerializer.fromBytes(buffer);
 
-        return new EventStream(name, hash, created, maxAge, maxCount, permissions, metadata);
+        return new StreamMetadata(name, hash, created, maxAge, maxCount, permissions, metadata);
     }
 
 }
