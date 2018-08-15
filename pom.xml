@@ -16,6 +16,7 @@
         <module>codec</module>
         <module>index</module>
         <module>event-store</module>
+        <module>es-server</module>
     </modules>
 
     <properties>
@@ -67,6 +68,11 @@
             <dependency>
                 <groupId>${project.groupId}</groupId>
                 <artifactId>logstore</artifactId>
+                <version>1.0-SNAPSHOT</version>
+            </dependency>
+            <dependency>
+                <groupId>${project.groupId}</groupId>
+                <artifactId>event-store</artifactId>
                 <version>1.0-SNAPSHOT</version>
             </dependency>
             <dependency>

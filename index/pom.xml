@@ -13,11 +13,11 @@
 
     <dependencies>
         <dependency>
-            <groupId>io.joshworks.fstore</groupId>
+            <groupId>${parent.groupId}</groupId>
             <artifactId>core</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.joshworks.fstore</groupId>
+            <groupId>${parent.groupId}</groupId>
             <artifactId>standard-serializer</artifactId>
         </dependency>
 
