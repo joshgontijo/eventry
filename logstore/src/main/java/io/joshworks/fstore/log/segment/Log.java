@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log.segment;
 
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Writer;
 
 import java.io.Closeable;
@@ -24,6 +25,10 @@ public interface Log<T> extends Writer<T>, Closeable {
     long position();
 
     T get(long position);
+
+    PollingSubscriber<T> poller(long position);
+
+    PollingSubscriber<T> poller();
 
     long size();
 

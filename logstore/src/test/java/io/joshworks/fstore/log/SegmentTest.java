@@ -19,11 +19,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public abstract class SegmentTest {
 
@@ -278,8 +285,6 @@ public abstract class SegmentTest {
         } catch (Exception e) {
             Utils.tryDelete(file);
         }
-
-
     }
 
     private void testScanner(int items) throws IOException {
@@ -329,6 +334,100 @@ public abstract class SegmentTest {
         assertTrue(Arrays.equals(fData, read.array()));
     }
 
+    @Test
+    public void poller_notifies_awaiting_consumers() throws InterruptedException {
+        final String value = "yolo";
+        int numOfSubscribers = 3;
+        ExecutorService executor = Executors.newFixedThreadPool(numOfSubscribers);
+
+        final List<String> captured = new ArrayList<>();
+
+        for (int i = 0; i < numOfSubscribers; i++) {
+            executor.submit(() -> {
+                try {
+                    PollingSubscriber<String> poller = segment.poller();
+                    String polled = poller.poll();
+                    if (polled != null)
+                        captured.add(polled);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            });
+        }
+
+        executor.shutdown();
+
+        segment.append(value);
+        executor.awaitTermination(5, TimeUnit.SECONDS);
+
+        assertEquals(numOfSubscribers, captured.size());
+
+    }
+
+    @Test
+    public void poller_doesnt_no_block_when_data_is_available() throws InterruptedException {
+        final String value = "yolo";
+
+        segment.append(value);
+
+        PollingSubscriber<String> poller = segment.poller();
+        String polled = poller.poll(3, TimeUnit.SECONDS);
+
+        assertEquals(value, polled);
+    }
+
+    @Test
+    public void poll_returns_null_when_segment_is_rolled() throws InterruptedException {
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<String> captured = new AtomicReference<>("NON-NULL");
+
+        segment.append("value");
+        long position = segment.position();
+
+        new Thread(() -> {
+            try {
+                PollingSubscriber<String> poller = segment.poller(position);
+                String polled = poller.poll();
+                captured.set(polled);
+                latch.countDown();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }).start();
 
 
+        segment.roll(1);
+
+        if(!latch.await(5, TimeUnit.SECONDS)) {
+            fail("Thread was not released");
+        }
+        assertNull(captured.get());
+    }
+
+    @Test
+    public void poll_returns_null_when_segment_is_closed() throws InterruptedException, IOException {
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<String> captured = new AtomicReference<>("NON-NULL");
+
+        new Thread(() -> {
+            try {
+                PollingSubscriber<String> poller = segment.poller();
+                String polled = poller.poll();
+                captured.set(polled);
+                latch.countDown();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }).start();
+
+        Thread.sleep(1000);
+        segment.close();
+
+        if(!latch.await(5, TimeUnit.SECONDS)) {
+            fail("Thread was not released");
+        }
+        assertNull(captured.get());
+    }
 }

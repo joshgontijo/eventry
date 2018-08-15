@@ -2,6 +2,7 @@ package io.joshworks.fstore.log.appender.level;
 
 import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.Order;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
@@ -318,6 +319,16 @@ public class LevelsTest {
 
         @Override
         public String get(long position) {
+            return null;
+        }
+
+        @Override
+        public PollingSubscriber<String> poller(long position) {
+            return null;
+        }
+
+        @Override
+        public PollingSubscriber<String> poller() {
             return null;
         }
 

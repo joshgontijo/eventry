@@ -8,6 +8,8 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Checksum;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.TimoutReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -22,6 +24,10 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -43,11 +49,15 @@ public class Segment<T> implements Log<T> {
 
     private long entries;
     private final String magic;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     private Header header;
 
-    private final Set<LogReader> readers = ConcurrentHashMap.newKeySet();
+    private final Set<TimoutReader> readers = ConcurrentHashMap.newKeySet();
 
+
+    private final Lock lock = new ReentrantLock();
+    private final Condition available = lock.newCondition();
 
     public Segment(Storage storage, Serializer<T> serializer, DataReader reader, String magic) {
         this(storage, serializer, reader, magic, null);
@@ -149,6 +159,18 @@ public class Segment<T> implements Log<T> {
         return serializer.fromBytes(data);
     }
 
+    @Override
+    public PollingSubscriber<T> poller(long position) {
+        SegmentPoller segmentPoller = new SegmentPoller(storage, reader, serializer, lock, available, position);
+        this.readers.add(segmentPoller);
+        return segmentPoller;
+    }
+
+    @Override
+    public PollingSubscriber<T> poller() {
+        return poller(Segment.START);
+    }
+
     private void checkBounds(long position) {
         if (position < START) {
             throw new IllegalArgumentException("Position must be greater or equals to " + START);
@@ -171,7 +193,17 @@ public class Segment<T> implements Log<T> {
         write(storage, bytes);
 
         entries++;
+        notifyPollers();
         return recordPosition;
+    }
+
+    private void notifyPollers() {
+        lock.lock();
+        try {
+            available.signalAll();
+        } finally {
+            lock.unlock();
+        }
     }
 
     @Override
@@ -196,6 +228,10 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public void close() {
+        if(!closed.compareAndSet(false, true)) {
+            return;
+        }
+        notifyPollers(); //release
         IOUtils.closeQuietly(storage);
     }
 
@@ -245,13 +281,14 @@ public class Segment<T> implements Log<T> {
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
-                for (LogReader logReader : readers) {
-                    if (System.currentTimeMillis() - logReader.lastReadTs > TimeUnit.SECONDS.toMillis(10)) {
+                for (TimoutReader logReader : readers) {
+                    if (System.currentTimeMillis() - logReader.lastReadTs() > TimeUnit.SECONDS.toMillis(10)) {
                         logger.warn("Removing reader after 10s of inactivity");
                         readers.remove(logReader);
                     }
                 }
             }
+            notifyPollers(); //release
             storage.delete();
 
         }).start();
@@ -275,8 +312,10 @@ public class Segment<T> implements Log<T> {
         this.header = writeHeader(level, footerInfo);
 
         boolean hasFooter = header.footerStart > 0;
-        long endOfSegment =  hasFooter ? header.footerStart + header.footerEnd : endOfLog;
+        long endOfSegment = hasFooter ? header.footerStart + header.footerEnd : endOfLog;
         storage.truncate(endOfSegment);
+
+        notifyPollers(); //release
     }
 
     @Override
@@ -315,9 +354,11 @@ public class Segment<T> implements Log<T> {
         return newHeader;
     }
 
+    //TODO properly implement reader pool
+    //TODO implement race condition on acquiring readers and closing / deleting segment
     private LogReader newLogReader(long pos) {
 
-        while(readers.size() >= 10) {
+        while (readers.size() >= 10) {
             try {
                 Thread.sleep(1000);
                 logger.info("Waiting to acquire reader");
@@ -390,7 +431,7 @@ public class Segment<T> implements Log<T> {
     }
 
     //NOT THREAD SAFE
-    private class LogReader implements LogIterator<T> {
+    private class LogReader extends TimoutReader implements LogIterator<T> {
 
         private final Storage storage;
         private final DataReader reader;
@@ -401,8 +442,6 @@ public class Segment<T> implements Log<T> {
         private long readAheadPosition;
         private long lastReadSize;
 
-        private long lastReadTs;
-
         LogReader(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition) {
             checkBounds(initialPosition);
             this.storage = storage;
@@ -411,6 +450,7 @@ public class Segment<T> implements Log<T> {
             this.position = initialPosition;
             this.readAheadPosition = initialPosition;
             this.data = readAhead();
+            this.lastReadTs = System.currentTimeMillis();
         }
 
         @Override
@@ -464,4 +504,88 @@ public class Segment<T> implements Log<T> {
             this.end = end;
         }
     }
+
+    //Thread safe
+    private class SegmentPoller extends TimoutReader implements PollingSubscriber<T> {
+
+        private static final int NO_TIMEOUT = -1;
+
+        private final Condition signal;
+        private final Lock lock;
+        private final Storage storage;
+        private final DataReader reader;
+        private final Serializer<T> serializer;
+        private long readPosition;
+
+        SegmentPoller(Storage storage, DataReader reader, Serializer<T> serializer, Lock lock, Condition condition, long initialPosition) {
+            checkBounds(initialPosition);
+            this.lock = lock;
+            this.signal = condition;
+            this.storage = storage;
+            this.reader = reader;
+            this.serializer = serializer;
+            this.readPosition = initialPosition;
+            this.lastReadTs = System.currentTimeMillis();
+        }
+
+        private T read() {
+            ByteBuffer bb = reader.read(storage, readPosition);
+            if (bb.remaining() == 0) { //EOF
+                close();
+                return null;
+            }
+            this.lastReadTs = System.currentTimeMillis();
+            readPosition += bb.limit();
+            return serializer.fromBytes(bb);
+        }
+
+        private T tryRead(long time, TimeUnit timeUnit) throws InterruptedException {
+            lock.lock();
+            try {
+                if (readPosition < Segment.this.position()) {
+                    return read();
+                }
+                while (!closed.get() && !readOnly() && readPosition == Segment.this.position()) {
+                    await(time, timeUnit);
+                }
+                return read();
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        private void await(long time, TimeUnit timeUnit) throws InterruptedException {
+            if (time > NO_TIMEOUT)
+                signal.await(time, timeUnit);
+            else {
+                signal.await();
+            }
+        }
+
+        @Override
+        public T poll() throws InterruptedException {
+            return tryRead(NO_TIMEOUT, TimeUnit.MILLISECONDS);
+        }
+
+        @Override
+        public T poll(long time, TimeUnit timeUnit) throws InterruptedException {
+            return tryRead(time, timeUnit);
+        }
+
+        @Override
+        public boolean endOfLog() {
+            return readOnly() && header.logEnd > 0 && readPosition >= header.logEnd;
+        }
+
+        @Override
+        public long position() {
+            return readPosition;
+        }
+
+        @Override
+        public void close() {
+            readers.remove(this);
+        }
+    }
+
 }

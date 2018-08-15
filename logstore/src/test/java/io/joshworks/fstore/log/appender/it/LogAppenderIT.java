@@ -2,6 +2,7 @@ package io.joshworks.fstore.log.appender.it;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.segment.Log;
@@ -178,6 +179,30 @@ public abstract class LogAppenderIT<L extends Log<String>> {
             assertEquals(iterations, appender.stream().count());
             assertEquals(iterations, appender.entries());
         }
+    }
+
+    @Test
+    public void poller() throws InterruptedException {
+
+        PollingSubscriber<String> poller = appender.poller();
+        int messages = 5000000;
+        new Thread(() -> {
+            long start = System.currentTimeMillis();
+            for (int i = 0; i < messages; i++) {
+                appender.append(String.valueOf(i));
+            }
+            System.out.println("WRITE: " + (System.currentTimeMillis() - start));
+        }).start();
+
+        for (int i = 0; i < messages; i++) {
+            String message = poller.poll();
+//            System.out.println(message);
+            assertEquals(String.valueOf(i), message);
+            if(i % 10000 == 0) {
+                System.out.println("Received " + i);
+            }
+        }
+
     }
 
     private static String stringOfLength(int length) {

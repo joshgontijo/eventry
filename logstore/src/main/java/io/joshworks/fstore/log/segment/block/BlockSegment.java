@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentState;
@@ -129,6 +130,15 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
         return delegate.readFooter();
     }
 
+    @Override
+    public PollingSubscriber<T> poller(long position) {
+        return null;
+    }
+
+    @Override
+    public PollingSubscriber<T> poller() {
+        return null;
+    }
 
     @Override
     public void roll(int level) {

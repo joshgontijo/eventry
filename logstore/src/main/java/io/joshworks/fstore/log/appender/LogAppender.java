@@ -13,6 +13,7 @@ import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.compaction.Compactor;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -316,6 +318,14 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return new RollingSegmentReader(position);
     }
 
+    public PollingSubscriber<T> poller() {
+        return poller(Log.START);
+    }
+
+    public PollingSubscriber<T> poller(long position) {
+        return new LogPoller(position);
+    }
+
     public long position() {
         return state.position();
     }
@@ -485,6 +495,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
                     return false;
                 }
                 current = segmentsIterators.next();
+                segmentIdx++; //TODO verify if the segment index is correct, also how iterating during the merge ?
                 return current.hasNext();
             }
             return true;
@@ -504,5 +515,162 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             }
         }
     }
+
+    private class LogPoller implements PollingSubscriber<T> {
+
+        private final Iterator<PollingSubscriber<T>> segmentsIterators;
+        private PollingSubscriber<T> current;
+        private int segmentIdx;
+
+        LogPoller(long startPosition) {
+            this.segmentIdx = getSegment(startPosition);
+            validateSegmentIdx(segmentIdx, startPosition);
+            Iterator<L> segments = segments(Order.FORWARD);
+            long positionOnSegment = getPositionOnSegment(startPosition);
+
+            // skip
+            for (int i = 0; i <= segmentIdx - 1; i++) {
+                segments.next();
+            }
+
+            if(segments.hasNext()) {
+                this.current = segments.next().poller(positionOnSegment);
+            }
+
+            List<PollingSubscriber<T>> subsequentIterators = new ArrayList<>();
+            while(segments.hasNext()) {
+                subsequentIterators.add(segments.next().poller());
+            }
+            this.segmentsIterators = subsequentIterators.iterator();
+
+        }
+
+        @Override
+        public T poll() throws InterruptedException {
+            T item = current.poll();
+            if(item == null) { //end of segment
+                IOUtils.closeQuietly(current);//closing poller, not segment
+                if(segmentsIterators.hasNext()) {
+                    current = segmentsIterators.next();
+                } else {
+                    current = LogAppender.this.current().poller();
+                }
+                segmentIdx++; //TODO verify if the segment index is correct, also how iterating during the merge ?
+                return current.poll();
+            }
+            return item;
+        }
+
+        @Override
+        public T poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+            T item = current.poll(limit, timeUnit);
+            if(item == null) { //end of segment
+                current = segmentsIterators.next();
+                return current.poll(limit, timeUnit);
+            }
+            return item;
+        }
+
+        @Override
+        public boolean endOfLog() {
+            return false;
+        }
+
+        @Override
+        public long position() {
+            return toSegmentedPosition(segmentIdx, current.position());
+        }
+
+        @Override
+        public void close() {
+            try {
+                current.close();
+            } catch (IOException e) {
+                throw RuntimeIOException.of(e);
+            }
+        }
+    }
+
+//    //Thread safe
+//    private class SegmentPoller extends TimoutReader implements PollingSubscriber<T> {
+//
+//        private static final int NO_TIMEOUT = -1;
+//
+//        private final Condition signal;
+//        private final Lock lock;
+//        private final Storage storage;
+//        private final DataReader reader;
+//        private final Serializer<T> serializer;
+//        private long readPosition;
+//
+//        SegmentPoller(Storage storage, DataReader reader, Serializer<T> serializer, Lock lock, Condition condition, long initialPosition) {
+//            this.lock = lock;
+//            this.signal = condition;
+//            this.storage = storage;
+//            this.reader = reader;
+//            this.serializer = serializer;
+//            this.readPosition = initialPosition;
+//            this.lastReadTs = System.currentTimeMillis();
+//        }
+//
+//        private T read() {
+//            ByteBuffer bb = reader.read(storage, readPosition);
+//            if (bb.remaining() == 0) { //EOF
+//                close();
+//                return null;
+//            }
+//            this.lastReadTs = System.currentTimeMillis();
+//            readPosition += bb.limit();
+//            return serializer.fromBytes(bb);
+//        }
+//
+//        private T tryRead(long time, TimeUnit timeUnit) throws InterruptedException {
+//            lock.lock();
+//            try {
+//                if (readPosition < Segment.this.position()) {
+//                    return read();
+//                }
+//                while (!closed.get() && !readOnly() && readPosition == Segment.this.position()) {
+//                    await(time, timeUnit);
+//                }
+//                return read();
+//            } finally {
+//                lock.unlock();
+//            }
+//        }
+//
+//        private void await(long time, TimeUnit timeUnit) throws InterruptedException {
+//            if (time > NO_TIMEOUT)
+//                signal.await(time, timeUnit);
+//            else {
+//                signal.await();
+//            }
+//        }
+//
+//        @Override
+//        public T poll() throws InterruptedException {
+//            return tryRead(NO_TIMEOUT, TimeUnit.MILLISECONDS);
+//        }
+//
+//        @Override
+//        public T poll(long time, TimeUnit timeUnit) throws InterruptedException {
+//            return tryRead(time, timeUnit);
+//        }
+//
+//        @Override
+//        public boolean endOfLog() {
+//            return readOnly() && header.logEnd > 0 && readPosition >= header.logEnd;
+//        }
+//
+//        @Override
+//        public long position() {
+//            return readPosition;
+//        }
+//
+//        @Override
+//        public void close() {
+//            readers.remove(this);
+//        }
+//    }
 
 }
