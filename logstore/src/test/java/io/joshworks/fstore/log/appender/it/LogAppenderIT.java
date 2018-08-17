@@ -11,6 +11,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.TimeUnit;
 
@@ -182,26 +183,32 @@ public abstract class LogAppenderIT<L extends Log<String>> {
     }
 
     @Test
-    public void poller() throws InterruptedException {
+    public void poller() throws InterruptedException, IOException {
+
 
         PollingSubscriber<String> poller = appender.poller();
-        int messages = 5000000;
-        new Thread(() -> {
-            long start = System.currentTimeMillis();
-            for (int i = 0; i < messages; i++) {
-                appender.append(String.valueOf(i));
-            }
-            System.out.println("WRITE: " + (System.currentTimeMillis() - start));
-        }).start();
+        try {
+            int messages = 5000000;
+            new Thread(() -> {
+                long start = System.currentTimeMillis();
+                for (int i = 0; i < messages; i++) {
+                    appender.append(String.valueOf(i));
+                }
+                System.out.println("WRITE: " + (System.currentTimeMillis() - start));
+            }).start();
 
-        for (int i = 0; i < messages; i++) {
-            String message = poller.poll();
+            for (int i = 0; i < messages; i++) {
+                String message = poller.poll();
 //            System.out.println(message);
             assertEquals(String.valueOf(i), message);
-            if(i % 10000 == 0) {
-                System.out.println("Received " + i);
+//                if(i % 10000 == 0) {
+//                    System.out.println("Read " + i + ": " + message);
+//                }
             }
+        } finally {
+            poller.close();
         }
+
 
     }
 

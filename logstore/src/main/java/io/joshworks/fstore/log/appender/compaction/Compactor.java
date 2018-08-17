@@ -12,6 +12,7 @@ import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.merge.SegmentCombiner;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.Segment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -137,6 +138,7 @@ public class Compactor<T, L extends Log<T>> {
         context.submit(COMPACTION_MANAGER, new CompactionRequest(result.level, false));
         context.submit(COMPACTION_MANAGER, new CompactionRequest(result.level + 1, false));
 
+        Segment.deleteAll(result.sources);
         for (L segment : result.sources) {
             logger.info("Deleting {}", segment.name());
             segment.delete();

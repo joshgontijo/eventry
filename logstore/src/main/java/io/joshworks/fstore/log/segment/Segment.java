@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
@@ -25,7 +26,6 @@ import java.util.Spliterators;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Stream;
@@ -54,10 +54,6 @@ public class Segment<T> implements Log<T> {
     private Header header;
 
     private final Set<TimoutReader> readers = ConcurrentHashMap.newKeySet();
-
-
-    private final Lock lock = new ReentrantLock();
-    private final Condition available = lock.newCondition();
 
     public Segment(Storage storage, Serializer<T> serializer, DataReader reader, String magic) {
         this(storage, serializer, reader, magic, null);
@@ -161,7 +157,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public PollingSubscriber<T> poller(long position) {
-        SegmentPoller segmentPoller = new SegmentPoller(storage, reader, serializer, lock, available, position);
+        SegmentPoller segmentPoller = new SegmentPoller(storage, reader, serializer, position);
         this.readers.add(segmentPoller);
         return segmentPoller;
     }
@@ -193,17 +189,7 @@ public class Segment<T> implements Log<T> {
         write(storage, bytes);
 
         entries++;
-        notifyPollers();
         return recordPosition;
-    }
-
-    private void notifyPollers() {
-        lock.lock();
-        try {
-            available.signalAll();
-        } finally {
-            lock.unlock();
-        }
     }
 
     @Override
@@ -228,10 +214,9 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public void close() {
-        if(!closed.compareAndSet(false, true)) {
+        if (!closed.compareAndSet(false, true)) {
             return;
         }
-        notifyPollers(); //release
         IOUtils.closeQuietly(storage);
     }
 
@@ -269,30 +254,39 @@ public class Segment<T> implements Log<T> {
         return new SegmentState(foundEntries, position);
     }
 
-    @Override
-    public void delete() {
-
-        //TODO implement better, idempotent async deletion
-        new Thread(() -> {
-            while (!readers.isEmpty()) {
-                try {
-                    logger.info("Awaiting {} readers to be released", readers.size());
-                    Thread.sleep(5000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                for (TimoutReader logReader : readers) {
-                    if (System.currentTimeMillis() - logReader.lastReadTs() > TimeUnit.SECONDS.toMillis(10)) {
+    public static void deleteAll(List<Segment<?>> segments) {
+        int pendingReaders = 0;
+        do {
+            if (pendingReaders > 0) {
+                logger.info("Awaiting {} readers to be released", pendingReaders);
+                sleep();
+            }
+            pendingReaders = 0;
+            for (Segment<?> segment : segments) {
+                for (TimoutReader logReader : segment.readers) {
+                    if (System.currentTimeMillis() - logReader.lastReadTs() > TimeUnit.MINUTES.toMillis(10)) {
                         logger.warn("Removing reader after 10s of inactivity");
-                        readers.remove(logReader);
+                        segment.readers.remove(logReader);
+                    } else {
+                        pendingReaders += segment.readers.size();
                     }
                 }
+
             }
-            notifyPollers(); //release
-            storage.delete();
+        } while (pendingReaders > 0);
+    }
 
-        }).start();
+    private static void sleep() {
+        try {
+            Thread.sleep(5000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 
+    @Override
+    public void delete() {
+        storage.delete();
     }
 
     @Override
@@ -314,8 +308,6 @@ public class Segment<T> implements Log<T> {
         boolean hasFooter = header.footerStart > 0;
         long endOfSegment = hasFooter ? header.footerStart + header.footerEnd : endOfLog;
         storage.truncate(endOfSegment);
-
-        notifyPollers(); //release
     }
 
     @Override
@@ -430,6 +422,17 @@ public class Segment<T> implements Log<T> {
                 '}';
     }
 
+    private static class FooterInfo {
+
+        private final long start;
+        private final long end;
+
+        private FooterInfo(long start, long end) {
+            this.start = start;
+            this.end = end;
+        }
+    }
+
     //NOT THREAD SAFE
     private class LogReader extends TimoutReader implements LogIterator<T> {
 
@@ -494,33 +497,18 @@ public class Segment<T> implements Log<T> {
         }
     }
 
-    private static class FooterInfo {
-
-        private final long start;
-        private final long end;
-
-        private FooterInfo(long start, long end) {
-            this.start = start;
-            this.end = end;
-        }
-    }
-
-    //Thread safe
     private class SegmentPoller extends TimoutReader implements PollingSubscriber<T> {
 
-        private static final int NO_TIMEOUT = -1;
+        private static final int DEFAULT_SLEEP_MILLI = 500;
 
-        private final Condition signal;
-        private final Lock lock;
+        private final Lock lock = new ReentrantLock();
         private final Storage storage;
         private final DataReader reader;
         private final Serializer<T> serializer;
         private long readPosition;
 
-        SegmentPoller(Storage storage, DataReader reader, Serializer<T> serializer, Lock lock, Condition condition, long initialPosition) {
+        SegmentPoller(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition) {
             checkBounds(initialPosition);
-            this.lock = lock;
-            this.signal = condition;
             this.storage = storage;
             this.reader = reader;
             this.serializer = serializer;
@@ -534,7 +522,6 @@ public class Segment<T> implements Log<T> {
                 close();
                 return null;
             }
-            this.lastReadTs = System.currentTimeMillis();
             readPosition += bb.limit();
             return serializer.fromBytes(bb);
         }
@@ -543,28 +530,27 @@ public class Segment<T> implements Log<T> {
             lock.lock();
             try {
                 if (readPosition < Segment.this.position()) {
+                    this.lastReadTs = System.currentTimeMillis();
                     return read();
                 }
-                while (!closed.get() && !readOnly() && readPosition == Segment.this.position()) {
-                    await(time, timeUnit);
-                }
+                waitForData(time, timeUnit);
+                this.lastReadTs = System.currentTimeMillis();
                 return read();
             } finally {
                 lock.unlock();
             }
         }
 
-        private void await(long time, TimeUnit timeUnit) throws InterruptedException {
-            if (time > NO_TIMEOUT)
-                signal.await(time, timeUnit);
-            else {
-                signal.await();
+        private void waitForData(long time, TimeUnit timeUnit) throws InterruptedException {
+            while (!closed.get() && !readOnly() && readPosition == Segment.this.position()) {
+                timeUnit.sleep(time);
+                this.lastReadTs = System.currentTimeMillis();
             }
         }
 
         @Override
         public T poll() throws InterruptedException {
-            return tryRead(NO_TIMEOUT, TimeUnit.MILLISECONDS);
+            return tryRead(DEFAULT_SLEEP_MILLI, TimeUnit.MILLISECONDS);
         }
 
         @Override

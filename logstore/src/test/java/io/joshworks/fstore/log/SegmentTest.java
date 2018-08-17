@@ -357,6 +357,8 @@ public abstract class SegmentTest {
 
         executor.shutdown();
 
+        Thread.sleep(3000);
+
         segment.append(value);
         executor.awaitTermination(5, TimeUnit.SECONDS);
 
