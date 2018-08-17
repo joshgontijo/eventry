@@ -3,6 +3,7 @@ package io.joshworks.fstore.log.appender.level;
 import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
+import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.appender.Order;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
@@ -11,8 +12,10 @@ import org.junit.Test;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -335,6 +338,11 @@ public class LevelsTest {
         @Override
         public long size() {
             return 0;
+        }
+
+        @Override
+        public Set<TimeoutReader> readers() {
+            return new HashSet<>();
         }
 
         @Override

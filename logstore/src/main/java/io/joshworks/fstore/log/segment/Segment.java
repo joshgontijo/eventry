@@ -9,7 +9,7 @@ import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Checksum;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
-import io.joshworks.fstore.log.TimoutReader;
+import io.joshworks.fstore.log.TimeoutReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,7 +53,7 @@ public class Segment<T> implements Log<T> {
 
     private Header header;
 
-    private final Set<TimoutReader> readers = ConcurrentHashMap.newKeySet();
+    private final Set<TimeoutReader> readers = ConcurrentHashMap.newKeySet();
 
     public Segment(Storage storage, Serializer<T> serializer, DataReader reader, String magic) {
         this(storage, serializer, reader, magic, null);
@@ -182,6 +182,11 @@ public class Segment<T> implements Log<T> {
     }
 
     @Override
+    public Set<TimeoutReader> readers() {
+        return readers;
+    }
+
+    @Override
     public long append(T data) {
         ByteBuffer bytes = serializer.toBytes(data);
 
@@ -252,36 +257,6 @@ public class Segment<T> implements Log<T> {
             throw new IllegalStateException("Initial log state position must be at least " + Header.BYTES);
         }
         return new SegmentState(foundEntries, position);
-    }
-
-    public static void deleteAll(List<Segment<?>> segments) {
-        int pendingReaders = 0;
-        do {
-            if (pendingReaders > 0) {
-                logger.info("Awaiting {} readers to be released", pendingReaders);
-                sleep();
-            }
-            pendingReaders = 0;
-            for (Segment<?> segment : segments) {
-                for (TimoutReader logReader : segment.readers) {
-                    if (System.currentTimeMillis() - logReader.lastReadTs() > TimeUnit.MINUTES.toMillis(10)) {
-                        logger.warn("Removing reader after 10s of inactivity");
-                        segment.readers.remove(logReader);
-                    } else {
-                        pendingReaders += segment.readers.size();
-                    }
-                }
-
-            }
-        } while (pendingReaders > 0);
-    }
-
-    private static void sleep() {
-        try {
-            Thread.sleep(5000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
     }
 
     @Override
@@ -434,7 +409,7 @@ public class Segment<T> implements Log<T> {
     }
 
     //NOT THREAD SAFE
-    private class LogReader extends TimoutReader implements LogIterator<T> {
+    private class LogReader extends TimeoutReader implements LogIterator<T> {
 
         private final Storage storage;
         private final DataReader reader;
@@ -497,7 +472,7 @@ public class Segment<T> implements Log<T> {
         }
     }
 
-    private class SegmentPoller extends TimoutReader implements PollingSubscriber<T> {
+    private class SegmentPoller extends TimeoutReader implements PollingSubscriber<T> {
 
         private static final int DEFAULT_SLEEP_MILLI = 500;
 

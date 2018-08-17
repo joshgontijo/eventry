@@ -6,13 +6,13 @@ import io.joshworks.fstore.core.seda.EventContext;
 import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.core.seda.Stage;
 import io.joshworks.fstore.log.LogFileUtils;
+import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.StorageProvider;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.merge.SegmentCombiner;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.segment.Log;
-import io.joshworks.fstore.log.segment.Segment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 public class Compactor<T, L extends Log<T>> {
 
@@ -138,12 +139,7 @@ public class Compactor<T, L extends Log<T>> {
         context.submit(COMPACTION_MANAGER, new CompactionRequest(result.level, false));
         context.submit(COMPACTION_MANAGER, new CompactionRequest(result.level + 1, false));
 
-        Segment.deleteAll(result.sources);
-        for (L segment : result.sources) {
-            logger.info("Deleting {}", segment.name());
-            segment.delete();
-            logger.info("Deleted {}", segment.name());
-        }
+        deleteAll(result.sources);
     }
 
     private synchronized boolean requiresCompaction(int level) {
@@ -170,6 +166,44 @@ public class Compactor<T, L extends Log<T>> {
             }
         }
         return toBeCompacted;
+    }
+
+    //delete all source segments only if all of them are not being used
+    private static <T, L extends Log<T>> void  deleteAll(List<L> segments) {
+        int pendingReaders = 0;
+        do {
+            if (pendingReaders > 0) {
+                logger.info("Awaiting {} readers to be released", pendingReaders);
+                sleep();
+            }
+            pendingReaders = 0;
+            for (L segment : segments) {
+                Set<TimeoutReader> readers = segment.readers();
+                for (TimeoutReader logReader : readers) {
+                    if (System.currentTimeMillis() - logReader.lastReadTs() > TimeUnit.MINUTES.toMillis(10)) {
+                        logger.warn("Removing reader after 10s of inactivity");
+                        readers.remove(logReader);
+                    } else {
+                        pendingReaders += readers.size();
+                    }
+                }
+
+            }
+        } while (pendingReaders > 0);
+
+        for (L segment : segments) {
+            logger.info("Deleting {}", segment.name());
+            segment.delete();
+            logger.info("Deleted {}", segment.name());
+        }
+    }
+
+    private static void sleep() {
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     private static class CompactionRequest {
