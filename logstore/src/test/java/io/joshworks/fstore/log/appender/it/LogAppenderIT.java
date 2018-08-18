@@ -199,11 +199,10 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
             for (int i = 0; i < messages; i++) {
                 String message = poller.poll();
-//            System.out.println(message);
-            assertEquals(String.valueOf(i), message);
-//                if(i % 10000 == 0) {
-//                    System.out.println("Read " + i + ": " + message);
-//                }
+                assertEquals(String.valueOf(i), message);
+                if (i % 5000 == 0) {
+                    System.out.println("Read " + i + ": " + message);
+                }
             }
         } finally {
             poller.close();
