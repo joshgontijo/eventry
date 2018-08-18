@@ -3,10 +3,11 @@ package io.joshworks.fstore.es.index.disk;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.index.Index;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
+import io.joshworks.fstore.log.Iterators;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.Order;
@@ -29,8 +30,8 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
     }
 
     @Override
-    public Iterator<IndexEntry> iterator(Range range) {
-        List<Iterator<IndexEntry>> iterators = streamSegments(Order.FORWARD)
+    public LogIterator<IndexEntry> iterator(Range range) {
+        List<LogIterator<IndexEntry>> iterators = streamSegments(Order.FORWARD)
                 .map(idxSeg -> idxSeg.iterator(range))
                 .collect(Collectors.toList());
 
@@ -57,7 +58,7 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
 
     @Override
     public int version(long stream) {
-        Iterator<IndexSegment> segments = segments(Order.BACKWARD);
+        LogIterator<IndexSegment> segments = segments(Order.BACKWARD);
         while (segments.hasNext()) {
             IndexSegment segment = segments.next();
             int version = segment.version(stream);
@@ -65,12 +66,12 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
                 return version;
             }
         }
-        return 0;
+        return IndexEntry.NO_VERSION;
     }
 
     @Override
-    public Iterator<IndexEntry> iterator() {
-        List<Iterator<IndexEntry>> segments = streamSegments(Order.FORWARD).map(Log::iterator).collect(Collectors.toList());
+    public LogIterator<IndexEntry> iterator() {
+        List<LogIterator<IndexEntry>> segments = streamSegments(Order.FORWARD).map(Log::iterator).collect(Collectors.toList());
         return Iterators.concat(segments);
     }
 

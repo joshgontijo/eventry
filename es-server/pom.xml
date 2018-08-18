@@ -18,6 +18,10 @@
             <artifactId>event-store</artifactId>
         </dependency>
         <dependency>
+            <groupId>io.joshworks.fstore</groupId>
+            <artifactId>json-serializer</artifactId>
+        </dependency>
+        <dependency>
             <groupId>io.joshworks.snappy</groupId>
             <artifactId>snappy</artifactId>
             <version>0.3.0-SNAPSHOT</version>

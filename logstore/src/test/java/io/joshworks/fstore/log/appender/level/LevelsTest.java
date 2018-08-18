@@ -1,6 +1,6 @@
 package io.joshworks.fstore.log.appender.level;
 
-import io.joshworks.fstore.core.util.Iterators;
+import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;

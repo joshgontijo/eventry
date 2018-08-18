@@ -3,7 +3,6 @@ package io.joshworks.fstore.es.log;
 import io.joshworks.fstore.es.index.IndexEntry;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Map;
 
 public class Event {
 
@@ -16,25 +15,24 @@ public class Event {
     private int version = -1;
     private long position = -1;
 
-    private Map<String, Object> map;
-
-    private Event(long sequence, String type, byte[] data, long timestamp) {
+    private Event(long sequence, String type, String stream, byte[] data, long timestamp) {
         this.type = type;
         this.data = data;
+        this.stream = stream;
         this.timestamp = timestamp;
         this.sequence = sequence;
     }
 
-    static Event load(long sequence, String type, byte[] data, long timestamp) {
-        return new Event(sequence, type, data, timestamp);
+    public static Event of(long sequence, String stream, String type, byte[] data, long timestamp) {
+        return new Event(sequence, type, stream, data, timestamp);
     }
 
-    public static Event create(String type, String data) {
-        return create(type, data == null ? new byte[0] : data.getBytes(StandardCharsets.UTF_8));
+    public static Event create(String stream, String type, String data) {
+        return create(stream, type, data == null ? new byte[0] : data.getBytes(StandardCharsets.UTF_8));
     }
 
-    public static Event create(String type, byte[] data) {
-        return new Event(-1, type, data, System.currentTimeMillis());
+    public static Event create(String stream, String type, byte[] data) {
+        return new Event(-1, type, stream, data, System.currentTimeMillis());
     }
 
     public void stream(String stream) {

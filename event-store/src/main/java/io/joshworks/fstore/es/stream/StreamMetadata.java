@@ -5,8 +5,6 @@ import java.util.Map;
 
 public class StreamMetadata {
 
-    public static final StreamMetadata NO_STREAM = new StreamMetadata(null, -1, -1);
-
     public final String name;
     public final long hash;
     public final long created;

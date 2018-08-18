@@ -116,6 +116,11 @@ public class IndexAppenderTest {
             assertEquals("Failed on iteration " + i, 1, version);
 
         }
+    }
 
+    @Test
+    public void version_is_minus_one_for_non_existing_stream() {
+        int version = appender.version(1234);
+        assertEquals(IndexEntry.NO_VERSION, version);
     }
 }

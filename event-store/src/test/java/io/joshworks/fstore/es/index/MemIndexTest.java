@@ -386,4 +386,10 @@ public class MemIndexTest {
         //then
         assertEquals(6, iterator.count());
     }
+
+    @Test
+    public void version_is_minus_one_for_non_existing_stream() {
+        int version = index.version(1234);
+        assertEquals(IndexEntry.NO_VERSION, version);
+    }
 }

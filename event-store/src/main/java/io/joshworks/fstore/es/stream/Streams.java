@@ -2,6 +2,7 @@ package io.joshworks.fstore.es.stream;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.es.LRUCache;
+import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
@@ -9,6 +10,8 @@ import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -28,7 +31,6 @@ public class Streams implements Closeable {
 
     private static final String DIRECTORY = "streams";
 
-
     public Streams(File root, int versionLruCacheSize, Function<Long, Integer> versionFetcher) {
         this.appender = new SimpleLogAppender<>(LogAppender.builder(new File(root, DIRECTORY), new EventStreamSerializer()));
         this.streamsMap = loadFromDisk(this.appender);
@@ -37,6 +39,10 @@ public class Streams implements Closeable {
 
     public Optional<StreamMetadata> get(long streamHash) {
         return Optional.ofNullable(streamsMap.get(streamHash));
+    }
+
+    public List<StreamMetadata> all() {
+        return new ArrayList<>(streamsMap.values());
     }
 
     //TODO implement 'remove'
@@ -55,11 +61,11 @@ public class Streams implements Closeable {
     }
 
     public int version(long stream) {
-        return versions.getOrElse(stream, new AtomicInteger(-1)).get();
+        return versions.getOrElse(stream, new AtomicInteger(IndexEntry.NO_VERSION)).get();
     }
 
     public int tryIncrementVersion(long stream, int expected) {
-        AtomicInteger versionCounter = versions.getOrElse(stream, new AtomicInteger(-1));
+        AtomicInteger versionCounter = versions.getOrElse(stream, new AtomicInteger(IndexEntry.NO_VERSION));
         if(expected < 0) {
             return versionCounter.incrementAndGet();
         }

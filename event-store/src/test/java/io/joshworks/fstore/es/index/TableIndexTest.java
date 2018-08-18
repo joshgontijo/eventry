@@ -135,11 +135,6 @@ public class TableIndexTest {
         Stream<IndexEntry> dataStream = tableIndex.stream();
 
         assertEquals(2, dataStream.count());
-
-        Iterator<IndexEntry> it = tableIndex.stream().iterator();
-
-        assertEquals(1, it.next().version);
-        assertEquals(2, it.next().version);
     }
 
     @Test
@@ -153,12 +148,6 @@ public class TableIndexTest {
         Stream<IndexEntry> dataStream = tableIndex.stream(Range.allOf(stream));
 
         assertEquals(2, dataStream.count());
-
-        Iterator<IndexEntry> it = tableIndex.stream().iterator();
-
-        assertEquals(0, it.next().version);
-        assertEquals(1, it.next().version);
-
     }
 
     @Test
@@ -252,12 +241,6 @@ public class TableIndexTest {
         Stream<IndexEntry> dataStream = tableIndex.stream();
 
         assertEquals(size, dataStream.count());
-
-        Iterator<IndexEntry> it = tableIndex.stream().iterator();
-
-        assertEquals(0, it.next().version);
-        assertEquals(1, it.next().version);
-
     }
 
     @Test
@@ -314,7 +297,11 @@ public class TableIndexTest {
                 assertEquals(1, version);
             }
         }
+    }
 
-
+    @Test
+    public void version_is_minus_one_for_non_existing_stream() {
+        int version = tableIndex.version(1234);
+        assertEquals(IndexEntry.NO_VERSION, version);
     }
 }

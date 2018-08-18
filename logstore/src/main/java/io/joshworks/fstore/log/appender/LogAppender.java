@@ -9,7 +9,7 @@ import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.core.seda.Stage;
 import io.joshworks.fstore.core.seda.StageHandler;
 import io.joshworks.fstore.core.seda.StageStats;
-import io.joshworks.fstore.core.util.Iterators;
+import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.LogIterator;
@@ -452,7 +452,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         return levels.current();
     }
 
-    public Iterator<L> segments(Order order) {
+    public LogIterator<L> segments(Order order) {
         return levels.segments(order);
     }
 

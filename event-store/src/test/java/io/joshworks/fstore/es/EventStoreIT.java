@@ -49,13 +49,14 @@ public class EventStoreIT {
 
         final int size = 1000000;
         long start = System.currentTimeMillis();
+        String stream = "test-stream";
         for (int i = 0; i < size; i++) {
-            store.add("test-stream", Event.create("" + i, "data-" + i));
+            store.add(Event.create(stream, "" + i, "data-" + i));
         }
         System.out.println("WRITE: " + (System.currentTimeMillis() - start));
 
 
-        Iterator<Event> events = store.fromStreamIter("test-stream");
+        Iterator<Event> events = store.fromStreamIter(stream);
         int found = 0;
 
         start = System.currentTimeMillis();
@@ -76,15 +77,16 @@ public class EventStoreIT {
         long start = System.currentTimeMillis();
         int size = 1000000;
 
+        String stream = "test-stream";
         for (int i = 0; i < size; i++) {
-            store.add("test-stream", Event.create("" + i, "data-" + i));
+            store.add(Event.create(stream, "" + i, "data-" + i));
         }
 
         System.out.println("WRITE: " + (System.currentTimeMillis() - start));
 
         start = System.currentTimeMillis();
 
-        Stream<Event> events = store.fromStream("test-stream");
+        Stream<Event> events = store.fromStream(stream);
 
         System.out.println("SIZE: " + events.count());
         System.out.println("READ: " + (System.currentTimeMillis() - start));
@@ -98,15 +100,16 @@ public class EventStoreIT {
         long start = System.currentTimeMillis();
         int size = 1000000;
 
+        String streamPrefix = "test-stream-";
         for (int i = 0; i < size; i++) {
-            store.add("test-stream-" + i, Event.create("" + i, "data-" + i));
+            store.add(Event.create(streamPrefix + i, "" + i, "data-" + i));
         }
         System.out.println("WRITE: " + (System.currentTimeMillis() - start));
 
         start = System.currentTimeMillis();
 
         for (int i = 0; i < size; i++) {
-            Stream<Event> events = store.fromStream("test-stream-" + i);
+            Stream<Event> events = store.fromStream(streamPrefix + i);
             assertEquals("Failed on iteration " + i, 1, events.count());
         }
 
@@ -141,7 +144,7 @@ public class EventStoreIT {
         int size = 10000;
         String streamPrefix = "test-stream-";
         for (int i = 0; i < size; i++) {
-            store.add(streamPrefix + i, Event.create("" + i, "data-" + i));
+            store.add(Event.create(streamPrefix + i, "" + i, "data-" + i));
         }
 
         store.close();
@@ -161,7 +164,7 @@ public class EventStoreIT {
         int size = 10000;
         String streamPrefix = "test-stream-";
         for (int i = 0; i < size; i++) {
-            store.add(streamPrefix + i, Event.create("" + i, "data-" + i));
+            store.add(Event.create(streamPrefix + i, "" + i, "data-" + i));
         }
 
         store.close();
@@ -179,7 +182,7 @@ public class EventStoreIT {
         int size = 10000;
         String streamPrefix = "test-stream-";
         for (int i = 0; i < size; i++) {
-            store.add(streamPrefix + i, Event.create("" + i, "data-" + i));
+            store.add(Event.create(streamPrefix + i, "" + i, "data-" + i));
         }
 
         store.close();
@@ -197,14 +200,15 @@ public class EventStoreIT {
     @Test
     public void events_have_stream_and_version() {
         int numStreams = 1000;
+        String streamPrefix = "stream-";
         for (int i = 0; i < numStreams; i++) {
-            store.add("stream-" + i, Event.create(String.valueOf(i), "data-" + i));
+            store.add(Event.create(streamPrefix + i, String.valueOf(i), "data-" + i));
         }
 
         for (int i = 0; i < numStreams; i++) {
-            String stream = "stream-" + i;
+            String stream = streamPrefix + i;
             int version = 1;
-            Optional<Event> event = store.get("stream-" + i, version);
+            Optional<Event> event = store.get(streamPrefix + i, version);
 
             assertTrue(event.isPresent());
             assertEquals(stream, event.get().stream());
@@ -216,13 +220,14 @@ public class EventStoreIT {
     public void iterator() {
         //given
         int numEvents = 10000;
+        String streamPrefix = "test-";
         for (int i = 0; i < numEvents; i++) {
-            store.add("test-" + i, Event.create(String.valueOf(i), "data-" + i));
+            store.add(Event.create(streamPrefix + i, String.valueOf(i), "data-" + i));
         }
 
         //when
         for (int i = 0; i < numEvents; i++) {
-            Iterator<Event> events = store.fromStreamIter("test-" + i, 1);
+            Iterator<Event> events = store.fromStreamIter(streamPrefix + i, 1);
 
             int size = 0;
             while (events.hasNext()) {
@@ -242,9 +247,10 @@ public class EventStoreIT {
         //given
         int numStreams = 10000;
         int numVersions = 50;
+        String streamPrefix = "test-";
         for (int stream = 0; stream < numStreams; stream++) {
             for (int version = 1; version <= numVersions; version++) {
-                store.add("test-" + stream, Event.create(String.valueOf("type"), "data-" + stream));
+                store.add(Event.create(streamPrefix + stream, String.valueOf("type"), "data-" + stream));
             }
         }
 
@@ -267,7 +273,7 @@ public class EventStoreIT {
 
         int size = 1000;
         for (int i = 0; i < size; i++) {
-            store.add("stream-" + i, Event.create("test", "data"));
+            store.add(Event.create("stream-" + i, "test", "data"));
         }
 
         Iterator<Event> it = store.fromAllIter();
@@ -288,12 +294,12 @@ public class EventStoreIT {
     @Test
     public void fromStreams_single_stream() {
         //given
+        String streamPrefix = "test-";
         int numStreams = 10000;
         int numVersions = 50;
         for (int stream = 0; stream < numStreams; stream++) {
             for (int version = 0; version < numVersions; version++) {
-                String streamName = "test-" + stream;
-                store.add(streamName, Event.create(streamName, "data-" + stream));
+                store.add(Event.create(streamPrefix + stream, "type", "data-" + stream));
             }
         }
 
@@ -320,7 +326,7 @@ public class EventStoreIT {
         store.createStream(stream, maxCount, -1);
 
         for (int version = 0; version < numVersions; version++) {
-            store.add(stream, Event.create(stream, "data-" + stream));
+            store.add(Event.create(stream, "type", "data-" + stream));
         }
 
         Iterator<Event> eventStream = store.fromStreamIter(stream);
@@ -346,7 +352,7 @@ public class EventStoreIT {
         store.createStream(stream, -1, maxAgeSeconds);
 
         for (int version = 0; version < numVersions; version++) {
-            store.add(stream, Event.create(stream, "data-" + stream));
+            store.add(Event.create(stream, "type", "data-" + stream));
         }
 
         long count = store.fromStream(stream).count();
@@ -363,24 +369,25 @@ public class EventStoreIT {
         int size = 1000000;
 
         System.out.println("Creating entries");
+        String streamName = "test-stream";
         for (int i = 0; i < size; i++) {
-            store.add("test-stream", Event.create("test", UUID.randomUUID().toString().substring(0, 8)));
+            store.add(Event.create(streamName, "test", UUID.randomUUID().toString().substring(0, 8)));
         }
 
         System.out.println("LinkTo 1");
-        store.fromStream("test-stream").forEach(e -> {
+        store.fromStream(streamName).forEach(e -> {
             String firstLetter = Arrays.toString(e.data()).substring(0, 1);
             store.linkTo("letter-" + firstLetter, e);
         });
 
         System.out.println("LinkTo 2");
-        store.fromStream("test-stream").forEach(e -> {
+        store.fromStream(streamName).forEach(e -> {
             String firstLetter = Arrays.toString(e.data()).substring(0, 2);
             store.linkTo("letter-" + firstLetter, e);
         });
 
         System.out.println("LinkTo 3");
-        store.fromStream("test-stream").forEach(e -> {
+        store.fromStream(streamName).forEach(e -> {
             String firstLetter = Arrays.toString(e.data()).substring(0, 3);
             store.linkTo("letter-" + firstLetter, e);
         });
@@ -407,12 +414,13 @@ public class EventStoreIT {
     @Test
     public void get() {
         int size = 1000;
+        String streamPrefix = "stream-";
         for (int i = 0; i < size; i++) {
-            store.add("stream-" + i, Event.create("test", "data"));
+            store.add(Event.create(streamPrefix + i, "test", "data"));
         }
 
         for (int i = 0; i < size; i++) {
-            String stream = "stream-" + i;
+            String stream = streamPrefix + i;
             Optional<Event> event = store.get(stream, 1);
             assertTrue(event.isPresent());
             assertEquals(stream, event.get().stream());
@@ -425,7 +433,7 @@ public class EventStoreIT {
         int size = 3000000;
         String allStream = "all";
         for (int i = 0; i < size; i++) {
-            store.add(allStream, Event.create("test", UUID.randomUUID().toString()));
+            store.add(Event.create(allStream, "test", UUID.randomUUID().toString()));
         }
 
         int numOtherIndexes = 5;
@@ -457,13 +465,13 @@ public class EventStoreIT {
 
         for (int stream = 0; stream < numStreams; stream++) {
             for (int version = 1; version <= numVersions; version++) {
-                store.add(streamPrefix + stream, Event.create(String.valueOf("type"), "data-" + stream));
+                store.add(Event.create(streamPrefix + stream, String.valueOf("type"), "data-" + stream));
             }
         }
 
         //some other stream we don't care about
         for (int version = 1; version <= numVersions; version++) {
-            store.add("someOtherStream-", Event.create(String.valueOf("type"), "data-" + version));
+            store.add(Event.create("someOtherStream", String.valueOf("type"), "data-" + version));
         }
 
         Iterator<Event> eventStream = store.zipStreamsIter(streamPrefix);
@@ -487,8 +495,7 @@ public class EventStoreIT {
             for (int version = 1; version <= numVersionPerStream; version++) {
                 String streamName = streamPrefix + stream;
                 try {
-                    Event event = Event.create("" + stream, "data-" + stream);
-                    store.add(streamName, event);
+                    store.add(Event.create(streamName, "" + stream, "data-" + stream));
                 } catch (Exception e) {
                     throw new RuntimeException("Failed on stream " + streamName, e);
                 }

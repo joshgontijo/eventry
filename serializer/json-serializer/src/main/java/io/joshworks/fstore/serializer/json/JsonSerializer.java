@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.serializer.StringSerializer;
 
+import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
 
 
@@ -12,13 +13,17 @@ public class JsonSerializer<T> implements Serializer<T> {
     private static final Gson gson = new Gson();
     private static final StringSerializer stringSerializer = new StringSerializer();
 
-    private final Class<T> type;
+    private final Type type;
 
-    private JsonSerializer(Class<T> type) {
+    private JsonSerializer(Type type) {
         this.type = type;
     }
 
     public static <T> JsonSerializer<T> of(Class<T> type) {
+        return new JsonSerializer<>(type);
+    }
+
+    public static <T> JsonSerializer<T> of(Type type) {
         return new JsonSerializer<>(type);
     }
 

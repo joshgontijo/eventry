@@ -1,9 +1,10 @@
 package io.joshworks.fstore.es.index;
 
-import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.index.disk.IndexAppender;
 import io.joshworks.fstore.es.index.disk.IndexCompactor;
 import io.joshworks.fstore.es.index.disk.IndexEntrySerializer;
+import io.joshworks.fstore.log.Iterators;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,7 +12,6 @@ import org.slf4j.LoggerFactory;
 import java.io.File;
 import java.io.Flushable;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -46,7 +46,7 @@ public class TableIndex implements Index, Flushable {
         this.flushThreshold = flushThreshold;
     }
 
-    public void add(long stream, int version, long position) {
+    public IndexEntry add(long stream, int version, long position) {
         if (version <= IndexEntry.NO_VERSION) {
             throw new IllegalArgumentException("Version must be greater than or equals to zero");
         }
@@ -58,6 +58,7 @@ public class TableIndex implements Index, Flushable {
         if (memIndex.size() >= flushThreshold) {
             writeToDisk();
         }
+        return entry;
     }
 
     private void writeToDisk() {
@@ -106,9 +107,9 @@ public class TableIndex implements Index, Flushable {
     }
 
     @Override
-    public Iterator<IndexEntry> iterator(Range range) {
-        Iterator<IndexEntry> cacheIterator = memIndex.iterator(range);
-        Iterator<IndexEntry> diskIterator = diskIndex.iterator(range);
+    public LogIterator<IndexEntry> iterator(Range range) {
+        LogIterator<IndexEntry> cacheIterator = memIndex.iterator(range);
+        LogIterator<IndexEntry> diskIterator = diskIndex.iterator(range);
 
         return joiningDiskAndMem(diskIterator, cacheIterator);
     }
@@ -123,11 +124,11 @@ public class TableIndex implements Index, Flushable {
     }
 
     @Override
-    public Iterator<IndexEntry> iterator() {
+    public LogIterator<IndexEntry> iterator() {
         return joiningDiskAndMem(diskIndex.iterator(), memIndex.iterator());
     }
 
-    private Iterator<IndexEntry> joiningDiskAndMem(Iterator<IndexEntry> diskIterator, Iterator<IndexEntry> memIndex) {
+    private LogIterator<IndexEntry> joiningDiskAndMem(LogIterator<IndexEntry> diskIterator, LogIterator<IndexEntry> memIndex) {
         return Iterators.concat(Arrays.asList(diskIterator, memIndex));
     }
 

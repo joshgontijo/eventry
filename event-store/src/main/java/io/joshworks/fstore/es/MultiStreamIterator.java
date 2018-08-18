@@ -1,28 +1,29 @@
 package io.joshworks.fstore.es;
 
-import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.log.Event;
 import io.joshworks.fstore.es.log.EventLog;
+import io.joshworks.fstore.log.Iterators;
+import io.joshworks.fstore.log.LogIterator;
 
+import java.io.IOException;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Queue;
 
 //Ordered by log position multiple streams
-public class MultiStreamIterator implements Iterator<Event> {
+public class MultiStreamIterator implements LogIterator<Event> {
 
     private final Map<Long, String> streamHashMappings;
     private final EventLog eventLog;
     private final Queue<Iterators.PeekingIterator<IndexEntry>> queue;
 
-    MultiStreamIterator(Map<Long, String> streamHashMappings, Iterable<? extends Iterator<IndexEntry>> iterators, EventLog eventLog) {
+    MultiStreamIterator(Map<Long, String> streamHashMappings, Iterable<? extends LogIterator<IndexEntry>> iterators, EventLog eventLog) {
         this.streamHashMappings = streamHashMappings;
         this.eventLog = eventLog;
         this.queue = new PriorityQueue<>(1000, Comparator.comparingLong(o -> o.peek().position));
-        for (Iterator<IndexEntry> iterator : iterators) {
+        for (LogIterator<IndexEntry> iterator : iterators) {
             if (iterator.hasNext()) {
                 queue.add(Iterators.peekingIterator(iterator));
             }
@@ -50,4 +51,16 @@ public class MultiStreamIterator implements Iterator<Event> {
         return event;
     }
 
+    @Override
+    public long position() {
+        return 0;
+    }
+
+    @Override
+    public void close() throws IOException {
+        for (Iterators.PeekingIterator<IndexEntry> it : queue) {
+            it.close();
+        }
+
+    }
 }

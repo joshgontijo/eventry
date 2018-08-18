@@ -1,6 +1,6 @@
 package io.joshworks.fstore.es.log;
 
-import io.joshworks.fstore.core.util.Iterators;
+import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;

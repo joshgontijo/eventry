@@ -1,7 +1,11 @@
-package io.joshworks.fstore.core.util;
+package io.joshworks.fstore.log;
 
+import io.joshworks.fstore.core.RuntimeIOException;
+
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
@@ -17,23 +21,27 @@ public class Iterators {
 
     }
 
-    public static <T> Iterator<T> reversed(List<T> original) {
+    public static <T> LogIterator<T> of(Collection<T> original) {
+        return new ListLogIterator<>(original);
+    }
+
+    public static <T> LogIterator<T> reversed(List<T> original) {
         return new ReversedIterator<>(original);
     }
 
-    public static <T> Iterator<T> concat(List<Iterator<T>> original) {
+    public static <T> LogIterator<T> concat(List<LogIterator<T>> original) {
         return new IteratorIterator<>(original);
     }
 
-    public static <T> Iterator<T> concat(Iterator<T>... originals) {
+    public static <T> LogIterator<T> concat(LogIterator<T>... originals) {
         return new IteratorIterator<>(Arrays.asList(originals));
     }
 
-    public static <T> PeekingIterator<T> peekingIterator(Iterator<T> iterator) {
+    public static <T> PeekingIterator<T> peekingIterator(LogIterator<T> iterator) {
         return new PeekingIterator<>(iterator);
     }
 
-    public static <T> Iterator<T> empty() {
+    public static <T> LogIterator<T> empty() {
         return new EmptyIterator<>();
     }
 
@@ -44,17 +52,15 @@ public class Iterators {
         return copy;
     }
 
-    public static <T> Stream<T> stream(Iterator<T> iterator) {
+    public static <T> Stream<T> stream(LogIterator<T> iterator) {
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), false);
     }
 
-    public static <T> Stream<T> stream(Iterator<T> iterator, int characteristics, boolean parallel) {
+    public static <T> Stream<T> stream(LogIterator<T> iterator, int characteristics, boolean parallel) {
         return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator, characteristics), parallel);
     }
 
-
-
-    private static class EmptyIterator<T> implements Iterator<T> {
+    private static class EmptyIterator<T> implements LogIterator<T> {
 
         @Override
         public boolean hasNext() {
@@ -65,9 +71,48 @@ public class Iterators {
         public T next() {
             throw new NoSuchElementException();
         }
+
+        @Override
+        public long position() {
+            return 0;
+        }
+
+        @Override
+        public void close() {
+
+        }
     }
 
-    private static class ReversedIterator<T> implements Iterator<T> {
+    private static class ListLogIterator<T> implements LogIterator<T> {
+
+        private final Iterator<T> source;
+
+        private ListLogIterator(Collection<T> source) {
+            this.source = source.iterator();
+        }
+
+        @Override
+        public long position() {
+            return 0;
+        }
+
+        @Override
+        public void close() {
+            //do nothing
+        }
+
+        @Override
+        public boolean hasNext() {
+            return source.hasNext();
+        }
+
+        @Override
+        public T next() {
+            return source.next();
+        }
+    }
+
+    private static class ReversedIterator<T> implements LogIterator<T> {
         final ListIterator<T> i;
 
         private ReversedIterator(List<T> original) {
@@ -85,14 +130,25 @@ public class Iterators {
         public void remove() {
             i.remove();
         }
+
+        @Override
+        public long position() {
+            //do nothing
+            return -1;
+        }
+
+        @Override
+        public void close() {
+            //do nothing
+        }
     }
 
-    private static class IteratorIterator<T> implements Iterator<T> {
+    private static class IteratorIterator<T> implements LogIterator<T> {
 
-        private final List<Iterator<T>> is;
+        private final List<LogIterator<T>> is;
         private int current;
 
-        private IteratorIterator(List<Iterator<T>> iterators) {
+        private IteratorIterator(List<LogIterator<T>> iterators) {
             this.is = iterators;
             this.current = 0;
         }
@@ -102,7 +158,11 @@ public class Iterators {
             while (current < is.size() && !is.get(current).hasNext())
                 current++;
 
-            return current < is.size();
+            boolean hasNext = current < is.size();
+            if (!hasNext) {
+                this.close();
+            }
+            return hasNext;
         }
 
         @Override
@@ -110,22 +170,39 @@ public class Iterators {
             while (current < is.size() && !is.get(current).hasNext())
                 current++;
 
+            if(current >= is.size()) {
+                close();
+                throw new NoSuchElementException();
+            }
+
             return is.get(current).next();
         }
 
         @Override
-        public void remove() {
-            throw new UnsupportedOperationException();
+        public long position() {
+            return is.get(current).position();
+        }
+
+        @Override
+        public void close() {
+            try {
+                for (LogIterator<T> iterator : is) {
+                    iterator.close();
+                }
+            } catch (IOException e) {
+                throw RuntimeIOException.of(e);
+            }
+
         }
     }
 
-    public static class PeekingIterator<E> implements Iterator<E> {
+    public static class PeekingIterator<E> implements LogIterator<E> {
 
-        private final Iterator<? extends E> iterator;
+        private final LogIterator<? extends E> iterator;
         private boolean hasPeeked;
         private E peekedElement;
 
-        public PeekingIterator(Iterator<? extends E> iterator) {
+        public PeekingIterator(LogIterator<? extends E> iterator) {
             this.iterator = iterator;
         }
 
@@ -159,6 +236,16 @@ public class Iterators {
                 hasPeeked = true;
             }
             return peekedElement;
+        }
+
+        @Override
+        public long position() {
+            return iterator.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            iterator.close();
         }
     }
 

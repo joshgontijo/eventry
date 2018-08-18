@@ -4,7 +4,6 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.core.util.Iterators;
 import io.joshworks.fstore.es.index.Index;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
@@ -12,6 +11,7 @@ import io.joshworks.fstore.es.index.filter.BloomFilter;
 import io.joshworks.fstore.es.index.midpoint.Midpoint;
 import io.joshworks.fstore.es.index.midpoint.Midpoints;
 import io.joshworks.fstore.index.filter.Hash;
+import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.segment.Type;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
@@ -21,7 +21,6 @@ import io.joshworks.fstore.serializer.Serializers;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
@@ -84,7 +83,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     }
 
     @Override
-    public Iterator<IndexEntry> iterator(Range range) {
+    public LogIterator<IndexEntry> iterator(Range range) {
         if (!mightHaveEntries(range)) {
             return Iterators.empty();
         }

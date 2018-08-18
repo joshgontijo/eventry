@@ -1,9 +1,6 @@
 package io.joshworks.fstore.log;
 
-import java.io.Closeable;
-import java.util.Iterator;
-
-public interface LogIterator<T> extends Iterator<T>, Closeable {
+public interface LogIterator<T> extends CloseableIterator<T> {
     long position();
 
 }

@@ -1,12 +1,13 @@
 package io.joshworks.fstore.es.index;
 
 
-import io.joshworks.fstore.core.util.Iterators;
+import io.joshworks.fstore.log.Iterators;
+import io.joshworks.fstore.log.LogIterator;
 
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
@@ -54,12 +55,13 @@ public class MemIndex implements Index {
     }
 
     @Override
-    public Iterator<IndexEntry> iterator(Range range) {
+    public LogIterator<IndexEntry> iterator(Range range) {
         SortedSet<IndexEntry> entries = index.get(range.stream);
         if(entries == null) {
             return Iterators.empty();
         }
-        return Collections.unmodifiableSet(entries.subSet(range.start(), range.end())).iterator();
+        Set<IndexEntry> indexEntries = Collections.unmodifiableSet(entries.subSet(range.start(), range.end()));
+        return Iterators.of(indexEntries);
     }
 
     @Override
@@ -91,12 +93,12 @@ public class MemIndex implements Index {
     }
 
     @Override
-    public Iterator<IndexEntry> iterator() {
+    public LogIterator<IndexEntry> iterator() {
         SortedSet<IndexEntry> reduced = index.values().stream().reduce(new TreeSet<>(), (state, next) -> {
             state.addAll(next);
             return state;
         });
 
-        return Collections.unmodifiableSet(reduced).iterator();
+        return Iterators.of(Collections.unmodifiableSet(reduced));
     }
 }

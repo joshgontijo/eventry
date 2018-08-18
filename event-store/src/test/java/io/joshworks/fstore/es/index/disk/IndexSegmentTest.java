@@ -468,7 +468,7 @@ public class IndexSegmentTest {
     public void version_of_many_items() {
 
         //given
-        int numStreams = 1000000;
+        int numStreams = 500000;
         IndexSegment testSegment = indexWithStreamRanging(0, numStreams);
 
         for (int i = 0; i < numStreams; i++) {
