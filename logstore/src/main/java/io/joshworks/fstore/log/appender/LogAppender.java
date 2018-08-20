@@ -9,8 +9,8 @@ import io.joshworks.fstore.core.seda.SedaContext;
 import io.joshworks.fstore.core.seda.Stage;
 import io.joshworks.fstore.core.seda.StageHandler;
 import io.joshworks.fstore.core.seda.StageStats;
-import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.BitUtil;
+import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
@@ -38,8 +38,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -546,10 +544,9 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     private class LogPoller implements PollingSubscriber<T> {
 
         private final BlockingQueue<PollingSubscriber<T>> segmentQueue = new LinkedBlockingQueue<>();
-        private final int nextSegmentMaxAwaitMilli = 500;
+        private final int MAX_SEGMENT_WAIT_SEC = 5;
         private PollingSubscriber<T> currentPoller;
         private int segmentIdx;
-        private final Lock lock = new ReentrantLock();
         private final AtomicBoolean closed = new AtomicBoolean();
 
         LogPoller(long startPosition) {
@@ -575,7 +572,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
         @Override
         public T poll() throws InterruptedException {
-            return pollData(-1, TimeUnit.SECONDS);
+            return pollData(PollingSubscriber.NO_SLEEP, TimeUnit.SECONDS);
         }
 
         @Override
@@ -583,31 +580,64 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             return pollData(limit, timeUnit);
         }
 
-        private T pollData(long limit, TimeUnit timeUnit) throws InterruptedException {
-            lock.lock();
+        @Override
+        public T take() throws InterruptedException {
+            return takeData();
+        }
+
+        private synchronized T pollData(long limit, TimeUnit timeUnit) throws InterruptedException {
+            if (closed.get()) {
+                return null;
+            }
+            T item = currentPoller.poll(limit, timeUnit);
+            if (currentPoller.endOfLog()) { //end of segment
+                closePoller(this.currentPoller);
+                this.currentPoller = waitForNextSegment();
+                if (this.currentPoller == null) { //close was called
+                    return item;
+                }
+                segmentIdx++;
+//                    if(item != null) {
+//                        return item;
+//                    }
+//                    return poll(limit, timeUnit);
+            }
+            return item;
+        }
+
+        private synchronized T takeData() throws InterruptedException {
+            if (closed.get()) {
+                return null;
+            }
+            T item = currentPoller.take();
+            if (currentPoller.endOfLog()) { //end of segment
+                closePoller(this.currentPoller);
+                this.currentPoller = waitForNextSegment();
+
+                if (this.currentPoller == null) { //close was called
+                    return item;
+                }
+                segmentIdx++;
+                if (item != null) {
+                    return item;
+                }
+                return takeData();
+            }
+            return item;
+        }
+
+        private void closePoller(PollingSubscriber<T> currentPoller) {
             try {
-                if (closed.get()) {
-                    return null;
-                }
-                T item = currentPoller.poll(limit, timeUnit);
-                if (item == null) { //end of segment
-                    this.currentPoller = waitForNextSegment();
-                    if (this.currentPoller == null) { //close was called
-                        return null;
-                    }
-                    segmentIdx++;
-                    return poll(limit, timeUnit);
-                }
-                return item;
-            } finally {
-                lock.unlock();
+                currentPoller.close();
+            } catch (IOException e) {
+                throw RuntimeIOException.of(e);
             }
         }
 
         private PollingSubscriber<T> waitForNextSegment() throws InterruptedException {
             PollingSubscriber<T> next = null;
             while (!closed.get() && next == null) {
-                next = segmentQueue.poll(nextSegmentMaxAwaitMilli, TimeUnit.MILLISECONDS);//block until next segment
+                next = segmentQueue.poll(MAX_SEGMENT_WAIT_SEC, TimeUnit.SECONDS);//wait next segment, should never wait really
             }
             return next;
         }

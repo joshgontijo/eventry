@@ -1,5 +1,6 @@
 package io.joshworks.fstore.server;
 
+import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.es.log.Event;
@@ -10,13 +11,13 @@ import java.util.Map;
 
 public class EventBody {
 
+    private static final Gson gson = new Gson();
     private static final Serializer<Map<String, Object>> jsonSerializer = JsonSerializer.of(new TypeToken<Map<String, Object>>(){}.getType());
     public String type;
     public Map<String, Object> data;
 
     //response only
     public long timestamp;
-    public long sequence;
     public String stream;
     public int version = -1;
     public long id = -1;
@@ -27,7 +28,6 @@ public class EventBody {
         body.type = event.type();
         body.timestamp = event.timestamp();
         body.version = event.version();
-        body.sequence = event.sequence();
         body.stream = event.stream();
         body.id = event.position();
         body.data = jsonSerializer.fromBytes(ByteBuffer.wrap(event.data()));
@@ -35,8 +35,12 @@ public class EventBody {
         return body;
     }
 
-    public Event asEvent() {
-        return Event.of(sequence, stream, type, jsonSerializer.toBytes(data).array(), System.currentTimeMillis());
+    public Event toEvent() {
+        return Event.of(stream, type, jsonSerializer.toBytes(data).array(), System.currentTimeMillis());
+    }
+
+    public String toJson() {
+        return gson.toJson(this);
     }
 
 

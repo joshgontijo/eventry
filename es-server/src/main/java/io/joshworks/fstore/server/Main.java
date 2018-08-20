@@ -4,6 +4,7 @@ import io.joshworks.fstore.es.EventStore;
 
 import java.io.File;
 
+import static io.joshworks.snappy.SnappyServer.cors;
 import static io.joshworks.snappy.SnappyServer.delete;
 import static io.joshworks.snappy.SnappyServer.get;
 import static io.joshworks.snappy.SnappyServer.group;
@@ -15,16 +16,21 @@ import static io.joshworks.snappy.SnappyServer.start;
 public class Main {
 
 
+
     public static void main(String[] args) {
 
         EventStore store  = EventStore.open(new File("J:\\event-store-app"));
 
-        StreamEndpoint streams = new StreamEndpoint(store);
         SubscriptionEndpoint subscriptions = new SubscriptionEndpoint(store);
+        StreamEndpoint streams = new StreamEndpoint(store);
+//        new Thread(new EventBroadcast(store)).start();
+
+
 
         group("/streams", () -> {
             post("/", streams::create);
-            get("/", streams::listStreams);
+            get("/", streams::streamsQuery);
+            get("/metadata", streams::listStreams);
 
             group("{streamId}", () -> {
                 get(streams::fetchStreams);
@@ -38,13 +44,13 @@ public class Main {
         });
 
         group("/subscriptions", () -> {
-            post(subscriptions::create);
-            sse("{subscriptionId}/push", subscriptions.newPushHandler());
+            sse("{streamId}", subscriptions::newPushHandler);
         });
 
 
         onShutdown(store::close);
 
+        cors();
         start();
 
     }

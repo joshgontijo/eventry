@@ -1,6 +1,5 @@
 package io.joshworks.fstore.es;
 
-import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.es.hash.Murmur3Hash;
 import io.joshworks.fstore.es.hash.XXHash;
 import io.joshworks.fstore.es.index.IndexEntry;
@@ -14,7 +13,9 @@ import io.joshworks.fstore.es.stream.StreamInfo;
 import io.joshworks.fstore.es.stream.StreamMetadata;
 import io.joshworks.fstore.es.stream.Streams;
 import io.joshworks.fstore.es.utils.Tuple;
+import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.io.Closeable;
@@ -150,6 +151,18 @@ public class EventStore implements Closeable {
                 .collect(Collectors.toMap(Tuple::a, Tuple::b));
     }
 
+    public PollingSubscriber<Event> poller() {
+        return eventLog.poller();
+    }
+
+    public PollingSubscriber<Event> poller(String stream, int version) {
+        long streamHash = hasher.hash(stream);
+        return index.get(streamHash, version)
+                //TODO poller should poll the index, not the log
+                .map(ie -> eventLog.poller(ie.position))
+                .orElseGet(eventLog::poller);
+    }
+
     public int version(String stream) {
         long streamHash = hasher.hash(stream);
         return streams.version(streamHash);
@@ -169,10 +182,6 @@ public class EventStore implements Closeable {
 
         int newVersion = streams.tryIncrementVersion(streamHash, IndexEntry.NO_VERSION);
         index.add(streamHash, newVersion, event.position());
-    }
-
-    public void poller() {
-
     }
 
     public Optional<Event> get(String stream, int version) {

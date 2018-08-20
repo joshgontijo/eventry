@@ -31,45 +31,10 @@ public class EventLogTest {
     }
 
     @Test
-    public void append_adds_sequence() {
-        long pos = eventLog.append(Event.create("stream", "type", "data"));
-        Event event = eventLog.get(pos);
-        assertEquals(0, event.sequence());
-    }
-
-    @Test
-    public void reopening_maintains_correct_sequence() {
-        eventLog.append(Event.create("stream", "type", "data"));
-        eventLog.append(Event.create("stream", "type", "data"));
-        eventLog.close();
-
-        eventLog = new EventLog(LogAppender.builder(testDir, new EventSerializer()));
-        assertEquals(2, eventLog.size());
-
-        long last = eventLog.append(Event.create("stream", "type", "data"));
-        assertEquals(3, eventLog.size());
-
-        Event event = eventLog.get(last);
-        assertEquals(2, event.sequence());
-
-    }
-
-    @Test
     public void get_returns_event_with_position() {
         long pos = eventLog.append(Event.create("stream", "type", "data"));
         Event event = eventLog.get(pos);
         assertEquals(pos, event.position());
-    }
-
-    @Test
-    public void events_are_stored_with_sequence() {
-        long pos1 = eventLog.append(Event.create("stream", "type", "data"));
-        long pos2 = eventLog.append(Event.create("stream", "type", "data"));
-
-        Event event1 = eventLog.get(pos1);
-        Event event2 = eventLog.get(pos2);
-        assertEquals(0, event1.sequence());
-        assertEquals(1, event2.sequence());
     }
 
     @Test

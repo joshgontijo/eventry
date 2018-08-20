@@ -2,30 +2,28 @@ package io.joshworks.fstore.es.log;
 
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 
 import java.io.IOException;
 import java.util.stream.Stream;
 
-public class EventLog  {
+public class EventLog {
 
     private final SimpleLogAppender<Event> appender;
-    private long sequence;
 
     public EventLog(Config<Event> config) {
         this.appender = new SimpleLogAppender<>(config);
-        this.sequence = appender.entries();
     }
 
     public long append(Event event) {
-        event.sequence(sequence++);
         return appender.append(event);
     }
 
     public Event get(long position) {
         Event event = appender.get(position);
-        if(event == null) {
+        if (event == null) {
             throw new IllegalArgumentException("No event found for " + position);
         }
         event.position(position);
@@ -46,6 +44,14 @@ public class EventLog  {
 
     public Stream<Event> stream() {
         return Iterators.stream(scanner());
+    }
+
+    public PollingSubscriber<Event> poller() {
+        return appender.poller();
+    }
+
+    public PollingSubscriber<Event> poller(long position) {
+        return appender.poller(position);
     }
 
     private static class EventLogIterator implements LogIterator<Event> {

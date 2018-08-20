@@ -16,6 +16,7 @@ import java.nio.file.Files;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -103,7 +104,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
     }
 
     @Test
-    public void insert_scan_1M_2kb_entries() {
+    public void insert_reopen_scan_1M_2kb_entries() {
         int items = 1000000;
         String value = stringOfLength(2048);
         appendN(value, items);
@@ -126,36 +127,23 @@ public abstract class LogAppenderIT<L extends Log<String>> {
     }
 
     @Test
-    public void insert_10M_with_2kb_entries() throws InterruptedException {
-
-//        ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
-//        executor.scheduleAtFixedRate(() -> {
-//            System.out.println("Size: " + appender.entries());
-//
-////            appender.stats().forEach((k,v) -> System.out.println(k + ": " + v));
-//        }, 1, 1, TimeUnit.SECONDS);
+    public void insert_5M_with_2kb_entries() {
 
         String value = stringOfLength(1024);
 
-        appendN(value, 10000000);
-        appender.roll();
-        appender.compact();
-        TimeUnit.MINUTES.sleep(10);
-
-//        executor.shutdown();
-
+        appendN(value, 5000000);
         scanAllAssertingSameValue(value);
     }
 
+    //TODO refactor
     @Test
-    public void insert_100M_with_2kb_entries() throws InterruptedException {
+    public void insert_10M_with_2kb_entries() {
         String value = stringOfLength(2048);
 
-        appendN(value, 100000000);
+        appendN(value, 10000000);
         appender.flush();
 
-        Thread.sleep(120000);
-//        scanAllAssertingSameValue(value);
+        scanAllAssertingSameValue(value);
     }
 
     @Test
@@ -183,12 +171,10 @@ public abstract class LogAppenderIT<L extends Log<String>> {
     }
 
     @Test
-    public void poller() throws InterruptedException, IOException {
+    public void take_waits_for_available_data() throws InterruptedException, IOException {
 
-
-        PollingSubscriber<String> poller = appender.poller();
-        try {
-            int messages = 5000000;
+        try (PollingSubscriber<String> poller = appender.poller()) {
+            int messages = 4000000;
             new Thread(() -> {
                 long start = System.currentTimeMillis();
                 for (int i = 0; i < messages; i++) {
@@ -198,17 +184,74 @@ public abstract class LogAppenderIT<L extends Log<String>> {
             }).start();
 
             for (int i = 0; i < messages; i++) {
-                String message = poller.poll();
+                String message = poller.take();
                 assertEquals(String.valueOf(i), message);
                 if (i % 5000 == 0) {
                     System.out.println("Read " + i + ": " + message);
                 }
             }
-        } finally {
-            poller.close();
         }
+    }
 
+    @Test
+    public void poll_returns_immediately_without_data() throws InterruptedException, IOException {
 
+        try (PollingSubscriber<String> poller = appender.poller()) {
+            for (int i = 0; i < 1000; i++) {
+                String message = poller.poll();
+                assertNull(message);
+            }
+        }
+    }
+
+    @Test
+    public void poll_returns_immediately_with_data() throws InterruptedException, IOException {
+
+        final var message = "Yolo";
+        appender.append(message);
+        try (PollingSubscriber<String> poller = appender.poller()) {
+            String found = poller.poll();
+            assertEquals(message, found);
+
+            for (int i = 0; i < 1000; i++) {
+                found = poller.poll();
+                assertNull(found);
+            }
+        }
+    }
+
+    @Test
+    public void poll_waits_for_specified_time() throws InterruptedException, IOException {
+
+        long timeToWaitMillis = 1000;
+        try (PollingSubscriber<String> poller = appender.poller()) {
+            long start = System.currentTimeMillis();
+            String message = poller.poll(timeToWaitMillis, TimeUnit.MILLISECONDS);
+            assertNull(message);
+            assertTrue(System.currentTimeMillis() - start >= timeToWaitMillis);
+
+        }
+    }
+
+    @Test
+    public void poll_returns_when_data_is_available() throws InterruptedException, IOException {
+
+        long waitSeconds = 30;
+        long appendDataAfterSeconds = 2;
+        String message = "YOLO";
+        try (PollingSubscriber<String> poller = appender.poller()) {
+
+            new Thread(() -> {
+                sleep(TimeUnit.SECONDS.toMillis(appendDataAfterSeconds));
+                appender.append(message);
+            }).start();
+
+            long start = System.currentTimeMillis();
+            String found = poller.poll(waitSeconds, TimeUnit.SECONDS);
+            assertEquals(message, found);
+            assertTrue(System.currentTimeMillis() - start < TimeUnit.SECONDS.toMillis(waitSeconds));
+
+        }
     }
 
     private static String stringOfLength(int length) {
@@ -244,27 +287,41 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
     private void scanAllAssertingSameValue(String expected) {
         long start = System.currentTimeMillis();
-        LogIterator<String> logIterator = appender.scanner();
+        try(LogIterator<String> logIterator = appender.scanner()) {
 
-        long avg = 0;
-        long lastUpdate = System.currentTimeMillis();
-        long read = 0;
-        long totalRead = 0;
+            long avg = 0;
+            long lastUpdate = System.currentTimeMillis();
+            long read = 0;
+            long totalRead = 0;
 
-        while (logIterator.hasNext()) {
-            if (System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
-                avg = (avg + read) / 2;
-                System.out.println("TOTAL READ: " + totalRead + " - LAST SECOND: " + read + " - AVG: " + avg);
-                read = 0;
-                lastUpdate = System.currentTimeMillis();
+            while (logIterator.hasNext()) {
+                if (System.currentTimeMillis() - lastUpdate >= TimeUnit.SECONDS.toMillis(1)) {
+                    avg = (avg + read) / 2;
+                    System.out.println("TOTAL READ: " + totalRead + " - LAST SECOND: " + read + " - AVG: " + avg);
+                    read = 0;
+                    lastUpdate = System.currentTimeMillis();
+                }
+                String found = logIterator.next();
+                assertEquals(expected, found);
+                read++;
+                totalRead++;
             }
-            String found = logIterator.next();
-            assertEquals(expected, found);
-            read++;
-            totalRead++;
+
+            assertEquals(appender.entries(), totalRead);
+            System.out.println("APPENDER_READ -  READ " + totalRead + " ENTRIES IN " + (System.currentTimeMillis() - start) + "ms");
+
+        } catch (IOException e) {
+            e.printStackTrace();
         }
 
-        assertEquals(appender.entries(), totalRead);
-        System.out.println("APPENDER_READ -  READ " + totalRead + " ENTRIES IN " + (System.currentTimeMillis() - start) + "ms");
+
+    }
+
+    private static void sleep(long time) {
+        try {
+            Thread.sleep(time);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

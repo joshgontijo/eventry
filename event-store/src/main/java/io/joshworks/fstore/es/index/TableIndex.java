@@ -137,6 +137,10 @@ public class TableIndex implements Index, Flushable {
         writeToDisk();
     }
 
+    public void poller() {
+
+    }
+
     //TODO LogAppender's LOG_HEAD segment must be able to store different data layout: with stream name in this case
 //    private MemIndex restoreFromCheckpoint(){
 //        long checkpoint = readCheckpoint();

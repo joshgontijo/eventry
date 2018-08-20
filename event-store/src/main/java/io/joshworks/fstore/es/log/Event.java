@@ -9,22 +9,20 @@ public class Event {
     private final String type;
     private final byte[] data;
     private final long timestamp;
-    private long sequence;
     //from index
     private String stream;
     private int version = -1;
     private long position = -1;
 
-    private Event(long sequence, String type, String stream, byte[] data, long timestamp) {
+    private Event(String stream, String type, byte[] data, long timestamp) {
         this.type = type;
         this.data = data;
         this.stream = stream;
         this.timestamp = timestamp;
-        this.sequence = sequence;
     }
 
-    public static Event of(long sequence, String stream, String type, byte[] data, long timestamp) {
-        return new Event(sequence, type, stream, data, timestamp);
+    public static Event of(String stream, String type, byte[] data, long timestamp) {
+        return new Event(stream, type, data, timestamp);
     }
 
     public static Event create(String stream, String type, String data) {
@@ -32,7 +30,7 @@ public class Event {
     }
 
     public static Event create(String stream, String type, byte[] data) {
-        return new Event(-1, type, stream, data, System.currentTimeMillis());
+        return new Event(type, stream, data, System.currentTimeMillis());
     }
 
     public void stream(String stream) {
@@ -41,14 +39,6 @@ public class Event {
 
     public void version(int version) {
         this.version = version;
-    }
-
-    void sequence(long sequence) {
-        this.sequence = sequence;
-    }
-
-    public long sequence() {
-        return sequence;
     }
 
     public void streamInfo(String stream, IndexEntry key) {
@@ -90,7 +80,6 @@ public class Event {
         return "Event{" +
                 "type='" + type + '\'' +
                 ", timestamp=" + timestamp +
-                ", sequence=" + sequence +
                 ", stream='" + stream + '\'' +
                 ", version=" + version +
                 ", position=" + position +

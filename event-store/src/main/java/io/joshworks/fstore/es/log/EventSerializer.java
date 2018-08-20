@@ -14,7 +14,7 @@ public class EventSerializer implements Serializer<Event> {
         int typeLength = VStringSerializer.sizeOf(data.type());
         int streamNameLength = VStringSerializer.sizeOf(data.stream());
 
-        ByteBuffer bb = ByteBuffer.allocate(data.data().length + typeLength + streamNameLength + (Long.BYTES * 2));
+        ByteBuffer bb = ByteBuffer.allocate(data.data().length + typeLength + streamNameLength + Long.BYTES);
         writeTo(data, bb);
 
         return bb.flip();
@@ -25,7 +25,6 @@ public class EventSerializer implements Serializer<Event> {
         strSerializer.writeTo(data.type(), dest);
         strSerializer.writeTo(data.stream(), dest);
         dest.putLong(data.timestamp());
-        dest.putLong(data.sequence());
         dest.put(data.data());
     }
 
@@ -35,11 +34,10 @@ public class EventSerializer implements Serializer<Event> {
         String type = strSerializer.fromBytes(buffer);
         String stream = strSerializer.fromBytes(buffer);
         long timestamp = buffer.getLong();
-        long sequence = buffer.getLong();
         byte[] data = new byte[buffer.remaining()];
         buffer.get(data);
 
-        return Event.of(sequence, stream, type, data, timestamp);
+        return Event.of(stream, type, data, timestamp);
     }
 
 }

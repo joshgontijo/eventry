@@ -6,6 +6,7 @@ import io.joshworks.fstore.es.stream.StreamInfo;
 import io.joshworks.snappy.http.HttpException;
 import io.joshworks.snappy.http.HttpExchange;
 
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
@@ -17,7 +18,7 @@ public class StreamEndpoint {
 
     public static final String QUERY_PARAM_ZIP = "zip";
     public static final String QUERY_PARAM_ZIP_PREFIX = "prefix";
-    public static final String QUERY_PARAM_STREAM = "streamId";
+    public static final String PATH_PARAM_STREAM = "streamId";
     private final EventStore store;
 
     public StreamEndpoint(EventStore store) {
@@ -27,11 +28,11 @@ public class StreamEndpoint {
     public void create(HttpExchange exchange) {
         NewStream metadataBody = exchange.body().asObject(NewStream.class);
         store.createStream(metadataBody.name, metadataBody.maxCount, metadataBody.maxAge, metadataBody.permissions, metadataBody.metadata);
-        exchange.send(200);
+        exchange.send(201);
     }
 
     public void fetchStreams(HttpExchange exchange) {
-        String stream = exchange.pathParameter(QUERY_PARAM_STREAM);
+        String stream = exchange.pathParameter(PATH_PARAM_STREAM);
 
 
         String zipWithPrefix = extractZipStartingWith(exchange);
@@ -54,10 +55,10 @@ public class StreamEndpoint {
     }
 
     public void append(HttpExchange exchange) {
-        String stream = exchange.pathParameter(QUERY_PARAM_STREAM);
+        String stream = exchange.pathParameter(PATH_PARAM_STREAM);
         EventBody eventBody = exchange.body().asObject(EventBody.class);
 
-        Event event = eventBody.asEvent();
+        Event event = eventBody.toEvent();
         event.stream(stream);
         Event result = store.add(event);
 
@@ -73,8 +74,27 @@ public class StreamEndpoint {
         exchange.send(streamsMetadata);
     }
 
+    public void streamsQuery(HttpExchange exchange) {
+
+        String zipWithPrefix = extractZipStartingWith(exchange);
+        Set<String> streams = extractZipParams(exchange);
+
+        if (!streams.isEmpty() && zipWithPrefix != null) {
+            throw new HttpException(400, QUERY_PARAM_ZIP + " and " + QUERY_PARAM_ZIP_PREFIX + " cannot be used together");
+        }
+
+        //TODO check access to the stream
+        List<EventBody> events = new ArrayList<>();
+        if (!streams.isEmpty()) {
+            events = store.zipStreams(streams).map(EventBody::from).collect(Collectors.toList());
+        } else if (zipWithPrefix != null) {
+            events = store.zipStreams(zipWithPrefix).map(EventBody::from).collect(Collectors.toList());
+        }
+        exchange.send(events);
+    }
+
     public void metadata(HttpExchange exchange) {
-        String stream = exchange.pathParameter(QUERY_PARAM_STREAM);
+        String stream = exchange.pathParameter(PATH_PARAM_STREAM);
         Optional<StreamInfo> metadata = store.streamMetadata(stream);
         metadata.ifPresentOrElse(exchange::send, () -> exchange.send(new HttpException(404, "Stream not found for " + stream)));
     }
