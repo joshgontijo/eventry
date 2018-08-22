@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 import io.joshworks.fstore.log.segment.Log;
@@ -23,11 +24,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -423,7 +426,91 @@ public class LogAppenderTest {
             String next = scanner.next();
             assertEquals(String.valueOf(val++), next);
         }
+    }
 
+    @Test
+    public void take_waits_for_data_to_become_available() throws InterruptedException, IOException {
 
+        long appendDataAfterSeconds = 2;
+        String message = "YOLO";
+        try (PollingSubscriber<String> poller = appender.poller()) {
+
+            new Thread(() -> {
+                sleep(TimeUnit.SECONDS.toMillis(appendDataAfterSeconds));
+                appender.append(message);
+            }).start();
+
+            long start = System.currentTimeMillis();
+            String found = poller.take();
+            assertEquals(message, found);
+            assertTrue(System.currentTimeMillis() - start >= TimeUnit.SECONDS.toMillis(appendDataAfterSeconds));
+        }
+    }
+
+    @Test
+    public void poll_returns_immediately_without_data() throws InterruptedException, IOException {
+
+        try (PollingSubscriber<String> poller = appender.poller()) {
+            for (int i = 0; i < 1000; i++) {
+                String message = poller.poll();
+                assertNull(message);
+            }
+        }
+    }
+
+    @Test
+    public void poll_returns_immediately_with_data() throws InterruptedException, IOException {
+
+        final var message = "Yolo";
+        appender.append(message);
+        try (PollingSubscriber<String> poller = appender.poller()) {
+            String found = poller.poll();
+            assertEquals(message, found);
+
+            for (int i = 0; i < 1000; i++) {
+                found = poller.poll();
+                assertNull(found);
+            }
+        }
+    }
+
+    @Test
+    public void poll_waits_for_specified_time() throws InterruptedException, IOException {
+
+        long timeToWaitMillis = 1000;
+        try (PollingSubscriber<String> poller = appender.poller()) {
+            long start = System.currentTimeMillis();
+            String message = poller.poll(timeToWaitMillis, TimeUnit.MILLISECONDS);
+            assertNull(message);
+            assertTrue(System.currentTimeMillis() - start >= timeToWaitMillis);
+        }
+    }
+
+    @Test
+    public void poll_returns_when_data_is_available() throws InterruptedException, IOException {
+
+        long waitSeconds = 30;
+        long appendDataAfterSeconds = 2;
+        String message = "YOLO";
+        try (PollingSubscriber<String> poller = appender.poller()) {
+
+            new Thread(() -> {
+                sleep(TimeUnit.SECONDS.toMillis(appendDataAfterSeconds));
+                appender.append(message);
+            }).start();
+
+            long start = System.currentTimeMillis();
+            String found = poller.poll(waitSeconds, TimeUnit.SECONDS);
+            assertEquals(message, found);
+            assertTrue(System.currentTimeMillis() - start < TimeUnit.SECONDS.toMillis(waitSeconds));
+        }
+    }
+
+    private static void sleep(long time) {
+        try {
+            Thread.sleep(time);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

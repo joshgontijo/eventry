@@ -3,6 +3,7 @@ package io.joshworks.fstore.es.index;
 
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.PollingSubscriber;
 
 import java.util.Collections;
 import java.util.Map;
@@ -100,5 +101,9 @@ public class MemIndex implements Index {
         });
 
         return Iterators.of(Collections.unmodifiableSet(reduced));
+    }
+
+    public PollingSubscriber<IndexEntry> poller() {
+        return null;
     }
 }

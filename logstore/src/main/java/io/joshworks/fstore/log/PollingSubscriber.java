@@ -7,6 +7,8 @@ public interface PollingSubscriber<T> extends Closeable {
 
     int NO_SLEEP = -1;
 
+    T peek() throws InterruptedException;
+
     T poll() throws InterruptedException;
 
     T poll(long limit, TimeUnit timeUnit) throws InterruptedException;

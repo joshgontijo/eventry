@@ -2,6 +2,7 @@ package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.appender.merge.ConcatenateCombiner;
 import io.joshworks.fstore.log.appender.merge.SegmentCombiner;
@@ -24,11 +25,11 @@ public class Config<T> {
     SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
 
     int segmentBitShift = Long.SIZE - SEGMENT_BITS;
-    int segmentSize = 10485760; //10mb
+    long segmentSize = Size.MEGABYTE.toBytes(10);
     boolean mmap;
     boolean asyncFlush;
     int maxSegmentsPerLevel = 3;
-    int mmapBufferSize = segmentSize;
+    int mmapBufferSize = (int) segmentSize; //FIXME
     boolean flushAfterWrite;
     boolean threadPerLevel;
     boolean compactionDisabled;
@@ -40,7 +41,7 @@ public class Config<T> {
         this.serializer = serializer;
     }
 
-    public Config<T> segmentSize(int size) {
+    public Config<T> segmentSize(long size) {
         long maxAddress = BitUtil.maxValueForBits(segmentBitShift);
         if (size > maxAddress) {
             throw new IllegalArgumentException("Maximum position allowed is " + maxAddress);

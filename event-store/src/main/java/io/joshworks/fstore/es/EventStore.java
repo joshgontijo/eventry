@@ -9,9 +9,11 @@ import io.joshworks.fstore.es.index.TableIndex;
 import io.joshworks.fstore.es.log.Event;
 import io.joshworks.fstore.es.log.EventLog;
 import io.joshworks.fstore.es.log.EventSerializer;
+import io.joshworks.fstore.es.projections.ProjectionsLog;
 import io.joshworks.fstore.es.stream.StreamInfo;
 import io.joshworks.fstore.es.stream.StreamMetadata;
 import io.joshworks.fstore.es.stream.Streams;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.utils.Tuple;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -42,9 +44,11 @@ public class EventStore implements Closeable {
     private final StreamHasher hasher;
     private final Streams streams;
     private final EventLog eventLog;
+    private final ProjectionsLog projectionsLog;
 
     private EventStore(File rootDir) {
-        this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer()).segmentSize(209715200).disableCompaction());
+        this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer()).segmentSize(Size.MEGABYTE.toBytes(200)).disableCompaction());
+        this.projectionsLog = new ProjectionsLog(rootDir);
         this.index = new TableIndex(rootDir);
         this.hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, this.index::version);
@@ -149,10 +153,6 @@ public class EventStore implements Closeable {
         return streams.stream()
                 .map(stream -> Tuple.of(stream, fromStream(stream)))
                 .collect(Collectors.toMap(Tuple::a, Tuple::b));
-    }
-
-    public PollingSubscriber<Event> poller() {
-        return eventLog.poller();
     }
 
     public PollingSubscriber<Event> poller(String stream, int version) {

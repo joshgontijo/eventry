@@ -5,14 +5,17 @@ import io.joshworks.fstore.es.index.disk.IndexCompactor;
 import io.joshworks.fstore.es.index.disk.IndexEntrySerializer;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.LogAppender;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.Flushable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 public class TableIndex implements Index, Flushable {
@@ -23,7 +26,7 @@ public class TableIndex implements Index, Flushable {
     private static final String INDEX_DIR = "index";
     private final int flushThreshold; //TODO externalize
 
-//    private final EventLog log;
+    //    private final EventLog log;
     private final IndexAppender diskIndex;
     private MemIndex memIndex = new MemIndex();
 
@@ -137,9 +140,85 @@ public class TableIndex implements Index, Flushable {
         writeToDisk();
     }
 
-    public void poller() {
-
+    public PollingSubscriber<IndexEntry> poller(long stream, int version) {
+        Optional<IndexEntry> fromMemory = memIndex.get(stream, version);
+        //TODO if present 'fromMemory' was the latest, the next item should be used instead
+        //TODO pass the current index
+        return fromMemory.map(ie -> new IndexPoller(diskIndex.poller(ie.position), true))
+                .orElseGet(() -> new IndexPoller(diskIndex.poller(), false));
     }
+
+    private class IndexPoller implements PollingSubscriber<IndexEntry> {
+
+        private final PollingSubscriber<IndexEntry> diskPoller;
+        private PollingSubscriber<IndexEntry> memPoller;
+        private boolean memPolling;
+        private long processedMemItems;
+
+        private IndexPoller(PollingSubscriber<IndexEntry> diskPoller, boolean memPolling) {
+            this.diskPoller = diskPoller;
+            this.memPolling = memPolling;
+            this.memPoller = memIndex.poller();
+        }
+
+        private PollingSubscriber<IndexEntry> getPoller() {
+            return memPolling ? memPoller : diskPoller;
+        }
+
+        private void notifyIndexFlushing() {
+            if(memPolling) {
+                //get current IndexEntry
+            }
+
+        }
+
+        @Override
+        public IndexEntry peek() throws InterruptedException {
+            return null;
+        }
+
+        @Override
+        public IndexEntry poll() throws InterruptedException {
+            var poller = getPoller();
+            var indexEntry = poller.poll();
+            if (indexEntry == null && !memPolling && poller.endOfLog()) {
+                memPolling = true;
+                memPoller = memIndex.poller();
+                return memPoller.poll();
+            }
+            if(indexEntry != null && memPolling) {
+                processedMemItems++;
+            }
+            return indexEntry;
+
+        }
+
+        @Override
+        public IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+            return null;
+        }
+
+        @Override
+        public IndexEntry take() throws InterruptedException {
+            return null;
+        }
+
+        @Override
+        public boolean endOfLog() {
+            return false;
+        }
+
+        @Override
+        public long position() {
+            return 0;
+        }
+
+        @Override
+        public void close() throws IOException {
+
+        }
+    }
+
 
     //TODO LogAppender's LOG_HEAD segment must be able to store different data layout: with stream name in this case
 //    private MemIndex restoreFromCheckpoint(){

@@ -571,6 +571,11 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         }
 
         @Override
+        public T peek() throws InterruptedException {
+            return peekData();
+        }
+
+        @Override
         public T poll() throws InterruptedException {
             return pollData(PollingSubscriber.NO_SLEEP, TimeUnit.SECONDS);
         }
@@ -590,18 +595,31 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
                 return null;
             }
             T item = currentPoller.poll(limit, timeUnit);
+            if (nextSegment() && item == null)
+                return pollData(limit, timeUnit);
+            return item;
+        }
+
+        private boolean nextSegment() throws InterruptedException {
             if (currentPoller.endOfLog()) { //end of segment
                 closePoller(this.currentPoller);
                 this.currentPoller = waitForNextSegment();
                 if (this.currentPoller == null) { //close was called
-                    return item;
+                    return false;
                 }
                 segmentIdx++;
-//                    if(item != null) {
-//                        return item;
-//                    }
-//                    return poll(limit, timeUnit);
+                return true;
             }
+            return false;
+        }
+
+        private synchronized T peekData() throws InterruptedException {
+            if (closed.get()) {
+                return null;
+            }
+            T item = currentPoller.peek();
+            if (nextSegment() && item == null)
+                return peek();
             return item;
         }
 
@@ -644,7 +662,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
         @Override
         public boolean endOfLog() {
-            return false;
+            return segmentIdx == levels.numSegments() && currentPoller.endOfLog();
         }
 
         @Override

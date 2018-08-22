@@ -2,12 +2,12 @@ package io.joshworks.fstore.log.appender.it;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.segment.Log;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -16,7 +16,6 @@ import java.nio.file.Files;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -137,6 +136,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
     //TODO refactor
     @Test
+    @Ignore
     public void insert_10M_with_2kb_entries() {
         String value = stringOfLength(2048);
 
@@ -167,90 +167,6 @@ public abstract class LogAppenderIT<L extends Log<String>> {
         try (LogAppender<String, L> appender = appender(testDirectory)) {
             assertEquals(iterations, appender.stream().count());
             assertEquals(iterations, appender.entries());
-        }
-    }
-
-    @Test
-    public void take_waits_for_available_data() throws InterruptedException, IOException {
-
-        try (PollingSubscriber<String> poller = appender.poller()) {
-            int messages = 4000000;
-            new Thread(() -> {
-                long start = System.currentTimeMillis();
-                for (int i = 0; i < messages; i++) {
-                    appender.append(String.valueOf(i));
-                }
-                System.out.println("WRITE: " + (System.currentTimeMillis() - start));
-            }).start();
-
-            for (int i = 0; i < messages; i++) {
-                String message = poller.take();
-                assertEquals(String.valueOf(i), message);
-                if (i % 5000 == 0) {
-                    System.out.println("Read " + i + ": " + message);
-                }
-            }
-        }
-    }
-
-    @Test
-    public void poll_returns_immediately_without_data() throws InterruptedException, IOException {
-
-        try (PollingSubscriber<String> poller = appender.poller()) {
-            for (int i = 0; i < 1000; i++) {
-                String message = poller.poll();
-                assertNull(message);
-            }
-        }
-    }
-
-    @Test
-    public void poll_returns_immediately_with_data() throws InterruptedException, IOException {
-
-        final var message = "Yolo";
-        appender.append(message);
-        try (PollingSubscriber<String> poller = appender.poller()) {
-            String found = poller.poll();
-            assertEquals(message, found);
-
-            for (int i = 0; i < 1000; i++) {
-                found = poller.poll();
-                assertNull(found);
-            }
-        }
-    }
-
-    @Test
-    public void poll_waits_for_specified_time() throws InterruptedException, IOException {
-
-        long timeToWaitMillis = 1000;
-        try (PollingSubscriber<String> poller = appender.poller()) {
-            long start = System.currentTimeMillis();
-            String message = poller.poll(timeToWaitMillis, TimeUnit.MILLISECONDS);
-            assertNull(message);
-            assertTrue(System.currentTimeMillis() - start >= timeToWaitMillis);
-
-        }
-    }
-
-    @Test
-    public void poll_returns_when_data_is_available() throws InterruptedException, IOException {
-
-        long waitSeconds = 30;
-        long appendDataAfterSeconds = 2;
-        String message = "YOLO";
-        try (PollingSubscriber<String> poller = appender.poller()) {
-
-            new Thread(() -> {
-                sleep(TimeUnit.SECONDS.toMillis(appendDataAfterSeconds));
-                appender.append(message);
-            }).start();
-
-            long start = System.currentTimeMillis();
-            String found = poller.poll(waitSeconds, TimeUnit.SECONDS);
-            assertEquals(message, found);
-            assertTrue(System.currentTimeMillis() - start < TimeUnit.SECONDS.toMillis(waitSeconds));
-
         }
     }
 
@@ -317,11 +233,4 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
     }
 
-    private static void sleep(long time) {
-        try {
-            Thread.sleep(time);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
 }

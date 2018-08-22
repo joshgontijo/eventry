@@ -43,9 +43,9 @@ public class Segment<T> implements Log<T> {
     private final Serializer<T> serializer;
     private final Storage storage;
     private final DataReader reader;
+    private final String magic;
 
     private long entries;
-    private final String magic;
     private final AtomicBoolean closed = new AtomicBoolean();
 
     private Header header;
@@ -320,7 +320,7 @@ public class Segment<T> implements Log<T> {
 
     //TODO properly implement reader pool
     //TODO implement race condition on acquiring readers and closing / deleting segment
-    private LogReader newLogReader(long pos) {
+    protected LogReader newLogReader(long pos) {
 
         while (readers.size() >= 10) {
             try {
@@ -487,24 +487,24 @@ public class Segment<T> implements Log<T> {
             this.lastReadTs = System.currentTimeMillis();
         }
 
-        private T read() {
+        private T read(boolean advance) {
             ByteBuffer bb = reader.read(storage, readPosition);
             if (bb.remaining() == 0) { //EOF
                 close();
                 return null;
             }
-            readPosition += bb.limit();
+            readPosition = advance ? readPosition += bb.limit() : readPosition;
             return serializer.fromBytes(bb);
         }
 
-        private synchronized T tryTake(long sleepInterval, TimeUnit timeUnit) throws InterruptedException {
+        private synchronized T tryTake(long sleepInterval, TimeUnit timeUnit, boolean advance) throws InterruptedException {
             if (hasDataAvailable()) {
                 this.lastReadTs = System.currentTimeMillis();
-                return read();
+                return read(true);
             }
             waitForData(sleepInterval, timeUnit);
             this.lastReadTs = System.currentTimeMillis();
-            return read();
+            return read(advance);
         }
 
         private boolean hasDataAvailable() {
@@ -514,13 +514,13 @@ public class Segment<T> implements Log<T> {
         private synchronized T tryPool(long time, TimeUnit timeUnit) throws InterruptedException {
             if (hasDataAvailable()) {
                 this.lastReadTs = System.currentTimeMillis();
-                return read();
+                return read(true);
             }
             if (time > 0) {
                 waitFor(time, timeUnit);
             }
             this.lastReadTs = System.currentTimeMillis();
-            return read();
+            return read(true);
         }
 
         private void waitFor(long time, TimeUnit timeUnit) throws InterruptedException {
@@ -542,6 +542,11 @@ public class Segment<T> implements Log<T> {
         }
 
         @Override
+        public T peek() throws InterruptedException {
+            return tryTake(VERIFICATION_INTERVAL_MILLIS, TimeUnit.MILLISECONDS, false);
+        }
+
+        @Override
         public T poll() throws InterruptedException {
             return tryPool(NO_SLEEP, TimeUnit.MILLISECONDS);
         }
@@ -553,7 +558,7 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public T take() throws InterruptedException {
-            return tryTake(VERIFICATION_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
+            return tryTake(VERIFICATION_INTERVAL_MILLIS, TimeUnit.MILLISECONDS, true);
         }
 
         @Override
