@@ -19,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -41,6 +42,7 @@ public class EventStoreIT {
     public void tearDown() {
         store.close();
         Utils.tryDelete(new File(directory, "index"));
+        Utils.tryDelete(new File(directory, "projections"));
         Utils.tryDelete(directory);
     }
 
@@ -125,6 +127,7 @@ public class EventStoreIT {
     public void insert_100000_streams_with_10_version_each() {
         testWith(100000, 10);
     }
+
 
     @Test
     public void insert_500000_streams_with_2_version_each() {
@@ -509,19 +512,21 @@ public class EventStoreIT {
             try {
                 //VERSION
                 int foundVersion = store.version(streamName);
-                assertEquals(numVersionPerStream, foundVersion);
+                assertEquals(numVersionPerStream - 1, foundVersion);
 
                 //FROM STREAM
-                Stream<Event> events = store.fromStream(streamName);
-                assertEquals(numVersionPerStream, events.count());
+                try(Stream<Event> events = store.fromStream(streamName)) {
+                    assertEquals(numVersionPerStream, events.collect(Collectors.toList()).size());
 
-                for (int version = 1; version <= numVersionPerStream; version++) {
-                    //GET
-                    Optional<Event> get = store.get(streamName, version);
-                    assertTrue(get.isPresent());
-                    assertEquals(streamName, get.get().stream());
-                    assertEquals(version, get.get().version());
+                    for (int version = 0; version < numVersionPerStream; version++) {
+                        //GET
+                        Optional<Event> event = store.get(streamName, version);
+                        assertTrue(event.isPresent());
+                        assertEquals(streamName, event.get().stream());
+                        assertEquals(version, event.get().version());
+                    }
                 }
+
 
             } catch (Exception e) {
                 throw new RuntimeException("Failed on stream " + streamName, e);

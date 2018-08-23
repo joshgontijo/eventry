@@ -29,6 +29,7 @@ public class IndexAppender extends LogAppender<IndexEntry, IndexSegment> impleme
         super(config, new IndexSegmentFactory(config.directory, numElements, compress));
     }
 
+    //FIXME not releasing readers
     @Override
     public LogIterator<IndexEntry> iterator(Range range) {
         List<LogIterator<IndexEntry>> iterators = streamSegments(Order.FORWARD)

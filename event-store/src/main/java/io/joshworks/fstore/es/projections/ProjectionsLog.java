@@ -16,7 +16,7 @@ public class ProjectionsLog {
     public ProjectionsLog(File rootDir) {
         this.appender = new SimpleLogAppender<>(LogAppender
                 .builder(new File(rootDir, PROJECTIONS_DIR), new ProjectionEntrySerializer())
-                .segmentSize(Size.MEGABYTE.toBytes(100))
+                .segmentSize((int) Size.MEGABYTE.toBytes(100))
                 .disableCompaction());
     }
 
@@ -36,5 +36,8 @@ public class ProjectionsLog {
         return appender.poller(position);
     }
 
+    public void close() {
+        appender.close();
+    }
 
 }

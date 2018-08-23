@@ -562,7 +562,7 @@ public class Segment<T> implements Log<T> {
         }
 
         @Override
-        public boolean endOfLog() {
+        public boolean headOfLog() {
             return readOnly() && header.logEnd > 0 && readPosition >= header.logEnd;
         }
 

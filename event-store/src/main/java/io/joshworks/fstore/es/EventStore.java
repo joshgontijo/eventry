@@ -47,7 +47,7 @@ public class EventStore implements Closeable {
     private final ProjectionsLog projectionsLog;
 
     private EventStore(File rootDir) {
-        this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer()).segmentSize(Size.MEGABYTE.toBytes(200)).disableCompaction());
+        this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer()).segmentSize((int) Size.MEGABYTE.toBytes(200)).disableCompaction());
         this.projectionsLog = new ProjectionsLog(rootDir);
         this.index = new TableIndex(rootDir);
         this.hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
@@ -185,8 +185,8 @@ public class EventStore implements Closeable {
     }
 
     public Optional<Event> get(String stream, int version) {
-        if (version <= 0) {
-            throw new IllegalArgumentException("Version must be greater than zero");
+        if (version <= IndexEntry.NO_VERSION) {
+            throw new IllegalArgumentException("Version must be greater than " + IndexEntry.NO_VERSION);
         }
         long streamHash = hasher.hash(stream);
         Range range = Range.of(streamHash, version, version + 1);
@@ -258,5 +258,6 @@ public class EventStore implements Closeable {
         index.close();
         eventLog.close();
         streams.close();
+        projectionsLog.close();
     }
 }

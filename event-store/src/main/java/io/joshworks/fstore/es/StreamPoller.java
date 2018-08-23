@@ -124,7 +124,7 @@ public class StreamPoller implements PollingSubscriber<Event> {
     }
 
     private boolean hasDataAvailable() {
-        return !logPoller.endOfLog() || !projectionsPoller.endOfLog();
+        return !logPoller.headOfLog() || !projectionsPoller.headOfLog();
     }
 
     @Override
@@ -133,8 +133,8 @@ public class StreamPoller implements PollingSubscriber<Event> {
     }
 
     @Override
-    public boolean endOfLog() {
-        return logPoller.endOfLog() && projectionsPoller.endOfLog();
+    public boolean headOfLog() {
+        return logPoller.headOfLog() && projectionsPoller.headOfLog();
     }
 
     @Override

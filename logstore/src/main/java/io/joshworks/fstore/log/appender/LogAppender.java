@@ -78,9 +78,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     //    private final ScheduledExecutorService stateScheduler = Executors.newSingleThreadScheduledExecutor();
     private final ExecutorService executor = Executors.newFixedThreadPool(3);
-
     private final SedaContext sedaContext = new SedaContext();
-
     private final Set<LogPoller> pollers = new HashSet<>();
 
     private final Compactor<T, L> compactor;
@@ -601,7 +599,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         }
 
         private boolean nextSegment() throws InterruptedException {
-            if (currentPoller.endOfLog()) { //end of segment
+            if (currentPoller.headOfLog()) { //end of segment
                 closePoller(this.currentPoller);
                 this.currentPoller = waitForNextSegment();
                 if (this.currentPoller == null) { //close was called
@@ -628,7 +626,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
                 return null;
             }
             T item = currentPoller.take();
-            if (currentPoller.endOfLog()) { //end of segment
+            if (currentPoller.headOfLog()) { //end of segment
                 closePoller(this.currentPoller);
                 this.currentPoller = waitForNextSegment();
 
@@ -661,8 +659,8 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         }
 
         @Override
-        public boolean endOfLog() {
-            return segmentIdx == levels.numSegments() && currentPoller.endOfLog();
+        public boolean headOfLog() {
+            return segmentIdx == levels.numSegments() && currentPoller.headOfLog();
         }
 
         @Override

@@ -1,5 +1,6 @@
 package io.joshworks.fstore.es.index;
 
+import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.es.index.disk.IndexAppender;
 import io.joshworks.fstore.es.index.disk.IndexCompactor;
 import io.joshworks.fstore.es.index.disk.IndexEntrySerializer;
@@ -24,11 +25,14 @@ public class TableIndex implements Index, Flushable {
     public static final int DEFAULT_FLUSH_THRESHOLD = 1000000;
     public static final boolean DEFAULT_USE_COMPRESSION = true;
     private static final String INDEX_DIR = "index";
+    private static final String INDEX_WRITER = "index-writer";
     private final int flushThreshold; //TODO externalize
 
     //    private final EventLog log;
     private final IndexAppender diskIndex;
     private MemIndex memIndex = new MemIndex();
+
+//    private final SedaContext sedaContext = new SedaContext();
 
     public TableIndex(File rootDirectory) {
         this(rootDirectory, DEFAULT_FLUSH_THRESHOLD, DEFAULT_USE_COMPRESSION);
@@ -47,6 +51,7 @@ public class TableIndex implements Index, Flushable {
                 .namingStrategy(new IndexAppender.IndexNaming()), flushThreshold, useCompression);
 
         this.flushThreshold = flushThreshold;
+//        this.sedaContext.addStage(INDEX_WRITER, this::writeToDiskAsync, new Stage.Builder().corePoolSize(1).maximumPoolSize(1).blockWhenFull().queueSize(10));
     }
 
     public IndexEntry add(long stream, int version, long position) {
@@ -60,9 +65,14 @@ public class TableIndex implements Index, Flushable {
         memIndex.add(entry);
         if (memIndex.size() >= flushThreshold) {
             writeToDisk();
+            memIndex = new MemIndex();
         }
         return entry;
     }
+
+//    private void writeToDiskAsync(final EventContext<Set<IndexEntry>> ctx) {
+//        writeToDisk(ctx.data);
+//    }
 
     private void writeToDisk() {
         logger.info("Writing index to disk");
@@ -75,7 +85,6 @@ public class TableIndex implements Index, Flushable {
         diskIndex.roll();
 //        long checkpoint = log.position();
 //        writeCheckpoint(checkpoint);
-        memIndex = new MemIndex();
     }
 
     @Override
@@ -138,22 +147,33 @@ public class TableIndex implements Index, Flushable {
     @Override
     public void flush() {
         writeToDisk();
+        memIndex = new MemIndex();
     }
 
     public PollingSubscriber<IndexEntry> poller(long stream, int version) {
+
         Optional<IndexEntry> fromMemory = memIndex.get(stream, version);
+
         //TODO if present 'fromMemory' was the latest, the next item should be used instead
         //TODO pass the current index
-        return fromMemory.map(ie -> new IndexPoller(diskIndex.poller(ie.position), true))
-                .orElseGet(() -> new IndexPoller(diskIndex.poller(), false));
+        if (fromMemory.isPresent()) {
+            //TODO the disk position should be the last position in the log
+            return new IndexPoller(diskIndex.poller(fromMemory.get().position), true);
+        } else if (diskIndex.entries() == 0) {
+            return new IndexPoller(diskIndex.poller(), true);
+        } else {
+            return new IndexPoller(diskIndex.poller(), false);
+        }
     }
+
 
     private class IndexPoller implements PollingSubscriber<IndexEntry> {
 
         private final PollingSubscriber<IndexEntry> diskPoller;
         private PollingSubscriber<IndexEntry> memPoller;
-        private boolean memPolling;
-        private long processedMemItems;
+        private volatile boolean memPolling;
+        private volatile boolean flushedIndex;
+        private long readFromMemory;
 
         private IndexPoller(PollingSubscriber<IndexEntry> diskPoller, boolean memPolling) {
             this.diskPoller = diskPoller;
@@ -165,46 +185,65 @@ public class TableIndex implements Index, Flushable {
             return memPolling ? memPoller : diskPoller;
         }
 
-        private void notifyIndexFlushing() {
-            if(memPolling) {
-                //get current IndexEntry
-            }
-
-        }
-
         @Override
-        public IndexEntry peek() throws InterruptedException {
+        public synchronized IndexEntry peek() throws InterruptedException {
             return null;
         }
 
         @Override
-        public IndexEntry poll() throws InterruptedException {
+        public synchronized IndexEntry poll() throws InterruptedException {
+            if(flushedIndex && memPolling) {
+                memPolling = false;
+                memPoller = memIndex.poller();
+                skipReadEntries();
+            }
             var poller = getPoller();
             var indexEntry = poller.poll();
-            if (indexEntry == null && !memPolling && poller.endOfLog()) {
-                memPolling = true;
-                memPoller = memIndex.poller();
-                return memPoller.poll();
+            if (indexEntry == null && !memPolling) { //no more data on this log
+                //done processing disk data switch to the memory
+                    memPolling = true;
+                    memPoller = memIndex.poller();
+                    return poll();
+
+//                //done processing last mem poller, and we've got a new one, switch to the new one, unless there's a disk poller
+//                if (memPolling && memPoller.headOfLog()) {
+//
+//                    memPoller = memIndex.poller();
+//                    return poll();
+//                }
+
             }
-            if(indexEntry != null && memPolling) {
-                processedMemItems++;
+            if(memPolling && indexEntry != null) {
+                readFromMemory++;
             }
             return indexEntry;
 
         }
 
+        private void skipReadEntries() throws InterruptedException {
+            long skipped = 0;
+            while (skipped < readFromMemory) {
+                IndexEntry polled = diskPoller.poll();
+                if(polled != null) {
+                    skipped++;
+                }else {
+                    logger.warn("Expected data to be available on disk");
+                }
+            }
+        }
+
         @Override
-        public IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+        public synchronized IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
             return null;
         }
 
         @Override
-        public IndexEntry take() throws InterruptedException {
+        public synchronized IndexEntry take() throws InterruptedException {
             return null;
         }
 
         @Override
-        public boolean endOfLog() {
+        public boolean headOfLog() {
             return false;
         }
 
@@ -214,9 +253,21 @@ public class TableIndex implements Index, Flushable {
         }
 
         @Override
-        public void close() throws IOException {
+        public  void close() throws IOException {
 
         }
+
+        public synchronized void onFlush() {
+            if(memPolling) {
+                memPolling = false;
+            }
+            try {
+                memPoller.close();
+            } catch (IOException e) {
+                throw RuntimeIOException.of(e);
+            }
+        }
+
     }
 
 

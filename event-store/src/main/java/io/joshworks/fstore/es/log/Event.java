@@ -30,7 +30,7 @@ public class Event {
     }
 
     public static Event create(String stream, String type, byte[] data) {
-        return new Event(type, stream, data, System.currentTimeMillis());
+        return new Event(stream, type , data, System.currentTimeMillis());
     }
 
     public void stream(String stream) {

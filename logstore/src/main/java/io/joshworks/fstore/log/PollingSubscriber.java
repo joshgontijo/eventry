@@ -15,7 +15,7 @@ public interface PollingSubscriber<T> extends Closeable {
 
     T take() throws InterruptedException;
 
-    boolean endOfLog();
+    boolean headOfLog();
 
     long position();
 

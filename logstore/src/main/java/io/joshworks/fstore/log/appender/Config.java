@@ -25,11 +25,11 @@ public class Config<T> {
     SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
 
     int segmentBitShift = Long.SIZE - SEGMENT_BITS;
-    long segmentSize = Size.MEGABYTE.toBytes(10);
+    int segmentSize = (int) Size.MEGABYTE.toBytes(10);
     boolean mmap;
     boolean asyncFlush;
     int maxSegmentsPerLevel = 3;
-    int mmapBufferSize = (int) segmentSize; //FIXME
+    int mmapBufferSize = segmentSize;
     boolean flushAfterWrite;
     boolean threadPerLevel;
     boolean compactionDisabled;
@@ -41,7 +41,7 @@ public class Config<T> {
         this.serializer = serializer;
     }
 
-    public Config<T> segmentSize(long size) {
+    public Config<T> segmentSize(int size) {
         long maxAddress = BitUtil.maxValueForBits(segmentBitShift);
         if (size > maxAddress) {
             throw new IllegalArgumentException("Maximum position allowed is " + maxAddress);
