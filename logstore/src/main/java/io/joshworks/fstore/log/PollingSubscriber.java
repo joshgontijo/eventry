@@ -17,6 +17,8 @@ public interface PollingSubscriber<T> extends Closeable {
 
     boolean headOfLog();
 
+    boolean endOfLog();
+
     long position();
 
 }

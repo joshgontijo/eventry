@@ -18,7 +18,7 @@ public class BlockSerializer<T> implements Serializer<Block<T>> {
     public ByteBuffer toBytes(Block<T> data) {
         ByteBuffer dest = ByteBuffer.allocate(data.size() + 16);
         writeTo(data, dest);
-        return (ByteBuffer) dest.flip();
+        return dest.flip();
     }
 
     @Override

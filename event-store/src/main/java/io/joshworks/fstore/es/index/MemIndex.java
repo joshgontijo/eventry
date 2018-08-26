@@ -10,11 +10,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Queue;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -24,16 +26,18 @@ import java.util.stream.Stream;
 public class MemIndex implements Index {
 
     private final Map<Long, SortedSet<IndexEntry>> index = new ConcurrentHashMap<>();
+    private final Queue<IndexEntry> insertOrder = new ConcurrentLinkedQueue<>();
     private final AtomicInteger size = new AtomicInteger();
 
     private final List<MemPoller> pollers = new ArrayList<>();
 
-    public void add(IndexEntry entry) {
+    public synchronized void add(IndexEntry entry) {
         index.compute(entry.stream, (k, v) -> {
             if (v == null)
                 v = new TreeSet<>();
             v.add(entry);
             size.incrementAndGet();
+            insertOrder.add(entry);
             adToPollers(entry);
             return v;
         });
@@ -61,8 +65,12 @@ public class MemIndex implements Index {
     @Override
     public void close() {
         index.clear();
+        insertOrder.clear();
         size.set(0);
-        pollers.clear();
+        for (MemPoller poller : pollers) {
+            poller.close();
+        }
+
     }
 
     @Override
@@ -105,24 +113,17 @@ public class MemIndex implements Index {
 
     @Override
     public LogIterator<IndexEntry> iterator() {
-        return Iterators.of(Collections.unmodifiableSet(indexEntries()));
-    }
-
-    public SortedSet<IndexEntry> indexEntries() {
-        return index.values().stream().reduce(new TreeSet<>(), (state, next) -> {
-            state.addAll(next);
-            return state;
-        });
+        return Iterators.of(insertOrder);
     }
 
     private void adToPollers(IndexEntry entry) {
-        for (MemPoller poller : pollers) {
+        for (MemPoller poller : new ArrayList<>(pollers)) {
             poller.add(entry);
         }
     }
 
-    PollingSubscriber<IndexEntry> poller() {
-        MemPoller memPoller = new MemPoller(new LinkedBlockingDeque<>(indexEntries()));
+    synchronized PollingSubscriber<IndexEntry> poller() {
+        MemPoller memPoller = new MemPoller(new LinkedBlockingDeque<>(insertOrder));
         pollers.add(memPoller);
         return memPoller;
     }
@@ -158,6 +159,11 @@ public class MemIndex implements Index {
 
         @Override
         public boolean headOfLog() {
+            return queue.isEmpty();
+        }
+
+        @Override
+        public boolean endOfLog() {
             return closed.get() && queue.isEmpty();
         }
 
@@ -168,13 +174,10 @@ public class MemIndex implements Index {
 
         @Override
         public void close() {
-            closed.compareAndSet(false, true);
+            closed.set(true);
         }
 
         private void add(IndexEntry entry) {
-            if (closed.get()) {
-                return;
-            }
             queue.add(entry);
         }
     }

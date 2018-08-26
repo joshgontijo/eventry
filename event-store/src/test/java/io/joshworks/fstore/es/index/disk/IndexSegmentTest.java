@@ -9,6 +9,7 @@ import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.reader.HeaderLengthDataReader;
 import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.log.segment.block.FixedSizeBlockSerializer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

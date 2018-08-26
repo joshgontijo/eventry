@@ -1,8 +1,11 @@
 package io.joshworks.fstore.log.appender.merge;
 
+import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.segment.Log;
 
-import java.util.Iterator;
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -16,12 +19,14 @@ public abstract class MergeCombiner<T extends Comparable<T>>  implements Segment
     @Override
     public void merge(List<? extends Log<T>> segments, Log<T> output) {
 
-        List<Iterator<T>> iterators = segments.stream().map(Log::iterator).collect(Collectors.toList());
+        List<LogIterator<T>> iterators = segments.stream().map(Log::iterator).collect(Collectors.toList());
 
-        for (Iterator<T> iterator : iterators) {
+        for (LogIterator<T> iterator : iterators) {
             IteratorContainer<T> container = new IteratorContainer<>(iterator);
             if (container.next()) {
                 add(container);
+            } else {
+                IOUtils.closeQuietly(container);
             }
         }
 
@@ -33,13 +38,17 @@ public abstract class MergeCombiner<T extends Comparable<T>>  implements Segment
                 add(ac);
             }
         }
+
+        for (LogIterator<T> iterator : iterators) {
+            IOUtils.closeQuietly(iterator);
+        }
     }
 
-    static class IteratorContainer<T extends Comparable<T>> implements Comparable<IteratorContainer<T>> {
-        Iterator<T> it;
+    static class IteratorContainer<T extends Comparable<T>> implements Comparable<IteratorContainer<T>>, Closeable {
+        LogIterator<T> it;
         T current;
 
-        public IteratorContainer(Iterator<T> it) {
+        public IteratorContainer(LogIterator<T> it) {
             this.it = it;
         }
 
@@ -54,6 +63,11 @@ public abstract class MergeCombiner<T extends Comparable<T>>  implements Segment
             Objects.requireNonNull(o.current, "Other item is null");
 
             return current.compareTo(o.current);
+        }
+
+        @Override
+        public void close() throws IOException {
+            it.close();
         }
     }
 }

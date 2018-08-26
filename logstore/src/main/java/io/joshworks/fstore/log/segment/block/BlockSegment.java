@@ -1,8 +1,8 @@
 package io.joshworks.fstore.log.segment.block;
 
-import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
+import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
@@ -20,6 +20,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -139,12 +140,12 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
     @Override
     public PollingSubscriber<T> poller(long position) {
-        return null;
+        return new BlockPoller(delegate.poller(position));
     }
 
     @Override
     public PollingSubscriber<T> poller() {
-        return null;
+        return new BlockPoller(delegate.poller());
     }
 
     @Override
@@ -175,6 +176,11 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
         delegate.close();
     }
 
+    @Override
+    public String toString() {
+        return delegate.toString();
+    }
+
     private static class BlockIterator<T, B extends Block<T>> implements LogIterator<T> {
 
         private final LogIterator<B> segmentIterator;
@@ -195,6 +201,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
                 return true;
             }
             if (!segmentIterator.hasNext()) {
+                IOUtils.closeQuietly(segmentIterator);
                 return false;
             }
             B block = segmentIterator.next();
@@ -213,11 +220,82 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
         @Override
         public void close() {
-            try {
-                segmentIterator.close();
-            } catch (IOException e) {
-                throw RuntimeIOException.of(e);
-            }
+            IOUtils.closeQuietly(segmentIterator);
         }
     }
+
+    private final class BlockPoller implements PollingSubscriber<T> {
+
+        private final PollingSubscriber<B> segmentPoller;
+        private Queue<T> entries = new LinkedList<>();
+
+        public BlockPoller(PollingSubscriber<B> segmentPoller) {
+            this.segmentPoller = segmentPoller;
+        }
+
+        @Override
+        public T peek() throws InterruptedException {
+            if(entries.isEmpty()) {
+                B polled = segmentPoller.poll();
+                if(polled != null) {
+                    entries.addAll(polled.entries());
+                }
+            }
+            return entries.peek();
+        }
+
+        @Override
+        public T poll() throws InterruptedException {
+            if(entries.isEmpty()) {
+                B polled = segmentPoller.poll();
+                if(polled != null) {
+                    entries.addAll(polled.entries());
+                }
+            }
+            return entries.poll();
+        }
+
+        @Override
+        public T poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+            if(entries.isEmpty()) {
+                B polled = segmentPoller.poll(limit, timeUnit);
+                if(polled != null) {
+                    entries.addAll(polled.entries());
+                }
+            }
+            return entries.poll();
+        }
+
+        @Override
+        public T take() throws InterruptedException {
+            if(entries.isEmpty()) {
+                B polled = segmentPoller.take();
+                if(polled != null) {
+                    entries.addAll(polled.entries());
+                }
+            }
+            return entries.poll();
+        }
+
+        @Override
+        public boolean headOfLog() {
+            return entries.isEmpty() && segmentPoller.headOfLog();
+        }
+
+        @Override
+        public boolean endOfLog() {
+            return segmentPoller.endOfLog();
+        }
+
+        @Override
+        public long position() {
+            return 0;
+        }
+
+        @Override
+        public void close() throws IOException {
+            segmentPoller.close();
+        }
+    }
+
 }

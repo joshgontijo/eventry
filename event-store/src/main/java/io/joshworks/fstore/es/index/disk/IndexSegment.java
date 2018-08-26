@@ -48,7 +48,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     }
 
     @Override
-    protected long writeBlock() {
+    protected synchronized long writeBlock() {
         FixedSizeEntryBlock<IndexEntry> block = currentBlock();
         long position = position();
         if (block.isEmpty()) {
@@ -69,7 +69,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     }
 
     @Override
-    public void flush() {
+    public synchronized void flush() {
         super.flush(); //flush super first, so writeBlock is called
         midpoints.write();
         filter.write();
@@ -165,6 +165,11 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     @Override
     protected FixedSizeEntryBlock<IndexEntry> createBlock() {
         return new FixedSizeEntryBlock<>(new IndexEntrySerializer(), 204, IndexEntry.BYTES);
+    }
+
+    @Override
+    public String toString() {
+        return super.toString();
     }
 
     private static final class RangeIndexEntryIterator implements LogIterator<IndexEntry> {

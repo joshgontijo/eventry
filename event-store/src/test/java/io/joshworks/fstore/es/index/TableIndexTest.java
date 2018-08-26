@@ -1,16 +1,19 @@
 package io.joshworks.fstore.es.index;
 
 import io.joshworks.fstore.es.Utils;
+import io.joshworks.fstore.log.PollingSubscriber;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class TableIndexTest {
@@ -304,4 +307,101 @@ public class TableIndexTest {
         int version = tableIndex.version(1234);
         assertEquals(IndexEntry.NO_VERSION, version);
     }
+
+    @Test
+    public void poll_returns_data_from_memory() throws IOException, InterruptedException {
+        int entries = 500;
+        for (int i = 0; i <= entries; i++) {
+            tableIndex.add(i, 0, 0);
+        }
+
+        try(PollingSubscriber<IndexEntry> poller = tableIndex.poller()) {
+
+            for (int i = 0; i <= entries; i++) {
+                IndexEntry poll = poller.poll();
+                assertNotNull(poll);
+                assertEquals(i, poll.stream);
+            }
+
+        }
+    }
+
+    @Test
+    public void poll_returns_data_from_disk() throws IOException, InterruptedException {
+        int entries = 500;
+        for (int i = 0; i <= entries; i++) {
+            tableIndex.add(i, 0, 0);
+        }
+
+        tableIndex.flush();
+
+        try(PollingSubscriber<IndexEntry> poller = tableIndex.poller()) {
+
+            for (int i = 0; i <= entries; i++) {
+                IndexEntry poll = poller.poll();
+                assertNotNull(poll);
+                assertEquals(i, poll.stream);
+            }
+
+        }
+    }
+
+    @Test
+    public void poll_returns_data_from_disk_and_memory() throws IOException, InterruptedException {
+        int memEntries = 500;
+        int diskEntries = 500;
+        int totalEntries = 1000;
+        //disk (from (0 to 500)
+        for (int i = 0; i < memEntries; i++) {
+            tableIndex.add(i, 0, 0);
+        }
+
+        tableIndex.flush();
+
+        //mem (stream from 500 to 999)
+        for (int i = diskEntries; i < totalEntries; i++) {
+            tableIndex.add(i, 0, 0);
+        }
+
+//        tableIndex.flush();
+
+        try(PollingSubscriber<IndexEntry> poller = tableIndex.poller()) {
+
+            for (int i = 0; i < totalEntries; i++) {
+                IndexEntry poll = poller.poll();
+                System.out.println(poll);
+                assertNotNull("Failed on " + i, poll);
+                assertEquals(i, poll.stream);
+            }
+
+        }
+    }
+
+    @Test
+    public void take_returns_data_from_disk_and_memory_IT() throws IOException, InterruptedException {
+        int totalEntries = 5000000;
+
+        new Thread(() -> {
+            for (int i = 0; i < totalEntries; i++) {
+                tableIndex.add(i, 0, 0);
+            }
+            System.out.println("COMPLETED WRITE");
+        }).start();
+
+        try(PollingSubscriber<IndexEntry> poller = tableIndex.poller()) {
+            for (int i = 0; i < totalEntries; i++) {
+                if(i == 1000000) {
+                    System.out.println("aaa");
+                }
+                IndexEntry poll = poller.take();
+//                System.out.println(poll);
+                assertNotNull("Failed on " + i + ": " + poll, poll);
+                assertEquals("Failed on " + i + ": " + poll, i, poll.stream);
+            }
+            System.out.println("COMPLETED READ");
+        }
+    }
+
+
+
 }

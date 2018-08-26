@@ -1,11 +1,14 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 import io.joshworks.fstore.log.segment.block.Block;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.concurrent.TimeUnit;
 
 public class BlockAppender<T> extends SimpleLogAppender<Block<T>> {
 
@@ -14,6 +17,7 @@ public class BlockAppender<T> extends SimpleLogAppender<Block<T>> {
 
     private Block<T> block;
 
+    //TODO improve
     public BlockAppender(Config<Block<T>> config, Serializer<T> serializer, int blockSize) {
         super(config);
         this.blockSize = blockSize;
@@ -55,9 +59,9 @@ public class BlockAppender<T> extends SimpleLogAppender<Block<T>> {
     private static class BlockItemIterator<T> implements Iterator<T> {
 
         private Iterator<T> blockIterator;
-        private final Iterator<Block<T>> appenderIterator;
+        private final Iterator<io.joshworks.fstore.log.segment.block.Block<T>> appenderIterator;
 
-        private BlockItemIterator(Iterator<Block<T>> iterator) {
+        private BlockItemIterator(Iterator<io.joshworks.fstore.log.segment.block.Block<T>> iterator) {
             this.appenderIterator = iterator;
             blockIterator = appenderIterator.hasNext() ? appenderIterator.next().iterator() : new ArrayList<T>().iterator();
         }
@@ -77,6 +81,51 @@ public class BlockAppender<T> extends SimpleLogAppender<Block<T>> {
         @Override
         public T next() {
             return blockIterator.next();
+        }
+    }
+
+    private static class BlockAppenderPoller<T> implements PollingSubscriber<String> {
+
+        
+
+        @Override
+        public String peek() throws InterruptedException {
+            return null;
+        }
+
+        @Override
+        public String poll() throws InterruptedException {
+            return null;
+        }
+
+        @Override
+        public String poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+            return null;
+        }
+
+        @Override
+        public String take() throws InterruptedException {
+            return null;
+        }
+
+        @Override
+        public boolean headOfLog() {
+            return false;
+        }
+
+        @Override
+        public boolean endOfLog() {
+            return false;
+        }
+
+        @Override
+        public long position() {
+            return 0;
+        }
+
+        @Override
+        public void close() throws IOException {
+
         }
     }
 

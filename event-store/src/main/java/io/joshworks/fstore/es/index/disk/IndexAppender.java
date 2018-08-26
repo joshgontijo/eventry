@@ -15,6 +15,7 @@ import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
+import io.joshworks.fstore.log.segment.block.FixedSizeBlockSerializer;
 
 import java.io.File;
 import java.util.Iterator;

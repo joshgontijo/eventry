@@ -506,6 +506,25 @@ public class LogAppenderTest {
         }
     }
 
+    @Test
+    public void poll_headOfLog_returns_true_when_no_data_is_available() {
+
+        PollingSubscriber<String> poller = appender.poller();
+        assertTrue(poller.headOfLog());
+        appender.append("a");
+        assertFalse(poller.headOfLog());
+    }
+
+    @Test
+    public void poll_endOfLog_always_returns_false() {
+
+        PollingSubscriber<String> poller = appender.poller();
+        assertFalse(poller.endOfLog());
+        appender.append("a");
+        assertFalse(poller.endOfLog());
+
+    }
+
     private static void sleep(long time) {
         try {
             Thread.sleep(time);

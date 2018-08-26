@@ -346,7 +346,7 @@ public abstract class SegmentTest {
             executor.submit(() -> {
                 try {
                     PollingSubscriber<String> poller = segment.poller();
-                    String polled = poller.poll();
+                    String polled = poller.take();
                     if (polled != null)
                         captured.add(polled);
                 } catch (InterruptedException e) {
@@ -431,5 +431,31 @@ public abstract class SegmentTest {
             fail("Thread was not released");
         }
         assertNull(captured.get());
+    }
+
+    @Test
+    public void poll_headOfLog_returns_true_when_no_data_is_available() {
+
+        PollingSubscriber<String> poller = segment.poller();
+        assertTrue(poller.headOfLog());
+        segment.append("a");
+        assertFalse(poller.headOfLog());
+    }
+
+    @Test
+    public void poll_endOfLog_always_returns_false_only_when_segment_is_closed() throws InterruptedException {
+
+        PollingSubscriber<String> poller = segment.poller();
+        assertFalse(poller.endOfLog());
+
+        segment.append("a");
+        assertFalse(poller.endOfLog());
+
+        segment.roll(1);
+        assertFalse(poller.endOfLog());
+
+        poller.poll();
+        assertTrue(poller.endOfLog());
+
     }
 }

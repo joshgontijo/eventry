@@ -394,10 +394,6 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             state.position(currentSegment.position());
         }
 
-        for (LogPoller poller : pollers) {
-            poller.close();
-        }
-
         state.flush();
         state.close();
 
@@ -405,6 +401,10 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             logger.info("Closing segment {}", segment.name());
             IOUtils.closeQuietly(segment);
         });
+
+        for (LogPoller poller : pollers) {
+            poller.close();
+        }
 
     }
 
@@ -541,7 +541,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     private class LogPoller implements PollingSubscriber<T> {
 
-        private final BlockingQueue<PollingSubscriber<T>> segmentQueue = new LinkedBlockingQueue<>();
+        private final BlockingQueue<PollingSubscriber<T>> segmentPollers = new LinkedBlockingQueue<>();
         private final int MAX_SEGMENT_WAIT_SEC = 5;
         private PollingSubscriber<T> currentPoller;
         private int segmentIdx;
@@ -563,7 +563,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             }
 
             while (segments.hasNext()) {
-                segmentQueue.add(segments.next().poller());
+                segmentPollers.add(segments.next().poller());
             }
 
         }
@@ -592,15 +592,15 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             if (closed.get()) {
                 return null;
             }
-            T item = currentPoller.poll(limit, timeUnit);
-            if (nextSegment() && item == null)
+            T item = limit < 0 ? currentPoller.poll() : currentPoller.poll(limit, timeUnit);
+            if (item == null && nextSegment())
                 return pollData(limit, timeUnit);
             return item;
         }
 
         private boolean nextSegment() throws InterruptedException {
-            if (currentPoller.headOfLog()) { //end of segment
-                closePoller(this.currentPoller);
+            if (currentPoller.endOfLog()) { //end of segment
+                IOUtils.closeQuietly(this.currentPoller);
                 this.currentPoller = waitForNextSegment();
                 if (this.currentPoller == null) { //close was called
                     return false;
@@ -626,8 +626,8 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
                 return null;
             }
             T item = currentPoller.take();
-            if (currentPoller.headOfLog()) { //end of segment
-                closePoller(this.currentPoller);
+            if (currentPoller.endOfLog()) { //end of segment
+                IOUtils.closeQuietly(this.currentPoller);
                 this.currentPoller = waitForNextSegment();
 
                 if (this.currentPoller == null) { //close was called
@@ -653,14 +653,28 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         private PollingSubscriber<T> waitForNextSegment() throws InterruptedException {
             PollingSubscriber<T> next = null;
             while (!closed.get() && next == null) {
-                next = segmentQueue.poll(MAX_SEGMENT_WAIT_SEC, TimeUnit.SECONDS);//wait next segment, should never wait really
+                next = segmentPollers.poll(MAX_SEGMENT_WAIT_SEC, TimeUnit.SECONDS);//wait next segment, should never wait really
             }
             return next;
         }
 
         @Override
-        public boolean headOfLog() {
-            return segmentIdx == levels.numSegments() && currentPoller.headOfLog();
+        public synchronized boolean headOfLog() {
+            //if end of current segment, check the next one
+            if(currentPoller.headOfLog()) {
+                boolean isLatestSegment = segmentIdx == levels.numSegments() - 1;
+                if(!isLatestSegment) {
+                    PollingSubscriber<T> poll = segmentPollers.peek();
+                    return poll.headOfLog();
+                }
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public boolean endOfLog() {
+            return false;
         }
 
         @Override
@@ -673,16 +687,17 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             if (!closed.compareAndSet(false, true)) {
                 return;
             }
-            try {
-                LogAppender.this.pollers.remove(this);
-                currentPoller.close();
-            } catch (IOException e) {
-                throw RuntimeIOException.of(e);
+            for (PollingSubscriber<T> poller : segmentPollers) {
+                IOUtils.closeQuietly(poller);
             }
+
+            segmentPollers.clear();
+            LogAppender.this.pollers.remove(this);
+            IOUtils.closeQuietly(currentPoller);
         }
 
         private void addSegment(L segment) {
-            segmentQueue.add(segment.poller());
+            segmentPollers.add(segment.poller());
         }
 
     }

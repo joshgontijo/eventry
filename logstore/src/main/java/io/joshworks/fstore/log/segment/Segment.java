@@ -155,8 +155,7 @@ public class Segment<T> implements Log<T> {
     @Override
     public PollingSubscriber<T> poller(long position) {
         SegmentPoller segmentPoller = new SegmentPoller(storage, reader, serializer, position);
-        this.readers.add(segmentPoller);
-        return segmentPoller;
+        return addToReaders(segmentPoller);
     }
 
     @Override
@@ -297,6 +296,15 @@ public class Segment<T> implements Log<T> {
         return footer;
     }
 
+    private <R extends TimeoutReader> R addToReaders(R reader) {
+        readers.add(reader);
+        return reader;
+    }
+
+    private <R extends TimeoutReader> void removeFromReaders(R reader) {
+        readers.remove(reader);
+    }
+
     private void writeEndOfLog() {
         storage.write(ByteBuffer.wrap(Log.EOL));
     }
@@ -333,8 +341,7 @@ public class Segment<T> implements Log<T> {
         }
 
         LogReader logReader = new LogReader(storage, reader, serializer, pos);
-        readers.add(logReader);
-        return logReader;
+        return addToReaders(logReader);
     }
 
     @Override
@@ -391,6 +398,7 @@ public class Segment<T> implements Log<T> {
         return "LogSegment{" + "handler=" + storage.name() +
                 ", entries=" + entries +
                 ", header=" + header +
+                ", readers=" + Arrays.toString(readers.toArray()) +
                 '}';
     }
 
@@ -465,7 +473,16 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public void close() {
-            readers.remove(this);
+            Segment.this.removeFromReaders(this);
+        }
+
+        @Override
+        public String toString() {
+            return "SegmentPoller{" + ", uuid='" + uuid + '\'' +
+                    ", readPosition=" + position +
+                    ", readAheadPosition=" + readAheadPosition +
+                    ", lastReadTs=" + lastReadTs +
+                    '}';
         }
     }
 
@@ -493,7 +510,9 @@ public class Segment<T> implements Log<T> {
                 close();
                 return null;
             }
-            readPosition = advance ? readPosition += bb.limit() : readPosition;
+            if (advance) {
+                readPosition += bb.limit();
+            }
             return serializer.fromBytes(bb);
         }
 
@@ -508,6 +527,9 @@ public class Segment<T> implements Log<T> {
         }
 
         private boolean hasDataAvailable() {
+            if (Segment.this.readOnly()) {
+                return readPosition < Segment.this.header.logEnd;
+            }
             return readPosition < Segment.this.position();
         }
 
@@ -563,7 +585,16 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public boolean headOfLog() {
-            return readOnly() && header.logEnd > 0 && readPosition >= header.logEnd;
+            if (Segment.this.readOnly()) {
+                return readPosition >= Segment.this.header.logEnd;
+            }
+            return readPosition == Segment.this.position();
+        }
+
+        @Override
+        public boolean endOfLog() {
+            return readOnly() && readPosition >= header.logEnd;
+
         }
 
         @Override
@@ -573,7 +604,15 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public void close() {
-            readers.remove(this);
+            Segment.this.removeFromReaders(this);
+        }
+
+        @Override
+        public String toString() {
+            return "SegmentPoller{ uuid='" + uuid + '\'' +
+                    ", readPosition=" + readPosition +
+                    ", lastReadTs=" + lastReadTs +
+                    '}';
         }
     }
 

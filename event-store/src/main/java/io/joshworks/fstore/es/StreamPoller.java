@@ -138,6 +138,11 @@ public class StreamPoller implements PollingSubscriber<Event> {
     }
 
     @Override
+    public boolean endOfLog() {
+        return logPoller.endOfLog() && projectionsPoller.endOfLog();
+    }
+
+    @Override
     public long position() {
         return -1;
     }

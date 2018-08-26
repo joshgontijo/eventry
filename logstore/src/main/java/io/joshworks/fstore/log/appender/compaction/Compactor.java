@@ -179,12 +179,16 @@ public class Compactor<T, L extends Log<T>> {
             pendingReaders = 0;
             for (L segment : segments) {
                 Set<TimeoutReader> readers = segment.readers();
+                if(!readers.isEmpty()) {
+                    logger.info("Pending segment: {}", segment);
+                }
                 for (TimeoutReader logReader : readers) {
                     if (System.currentTimeMillis() - logReader.lastReadTs() > TimeUnit.MINUTES.toMillis(10)) {
                         logger.warn("Removing reader after 10s of inactivity");
                         readers.remove(logReader);
                     } else {
                         pendingReaders += readers.size();
+
                     }
                 }
 
