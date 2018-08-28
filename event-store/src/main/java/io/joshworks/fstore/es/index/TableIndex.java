@@ -18,7 +18,7 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 public class TableIndex implements Index, Flushable {
@@ -85,9 +85,15 @@ public class TableIndex implements Index, Flushable {
         if (memIndex.isEmpty()) {
             return;
         }
+
+        for (IndexPoller poller : pollers) {
+            poller.updateFlushed(memIndex.size());
+        }
+
         for (IndexEntry indexEntry : memIndex) {
             diskIndex.append(indexEntry);
         }
+
         diskIndex.roll();
 
 
@@ -191,9 +197,8 @@ public class TableIndex implements Index, Flushable {
 
         private final PollingSubscriber<IndexEntry> diskPoller;
         private PollingSubscriber<IndexEntry> memPoller;
-        //        private volatile boolean memPolling;
-        private final AtomicInteger indexFlushes = new AtomicInteger();
         private long readFromMemory;
+        private long flushedItems;
 
         private IndexPoller(PollingSubscriber<IndexEntry> diskPoller) {
             this.diskPoller = diskPoller;
@@ -202,25 +207,57 @@ public class TableIndex implements Index, Flushable {
 
         @Override
         public synchronized IndexEntry peek() throws InterruptedException {
-            return null;
+            return getIndexEntry(poller -> {
+                try {
+                    return poller.peek();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+            });
         }
 
         @Override
         public synchronized IndexEntry poll() throws InterruptedException {
-            throw new UnsupportedOperationException("TODO");
+            return getIndexEntry(poller -> {
+                try {
+                    return poller.poll();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+            });
         }
 
 
         @Override
         public synchronized IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
-            return null;
+            return getIndexEntry(poller -> {
+                try {
+                    return poller.poll(limit, timeUnit);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+            });
         }
 
         @Override
         public synchronized IndexEntry take() throws InterruptedException {
-            if (!diskPoller.headOfLog() && memPoller.endOfLog()) {
+            return getIndexEntry(poller -> {
+                try {
+                    return poller.take();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+
+        private IndexEntry getIndexEntry(Function<PollingSubscriber<IndexEntry>, IndexEntry> func) throws InterruptedException {
+            if (!diskPoller.headOfLog()) {
                 while (readFromMemory > 0) {
-                    IndexEntry polled = diskPoller.take();
+                    IndexEntry polled = func.apply(diskPoller);
                     if (polled == null) {
                         throw new IllegalStateException("Polled value was null");
                     }
@@ -234,8 +271,8 @@ public class TableIndex implements Index, Flushable {
             if (memPoller.endOfLog()) {
                 memPoller = newMemPoller();
             }
-            IndexEntry polled = memPoller.take();
-            if(polled == null && memPoller.endOfLog()) { //closed while waiting for data
+            IndexEntry polled = func.apply(memPoller);
+            if (polled == null && memPoller.endOfLog()) { //closed while waiting for data
                 memPoller = newMemPoller();
                 return take();
             }
@@ -262,6 +299,10 @@ public class TableIndex implements Index, Flushable {
         public void close() {
             IOUtils.closeQuietly(diskPoller);
             IOUtils.closeQuietly(memPoller);
+        }
+
+        private synchronized void updateFlushed(long num) {
+            this.flushedItems += num;
         }
 
         private PollingSubscriber<IndexEntry> newMemPoller() {

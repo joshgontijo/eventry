@@ -22,6 +22,7 @@ import io.joshworks.fstore.log.appender.LogAppender;
 
 import java.io.Closeable;
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -32,6 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -155,14 +157,6 @@ public class EventStore implements Closeable {
                 .collect(Collectors.toMap(Tuple::a, Tuple::b));
     }
 
-    public PollingSubscriber<Event> poller(String stream, int version) {
-        long streamHash = hasher.hash(stream);
-        return index.get(streamHash, version)
-                //TODO poller should poll the index, not the log
-                .map(ie -> eventLog.poller(ie.position))
-                .orElseGet(eventLog::poller);
-    }
-
     public int version(String stream) {
         long streamHash = hasher.hash(stream);
         return streams.version(streamHash);
@@ -213,6 +207,15 @@ public class EventStore implements Closeable {
         return add(streamMetadata, event, expectedVersion);
     }
 
+    public PollingSubscriber<Event> poller() {
+        return new EventStorePoller(index.poller(), eventLog);
+    }
+
+    public PollingSubscriber<Event> poller(String stream, int version) {
+        long streamHash = hasher.hash(stream);
+        return new EventStorePoller(index.poller(streamHash, version), eventLog);
+    }
+
     private Event add(StreamMetadata streamMetadata, Event event, int expectedVersion) {
         if(streamMetadata == null) {
             throw new IllegalArgumentException("EventStream cannot be null");
@@ -259,5 +262,64 @@ public class EventStore implements Closeable {
         eventLog.close();
         streams.close();
         projectionsLog.close();
+    }
+
+    private static class EventStorePoller implements PollingSubscriber<Event> {
+
+        private final PollingSubscriber<IndexEntry> indexPoller;
+        private final EventLog log;
+
+        private EventStorePoller(PollingSubscriber<IndexEntry> indexPoller, EventLog log) {
+            this.indexPoller = indexPoller;
+            this.log = log;
+        }
+
+        private Event getOrElse(IndexEntry peek) {
+            return Optional.of(peek).map(i -> log.get(i.position)).orElse(null);
+        }
+
+        @Override
+        public Event peek() throws InterruptedException {
+            IndexEntry peek = indexPoller.peek();
+            return getOrElse(peek);
+        }
+
+        @Override
+        public Event poll() throws InterruptedException {
+            IndexEntry poll = indexPoller.poll();
+            return getOrElse(poll);
+        }
+
+        @Override
+        public Event poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+            IndexEntry poll = indexPoller.poll(limit, timeUnit);
+            return getOrElse(poll);
+        }
+
+        @Override
+        public Event take() throws InterruptedException {
+            IndexEntry take = indexPoller.take();
+            return getOrElse(take);
+        }
+
+        @Override
+        public boolean headOfLog() {
+            return indexPoller.headOfLog();
+        }
+
+        @Override
+        public boolean endOfLog() {
+            return indexPoller.endOfLog();
+        }
+
+        @Override
+        public long position() {
+            return -1;
+        }
+
+        @Override
+        public void close() throws IOException {
+            indexPoller.close();
+        }
     }
 }

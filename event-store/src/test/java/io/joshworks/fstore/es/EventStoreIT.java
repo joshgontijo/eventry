@@ -4,11 +4,13 @@ import io.joshworks.fstore.es.hash.Murmur3Hash;
 import io.joshworks.fstore.es.hash.XXHash;
 import io.joshworks.fstore.es.index.StreamHasher;
 import io.joshworks.fstore.es.log.Event;
+import io.joshworks.fstore.log.PollingSubscriber;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -24,6 +26,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -489,6 +492,31 @@ public class EventStoreIT {
         assertEquals(numStreams * numVersions, eventCounter);
     }
 
+    @Test
+    public void poller_returns_all_items() throws IOException, InterruptedException {
+
+        int items = 1000000;
+        for (int i = 0; i < items; i++) {
+            store.add(Event.create("stream", "type", "data"));
+            if(i % 10000 == 0) {
+                System.out.println("WRITE: " + i);
+            }
+        }
+
+        System.out.println("Write completed");
+        try (PollingSubscriber<Event> poller = store.poller()) {
+            for (int i = 0; i < items; i++) {
+                Event event = poller.take();
+                assertNotNull(event);
+                assertEquals(i, event.version());
+                if(i % 10000 == 0) {
+                    System.out.println("READ: " + i);
+                }
+            }
+        }
+
+    }
+
     private void testWith(int streams, int numVersionPerStream) {
         long start = System.currentTimeMillis();
 
@@ -515,7 +543,7 @@ public class EventStoreIT {
                 assertEquals(numVersionPerStream - 1, foundVersion);
 
                 //FROM STREAM
-                try(Stream<Event> events = store.fromStream(streamName)) {
+                try (Stream<Event> events = store.fromStream(streamName)) {
                     assertEquals(numVersionPerStream, events.collect(Collectors.toList()).size());
 
                     for (int version = 0; version < numVersionPerStream; version++) {

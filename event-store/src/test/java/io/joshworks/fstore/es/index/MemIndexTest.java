@@ -209,7 +209,7 @@ public class MemIndexTest {
     }
 
     @Test
-    public void close_clears_the_map_and_size() {
+    public void close_doesnt_clear_the_map_and_size() {
         //given
         index.add(IndexEntry.of(0, 1, 0));
         index.close();
@@ -219,8 +219,8 @@ public class MemIndexTest {
         int size = index.size();
 
         //then
-        assertTrue(empty);
-        assertEquals(0, size);
+        assertFalse(empty);
+        assertEquals(1, size);
     }
 
     @Test
