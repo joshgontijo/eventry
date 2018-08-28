@@ -80,7 +80,7 @@ public class TableIndex implements Index, Flushable {
 //    }
 
     //only single write can happen at time
-    private synchronized void writeToDisk() {
+    private void writeToDisk() {
         logger.info("Writing index to disk");
         if (memIndex.isEmpty()) {
             return;
@@ -207,25 +207,7 @@ public class TableIndex implements Index, Flushable {
 
         @Override
         public synchronized IndexEntry poll() throws InterruptedException {
-            if (!diskPoller.headOfLog()) {
-                while(readFromMemory > 0) {
-                    IndexEntry polled = diskPoller.take();
-                    if (polled == null) {
-                        throw new IllegalStateException("Polled value was null");
-                    }
-                    readFromMemory--;
-                }
-                return diskPoller.poll();
-            } else {
-                if(memPoller.endOfLog()) {
-                    memPoller = memIndex.poller();
-                }
-                IndexEntry polled = memPoller.poll();
-                if(polled != null) {
-                    readFromMemory++;
-                }
-                return polled;
-            }
+            throw new UnsupportedOperationException("TODO");
         }
 
 
@@ -237,35 +219,32 @@ public class TableIndex implements Index, Flushable {
         @Override
         public synchronized IndexEntry take() throws InterruptedException {
             if (!diskPoller.headOfLog() && memPoller.endOfLog()) {
-                if(readFromMemory > 0)
-                    System.out.println("SKIPPING " + readFromMemory);
-
-                while(readFromMemory > 0) {
+                while (readFromMemory > 0) {
                     IndexEntry polled = diskPoller.take();
-                    if(polled.stream == 999804) {
-                        System.out.println("Skipping " + polled);
-                    }
                     if (polled == null) {
                         throw new IllegalStateException("Polled value was null");
                     }
                     readFromMemory--;
                 }
-                return diskPoller.take();
-            } else {
-                if(memPoller.endOfLog()) {
-                    memPoller = memIndex.poller();
+                if (!diskPoller.headOfLog()) {
+                    return diskPoller.take();
                 }
-                IndexEntry polled = memPoller.take();
-                if(polled != null) {
-                    readFromMemory++;
-                }
-                return polled;
             }
 
+            if (memPoller.endOfLog()) {
+                memPoller = newMemPoller();
+            }
+            IndexEntry polled = memPoller.take();
+            if(polled == null && memPoller.endOfLog()) { //closed while waiting for data
+                memPoller = newMemPoller();
+                return take();
+            }
+            readFromMemory++;
+            return polled;
         }
 
         @Override
-        public boolean headOfLog() {
+        public synchronized boolean headOfLog() {
             return diskPoller.headOfLog() && memPoller.headOfLog();
         }
 
@@ -283,6 +262,11 @@ public class TableIndex implements Index, Flushable {
         public void close() {
             IOUtils.closeQuietly(diskPoller);
             IOUtils.closeQuietly(memPoller);
+        }
+
+        private PollingSubscriber<IndexEntry> newMemPoller() {
+            IOUtils.closeQuietly(memPoller);
+            return memIndex.poller();
         }
 
     }

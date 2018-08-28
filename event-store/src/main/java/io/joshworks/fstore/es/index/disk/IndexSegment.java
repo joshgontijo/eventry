@@ -31,6 +31,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     BloomFilter<Long> filter;
     final Midpoints midpoints;
     final File directory;
+    private static final int MAX_BLOCK_SIZE = 4096;
 
     private static final double FALSE_POSITIVE_PROB = 0.01;
 
@@ -41,7 +42,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
                         Type type,
                         File directory,
                         int numElements) {
-        super(storage, serializer, reader, magic, type);
+        super(storage, new IndexEntrySerializer(), serializer, MAX_BLOCK_SIZE, reader, magic, type);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, new Hash.Murmur64<>(Serializers.LONG));
@@ -163,8 +164,8 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     }
 
     @Override
-    protected FixedSizeEntryBlock<IndexEntry> createBlock() {
-        return new FixedSizeEntryBlock<>(new IndexEntrySerializer(), 204, IndexEntry.BYTES);
+    protected FixedSizeEntryBlock<IndexEntry> createBlock(Serializer<IndexEntry> serializer, int maxBlockSize) {
+        return new FixedSizeEntryBlock<>(serializer, maxBlockSize, IndexEntry.BYTES);
     }
 
     @Override

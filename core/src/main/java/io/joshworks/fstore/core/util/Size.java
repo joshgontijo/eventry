@@ -2,8 +2,6 @@ package io.joshworks.fstore.core.util;
 
 public abstract class Size {
 
-    public static int BLOCK = 4096;
-
     public abstract long toBytes(int value);
 
     public static final Size BYTE = new Size() {

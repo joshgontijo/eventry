@@ -1,13 +1,16 @@
 package io.joshworks.fstore.es.index;
 
+import io.joshworks.fstore.log.PollingSubscriber;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.Optional;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class MemIndexTest {
@@ -391,5 +394,49 @@ public class MemIndexTest {
     public void version_is_minus_one_for_non_existing_stream() {
         int version = index.version(1234);
         assertEquals(IndexEntry.NO_VERSION, version);
+    }
+
+    @Test
+    public void poller_poll_returns_all_data() throws IOException, InterruptedException {
+
+        int entries = 500;
+        for (int i = 0; i < entries; i++) {
+            index.add(IndexEntry.of(i, 0, 0));
+        }
+
+        try (PollingSubscriber<IndexEntry> poller = index.poller()) {
+            for (int i = 0; i < entries; i++) {
+                IndexEntry poll = poller.poll();
+                assertNotNull(poll);
+                assertEquals(i, poll.stream);
+            }
+        }
+    }
+
+    @Test
+    public void endOfLog_when_is_closed_and_read_all_entries() throws IOException, InterruptedException {
+
+        index.add(IndexEntry.of(1, 0, 0));
+
+        PollingSubscriber<IndexEntry> poller = index.poller();
+        assertFalse(poller.endOfLog());
+
+        poller.poll();
+
+        assertFalse(poller.endOfLog());
+        poller.close();
+        assertTrue(poller.endOfLog());
+    }
+
+    @Test
+    public void headOfLog_when_there_are_no_more_entries() throws InterruptedException {
+
+        index.add(IndexEntry.of(1, 0, 0));
+
+        PollingSubscriber<IndexEntry> poller = index.poller();
+        assertFalse(poller.headOfLog());
+
+        poller.poll();
+        assertTrue(poller.headOfLog());
     }
 }

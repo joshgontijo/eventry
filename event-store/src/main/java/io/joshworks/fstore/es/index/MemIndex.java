@@ -10,14 +10,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Queue;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -26,19 +22,19 @@ import java.util.stream.Stream;
 public class MemIndex implements Index {
 
     private final Map<Long, SortedSet<IndexEntry>> index = new ConcurrentHashMap<>();
-    private final Queue<IndexEntry> insertOrder = new ConcurrentLinkedQueue<>();
+    private final List<IndexEntry> insertOrder = new ArrayList<>();
     private final AtomicInteger size = new AtomicInteger();
 
     private final List<MemPoller> pollers = new ArrayList<>();
 
-    public synchronized void add(IndexEntry entry) {
+    public void add(IndexEntry entry) {
         index.compute(entry.stream, (k, v) -> {
             if (v == null)
                 v = new TreeSet<>();
             v.add(entry);
             size.incrementAndGet();
             insertOrder.add(entry);
-            adToPollers(entry);
+//            adToPollers(entry);
             return v;
         });
     }
@@ -64,10 +60,7 @@ public class MemIndex implements Index {
 
     @Override
     public void close() {
-        index.clear();
-        insertOrder.clear();
-        size.set(0);
-        for (MemPoller poller : pollers) {
+        for (MemPoller poller : new ArrayList<>(pollers)) {
             poller.close();
         }
 
@@ -113,63 +106,102 @@ public class MemIndex implements Index {
 
     @Override
     public LogIterator<IndexEntry> iterator() {
-        return Iterators.of(insertOrder);
+        return Iterators.of(new ArrayList<>(insertOrder));
     }
 
-    private void adToPollers(IndexEntry entry) {
-        for (MemPoller poller : new ArrayList<>(pollers)) {
-            poller.add(entry);
-        }
-    }
+//    private void adToPollers(IndexEntry entry) {
+//        for (MemPoller poller : new ArrayList<>(pollers)) {
+//            poller.add(entry);
+//        }
+//    }
 
-    synchronized PollingSubscriber<IndexEntry> poller() {
-        MemPoller memPoller = new MemPoller(new LinkedBlockingDeque<>(insertOrder));
+    PollingSubscriber<IndexEntry> poller() {
+        MemPoller memPoller = new MemPoller();
         pollers.add(memPoller);
         return memPoller;
     }
 
     private class MemPoller implements PollingSubscriber<IndexEntry> {
 
-        private final BlockingQueue<IndexEntry> queue;
+        private static final int VERIFICATION_INTERVAL_MILLIS = 500;
         private final AtomicBoolean closed = new AtomicBoolean();
+        private int position = 0;
 
-        private MemPoller(BlockingQueue<IndexEntry> queue) {
-            this.queue = queue;
+        private boolean hasData() {
+            return position < insertOrder.size();
+        }
+
+        private void waitFor(long time, TimeUnit timeUnit) throws InterruptedException {
+            long elapsed = 0;
+            long start = System.currentTimeMillis();
+            long maxWaitTime = timeUnit.toMillis(time);
+            long interval = Math.min(maxWaitTime, VERIFICATION_INTERVAL_MILLIS);
+            while (!closed.get() && !hasData() && elapsed < maxWaitTime) {
+                TimeUnit.MILLISECONDS.sleep(interval);
+                elapsed = System.currentTimeMillis() - start;
+            }
+        }
+
+        private void waitForData(long time, TimeUnit timeUnit) throws InterruptedException {
+            while (!closed.get() && !hasData()) {
+                timeUnit.sleep(time);
+            }
         }
 
         @Override
-        public IndexEntry peek() {
-            return queue.peek();
+        public synchronized IndexEntry peek() {
+            if (hasData()) {
+                return insertOrder.get(position);
+            }
+            return null;
         }
 
         @Override
-        public IndexEntry poll() {
-            return queue.poll();
+        public synchronized IndexEntry poll() {
+            if (hasData()) {
+                return insertOrder.get(position++);
+            }
+            return null;
         }
 
         @Override
-        public IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
-            return queue.poll(limit, timeUnit);
+        public synchronized IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+            if (hasData()) {
+                return insertOrder.get(position++);
+            }
+            waitFor(limit, timeUnit);
+            if (hasData()) {
+                return insertOrder.get(position++);
+            }
+            return null;
         }
 
         @Override
-        public IndexEntry take() throws InterruptedException {
-            return queue.take();
+        public synchronized IndexEntry take() throws InterruptedException {
+            if (hasData()) {
+                return insertOrder.get(position++);
+            }
+            waitForData(VERIFICATION_INTERVAL_MILLIS, TimeUnit.MILLISECONDS);
+            if (hasData()) {
+                return insertOrder.get(position++);
+            }
+            //poller was closed while waiting for data
+            return null; //TODO shouldn't be an InterruptedException ?
         }
 
         @Override
-        public boolean headOfLog() {
-            return queue.isEmpty();
+        public synchronized boolean headOfLog() {
+            return !hasData();
         }
 
         @Override
-        public boolean endOfLog() {
-            return closed.get() && queue.isEmpty();
+        public synchronized boolean endOfLog() {
+            return closed.get() && !hasData();
         }
 
         @Override
         public long position() {
-            return -1;
+            return position;
         }
 
         @Override
@@ -177,9 +209,6 @@ public class MemIndex implements Index {
             closed.set(true);
         }
 
-        private void add(IndexEntry entry) {
-            queue.add(entry);
-        }
     }
 
 }

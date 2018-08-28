@@ -327,6 +327,36 @@ public class TableIndexTest {
     }
 
     @Test
+    public void poll_returns_data_from_memory_after_flushing() throws IOException, InterruptedException {
+        int entries = 10;
+        for (int i = 0; i <= entries; i++) {
+            tableIndex.add(i, 0, 0);
+        }
+
+        try(PollingSubscriber<IndexEntry> poller = tableIndex.poller()) {
+
+            for (int i = 0; i <= entries; i++) {
+                IndexEntry poll = poller.poll();
+                assertNotNull(poll);
+                assertEquals(i, poll.stream);
+            }
+
+            tableIndex.flush();
+            for (int i = 0; i <= entries; i++) {
+                tableIndex.add(i, 0, 0);
+            }
+
+            for (int i = 0; i <= entries; i++) {
+                IndexEntry poll = poller.poll();
+                assertNotNull(poll);
+                assertEquals(i, poll.stream);
+            }
+
+
+        }
+    }
+
+    @Test
     public void poll_returns_data_from_disk() throws IOException, InterruptedException {
         int entries = 500;
         for (int i = 0; i <= entries; i++) {
@@ -381,25 +411,26 @@ public class TableIndexTest {
     public void take_returns_data_from_disk_and_memory_IT() throws IOException, InterruptedException {
         int totalEntries = 5000000;
 
-        new Thread(() -> {
+        Thread writeThread = new Thread(() -> {
             for (int i = 0; i < totalEntries; i++) {
                 tableIndex.add(i, 0, 0);
             }
             System.out.println("COMPLETED WRITE");
-        }).start();
+        });
+        writeThread.start();
 
         try(PollingSubscriber<IndexEntry> poller = tableIndex.poller()) {
             for (int i = 0; i < totalEntries; i++) {
-                if(i == 1000000) {
-                    System.out.println("aaa");
-                }
+
                 IndexEntry poll = poller.take();
-//                System.out.println(poll);
                 assertNotNull("Failed on " + i + ": " + poll, poll);
                 assertEquals("Failed on " + i + ": " + poll, i, poll.stream);
             }
             System.out.println("COMPLETED READ");
         }
+
+        writeThread.join();
+
     }
 
 

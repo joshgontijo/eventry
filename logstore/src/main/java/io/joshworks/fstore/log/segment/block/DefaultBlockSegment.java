@@ -7,17 +7,12 @@ import io.joshworks.fstore.log.segment.Type;
 
 public class DefaultBlockSegment<T> extends BlockSegment<T, Block<T>> {
 
-    private final Serializer<T> serializer;
-    private final int maxBlockSize;
-
     public DefaultBlockSegment(Storage storage, Serializer<T> serializer, DataReader reader, String magic, Type type, int maxBlockSize) {
-        super(storage, new BlockSerializer<>(serializer), reader, magic, type);
-        this.serializer = serializer;
-        this.maxBlockSize = maxBlockSize;
+        super(storage, serializer, new BlockSerializer<>(serializer), maxBlockSize, reader, magic, type);
     }
 
     @Override
-    protected Block<T> createBlock() {
-        return new Block<>(serializer, maxBlockSize);
+    protected Block<T> createBlock(Serializer<T> serializer, int blockSize) {
+        return new Block<>(serializer, blockSize);
     }
 }

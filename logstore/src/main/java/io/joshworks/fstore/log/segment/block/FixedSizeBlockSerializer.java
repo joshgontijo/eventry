@@ -17,7 +17,7 @@ public class FixedSizeBlockSerializer<T> implements Serializer<FixedSizeEntryBlo
     private final Serializer<T> serializer;
     private final int entrySize;
 
-    FixedSizeBlockSerializer(Serializer<T> serializer, int entrySize, boolean compress) {
+    public FixedSizeBlockSerializer(Serializer<T> serializer, int entrySize, boolean compress) {
         this.codec = compress ? new SnappyCodec() : Codec.noCompression();
         this.serializer = serializer;
         this.entrySize = entrySize;

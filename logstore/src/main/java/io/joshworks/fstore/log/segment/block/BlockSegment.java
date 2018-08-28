@@ -26,15 +26,19 @@ import java.util.stream.StreamSupport;
 
 public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
-    private B block;
+    private final int maxBlockSize;
     private final Segment<B> delegate;
+    private final Serializer<T> serializer;
+    private B block;
 
-    public BlockSegment(Storage storage, Serializer<B> serializer, DataReader reader, String magic, Type type) {
-        delegate = new Segment<>(storage, serializer, reader, magic, type);
-        this.block = createBlock();
+    public BlockSegment(Storage storage, Serializer<T> serializer, Serializer<B> blockSerializer, int maxBlockSize, DataReader reader, String magic, Type type) {
+        delegate = new Segment<>(storage, blockSerializer, reader, magic, type);
+        this.serializer = serializer;
+        this.maxBlockSize = maxBlockSize;
+        this.block = createBlock(serializer, maxBlockSize);
     }
 
-    protected abstract B createBlock();
+    protected abstract B createBlock(Serializer<T> serializer, int maxBlockSize);
 
     @Override
     public long append(T data) {
@@ -49,7 +53,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
             return delegate.position();
         }
         long position = delegate.append(block);
-        block = createBlock();
+        block = createBlock(serializer, maxBlockSize);
         return position;
     }
 
@@ -123,7 +127,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
     @Override
     public void delete() {
-        block = createBlock();
+        block = createBlock(serializer, maxBlockSize);
         delegate.delete();
     }
 
@@ -234,7 +238,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
         }
 
         @Override
-        public T peek() throws InterruptedException {
+        public synchronized T peek() throws InterruptedException {
             if(entries.isEmpty()) {
                 B polled = segmentPoller.poll();
                 if(polled != null) {
@@ -245,7 +249,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
         }
 
         @Override
-        public T poll() throws InterruptedException {
+        public synchronized T poll() throws InterruptedException {
             if(entries.isEmpty()) {
                 B polled = segmentPoller.poll();
                 if(polled != null) {
@@ -256,7 +260,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
         }
 
         @Override
-        public T poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+        public synchronized T poll(long limit, TimeUnit timeUnit) throws InterruptedException {
             if(entries.isEmpty()) {
                 B polled = segmentPoller.poll(limit, timeUnit);
                 if(polled != null) {
@@ -267,7 +271,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
         }
 
         @Override
-        public T take() throws InterruptedException {
+        public synchronized T take() throws InterruptedException {
             if(entries.isEmpty()) {
                 B polled = segmentPoller.take();
                 if(polled != null) {
@@ -278,13 +282,13 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
         }
 
         @Override
-        public boolean headOfLog() {
+        public synchronized boolean headOfLog() {
             return entries.isEmpty() && segmentPoller.headOfLog();
         }
 
         @Override
-        public boolean endOfLog() {
-            return segmentPoller.endOfLog();
+        public synchronized boolean endOfLog() {
+            return entries.isEmpty() && segmentPoller.endOfLog();
         }
 
         @Override
@@ -293,7 +297,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
         }
 
         @Override
-        public void close() throws IOException {
+        public synchronized void close() throws IOException {
             segmentPoller.close();
         }
     }

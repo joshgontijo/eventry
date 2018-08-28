@@ -57,7 +57,6 @@ public class EventBroadcast implements Runnable, Closeable {
         }
     }
 
-    public void add()
 
     @Override
     public void close() throws IOException {

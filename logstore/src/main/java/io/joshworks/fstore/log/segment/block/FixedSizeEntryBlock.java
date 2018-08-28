@@ -9,8 +9,8 @@ public class FixedSizeEntryBlock<T> extends Block<T> {
 
     private final int entrySize;
 
-    public FixedSizeEntryBlock(Serializer<T> serializer, int maxEntries, int entrySize) {
-        super(serializer, maxEntries * entrySize);
+    public FixedSizeEntryBlock(Serializer<T> serializer, int maxBlockSize, int entrySize) {
+        super(serializer, maxBlockSize);
         this.entrySize = entrySize;
     }
 

@@ -23,6 +23,9 @@ public class Block<T> implements Iterable<T> {
     private final List<T> cached = new ArrayList<>();
 
     public Block(Serializer<T> serializer, int maxSize) {
+        if(maxSize <= 0) {
+            throw new IllegalArgumentException("maxSize must be greater than zero");
+        }
         this.serializer = serializer;
         this.maxSize = maxSize;
         int blockSize = (int) (maxSize + (maxSize * BLOCK_SIZE_EXTRA));
