@@ -408,7 +408,7 @@ public class TableIndexTest {
     }
 
     @Test
-    public void take_returns_data_from_disk_and_memory_IT() throws IOException, InterruptedException {
+    public void concurrent_write_and_poller_returns_data_in_sequence() throws IOException, InterruptedException {
         int totalEntries = 2500000;
 
         Thread writeThread = new Thread(() -> {
