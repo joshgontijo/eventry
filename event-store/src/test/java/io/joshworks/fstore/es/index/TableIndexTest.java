@@ -409,7 +409,7 @@ public class TableIndexTest {
 
     @Test
     public void take_returns_data_from_disk_and_memory_IT() throws IOException, InterruptedException {
-        int totalEntries = 5000000;
+        int totalEntries = 2500000;
 
         Thread writeThread = new Thread(() -> {
             for (int i = 0; i < totalEntries; i++) {
