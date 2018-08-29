@@ -377,6 +377,26 @@ public class TableIndexTest {
     }
 
     @Test
+    public void take_returns_data_from_disk() throws IOException, InterruptedException {
+        int entries = 500;
+        for (int i = 0; i <= entries; i++) {
+            tableIndex.add(i, 0, 0);
+        }
+
+        tableIndex.flush();
+
+        try(PollingSubscriber<IndexEntry> poller = tableIndex.poller()) {
+
+            for (int i = 0; i <= entries; i++) {
+                IndexEntry poll = poller.take();
+                assertNotNull(poll);
+                assertEquals(i, poll.stream);
+            }
+
+        }
+    }
+
+    @Test
     public void poll_returns_data_from_disk_and_memory() throws IOException, InterruptedException {
         int memEntries = 500;
         int diskEntries = 500;
@@ -392,8 +412,6 @@ public class TableIndexTest {
         for (int i = diskEntries; i < totalEntries; i++) {
             tableIndex.add(i, 0, 0);
         }
-
-//        tableIndex.flush();
 
         try(PollingSubscriber<IndexEntry> poller = tableIndex.poller()) {
 

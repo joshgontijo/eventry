@@ -206,7 +206,7 @@ public class TableIndex implements Index, Flushable {
         }
 
         @Override
-        public synchronized IndexEntry peek() throws InterruptedException {
+        public IndexEntry peek() throws InterruptedException {
             return getIndexEntry(poller -> {
                 try {
                     return poller.peek();
@@ -218,7 +218,7 @@ public class TableIndex implements Index, Flushable {
         }
 
         @Override
-        public synchronized IndexEntry poll() throws InterruptedException {
+        public IndexEntry poll() throws InterruptedException {
             return getIndexEntry(poller -> {
                 try {
                     return poller.poll();
@@ -231,7 +231,7 @@ public class TableIndex implements Index, Flushable {
 
 
         @Override
-        public synchronized IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+        public IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
             return getIndexEntry(poller -> {
                 try {
                     return poller.poll(limit, timeUnit);
@@ -243,7 +243,7 @@ public class TableIndex implements Index, Flushable {
         }
 
         @Override
-        public synchronized IndexEntry take() throws InterruptedException {
+        public IndexEntry take() throws InterruptedException {
             return getIndexEntry(poller -> {
                 try {
                     return poller.take();
@@ -254,17 +254,21 @@ public class TableIndex implements Index, Flushable {
             });
         }
 
-        private IndexEntry getIndexEntry(Function<PollingSubscriber<IndexEntry>, IndexEntry> func) throws InterruptedException {
-            if (!diskPoller.headOfLog()) {
+        private synchronized IndexEntry getIndexEntry(Function<PollingSubscriber<IndexEntry>, IndexEntry> func) throws InterruptedException {
+            if (!diskPoller.headOfLog() && (memPoller.endOfLog() || memPoller.headOfLog())) {
                 while (readFromMemory > 0) {
-                    IndexEntry polled = func.apply(diskPoller);
+                    IndexEntry polled = diskPoller.take();
                     if (polled == null) {
                         throw new IllegalStateException("Polled value was null");
                     }
                     readFromMemory--;
                 }
                 if (!diskPoller.headOfLog()) {
-                    return diskPoller.take();
+                    return diskPoller.poll();
+                }
+                IndexEntry polled = diskPoller.poll(3, TimeUnit.SECONDS);
+                if(polled != null) {
+                    return polled;
                 }
             }
 
@@ -274,7 +278,7 @@ public class TableIndex implements Index, Flushable {
             IndexEntry polled = func.apply(memPoller);
             if (polled == null && memPoller.endOfLog()) { //closed while waiting for data
                 memPoller = newMemPoller();
-                return take();
+                return getIndexEntry(func);
             }
             readFromMemory++;
             return polled;
@@ -296,7 +300,7 @@ public class TableIndex implements Index, Flushable {
         }
 
         @Override
-        public void close() {
+        public synchronized void close() {
             IOUtils.closeQuietly(diskPoller);
             IOUtils.closeQuietly(memPoller);
         }

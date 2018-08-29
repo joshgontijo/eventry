@@ -662,8 +662,9 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         public synchronized boolean headOfLog() {
             //if end of current segment, check the next one
             if(currentPoller.headOfLog()) {
-                boolean isLatestSegment = segmentIdx == levels.numSegments() - 1;
-                if(!isLatestSegment) {
+                //TODO verify if the !segmentPollers.isEmpty() is actually correct and is a replacement for the commented out code below
+//                boolean isLatestSegment = segmentIdx == levels.numSegments() - 1;
+                if(!segmentPollers.isEmpty()) {
                     PollingSubscriber<T> poll = segmentPollers.peek();
                     return poll.headOfLog();
                 }
