@@ -255,7 +255,8 @@ public class TableIndex implements Index, Flushable {
         }
 
         private synchronized IndexEntry getIndexEntry(Function<PollingSubscriber<IndexEntry>, IndexEntry> func) throws InterruptedException {
-            if (!diskPoller.headOfLog() && (memPoller.endOfLog() || memPoller.headOfLog())) {
+            if (!diskPoller.headOfLog()) {
+                memPoller = newMemPoller();
                 while (readFromMemory > 0) {
                     IndexEntry polled = diskPoller.take();
                     if (polled == null) {
