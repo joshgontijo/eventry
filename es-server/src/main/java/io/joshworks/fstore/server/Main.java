@@ -21,10 +21,9 @@ public class Main {
 
         EventStore store  = EventStore.open(new File("J:\\event-store-app"));
 
-        SubscriptionEndpoint subscriptions = new SubscriptionEndpoint(store);
+        EventBroadcaster broadcast = new EventBroadcaster(2000, 3);
+        SubscriptionEndpoint subscriptions = new SubscriptionEndpoint(store, broadcast);
         StreamEndpoint streams = new StreamEndpoint(store);
-//        new Thread(new EventBroadcast(store)).start();
-
 
 
         group("/streams", () -> {
@@ -39,13 +38,10 @@ public class Main {
                 get("/metadata", streams::metadata);
 
                 sse("/");
-
             });
         });
 
-        group("/subscriptions", () -> {
-            sse("{streamId}", subscriptions::newPushHandler);
-        });
+        group("/push", () -> sse(subscriptions.newPushHandler()));
 
 
         onShutdown(store::close);

@@ -8,12 +8,17 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class TableIndexTest {
@@ -311,47 +316,68 @@ public class TableIndexTest {
     @Test
     public void poll_returns_data_from_memory() throws IOException, InterruptedException {
         int entries = 500;
-        for (int i = 0; i <= entries; i++) {
-            tableIndex.add(i, 0, 0);
+        long stream = 123L;
+        for (int i = 0; i < entries; i++) {
+            tableIndex.add(stream, i, 0);
         }
 
-        try(PollingSubscriber<IndexEntry> poller = tableIndex.poller()) {
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
 
-            for (int i = 0; i <= entries; i++) {
+            for (int i = 0; i < entries; i++) {
                 IndexEntry poll = poller.poll();
                 assertNotNull(poll);
-                assertEquals(i, poll.stream);
+                assertEquals(i, poll.version);
             }
 
         }
     }
 
     @Test
-    public void poll_returns_data_from_memory_after_flushing() throws IOException, InterruptedException {
-        int entries = 10;
-        for (int i = 0; i <= entries; i++) {
+    public void poll_returns_data_from_multiple_streams() throws IOException, InterruptedException {
+        int entries = 1500000;
+        Set<Long> streams = new HashSet<>();
+        for (long i = 0; i < entries; i++) {
+            streams.add(i);
             tableIndex.add(i, 0, 0);
         }
 
-        try(PollingSubscriber<IndexEntry> poller = tableIndex.poller()) {
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(streams)) {
 
-            for (int i = 0; i <= entries; i++) {
+            for (int i = 0; i < entries; i++) {
                 IndexEntry poll = poller.poll();
                 assertNotNull(poll);
-                assertEquals(i, poll.stream);
+                assertTrue(streams.contains(poll.stream));
+                assertEquals(0, poll.version);
             }
 
-            tableIndex.flush();
-            for (int i = 0; i <= entries; i++) {
-                tableIndex.add(i, 0, 0);
-            }
+        }
+    }
 
-            for (int i = 0; i <= entries; i++) {
-                IndexEntry poll = poller.poll();
-                assertNotNull(poll);
-                assertEquals(i, poll.stream);
-            }
+    @Test
+    public void poll_returns_data_from_multiple_streams_in_order_per_stream() throws IOException, InterruptedException {
+        int streams = 10000;
+        int versions = 100;
 
+        Map<Long, Integer> versionTracker = new HashMap<>();
+        for (long stream = 0; stream < streams; stream++) {
+            versionTracker.put(stream, 0);
+            for (int version = 0; version < versions; version++) {
+                tableIndex.add(stream, version, 0);
+            }
+        }
+
+
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(versionTracker.keySet())) {
+
+            for (long stream = 0; stream < streams; stream++) {
+                for (int version = 0; version < versions; version++) {
+                    IndexEntry poll = poller.take();
+                    assertNotNull(poll);
+                    assertTrue(versionTracker.containsKey(poll.stream));
+                    assertEquals((int)versionTracker.get(poll.stream), poll.version);
+                    versionTracker.put(poll.stream, poll.version + 1);
+                }
+            }
 
         }
     }
@@ -359,18 +385,19 @@ public class TableIndexTest {
     @Test
     public void poll_returns_data_from_disk() throws IOException, InterruptedException {
         int entries = 500;
-        for (int i = 0; i <= entries; i++) {
-            tableIndex.add(i, 0, 0);
+        long stream = 123L;
+        for (int i = 0; i < entries; i++) {
+            tableIndex.add(stream, i, 0);
         }
 
         tableIndex.flush();
 
-        try(PollingSubscriber<IndexEntry> poller = tableIndex.poller()) {
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
 
-            for (int i = 0; i <= entries; i++) {
+            for (int i = 0; i < entries; i++) {
                 IndexEntry poll = poller.poll();
                 assertNotNull(poll);
-                assertEquals(i, poll.stream);
+                assertEquals(i, poll.version);
             }
 
         }
@@ -378,50 +405,192 @@ public class TableIndexTest {
 
     @Test
     public void take_returns_data_from_disk() throws IOException, InterruptedException {
-        int entries = 500;
-        for (int i = 0; i <= entries; i++) {
-            tableIndex.add(i, 0, 0);
+        int entries = 10;
+        long stream = 123L;
+        for (int i = 0; i < entries; i++) {
+            tableIndex.add(stream, i, 0);
         }
 
         tableIndex.flush();
 
-        try(PollingSubscriber<IndexEntry> poller = tableIndex.poller()) {
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
 
-            for (int i = 0; i <= entries; i++) {
+            for (int i = 0; i < entries; i++) {
                 IndexEntry poll = poller.take();
                 assertNotNull(poll);
-                assertEquals(i, poll.stream);
+                assertEquals(i, poll.version);
             }
 
         }
     }
 
     @Test
-    public void poll_returns_data_from_disk_and_memory() throws IOException, InterruptedException {
-        int memEntries = 500;
-        int diskEntries = 500;
-        int totalEntries = 1000;
-        //disk (from (0 to 500)
-        for (int i = 0; i < memEntries; i++) {
-            tableIndex.add(i, 0, 0);
+    public void peek_doesnt_advance_inmemory_items() throws IOException, InterruptedException {
+        long stream = 123L;
+        tableIndex.add(stream, 0, 0);
+        tableIndex.add(stream, 1, 0);
+
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
+
+            for (int i = 0; i < 10; i++) {
+                IndexEntry peek = poller.peek();
+                assertEquals(0, peek.version);
+            }
+
+            IndexEntry poll = poller.poll();
+            assertEquals(1, poll.version);
+
+        }
+    }
+
+    @Test
+    public void peek_doesnt_advance_disk_items() throws IOException, InterruptedException {
+        long stream = 123L;
+        tableIndex.add(stream, 0, 0);
+        tableIndex.add(stream, 1, 0);
+
+        tableIndex.flush();
+
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
+
+            for (int i = 0; i < 10; i++) {
+                IndexEntry peek = poller.peek();
+                assertEquals(0, peek.version);
+            }
+
+            IndexEntry poll = poller.poll();
+            assertEquals(1, poll.version);
+
+
+        }
+    }
+
+    @Test
+    public void poll_returns_data_from_disk_and_memory_if_available() throws IOException, InterruptedException {
+        int entries = 10;
+        long stream = 123L;
+
+        for (int i = 0; i < entries; i++) {
+            tableIndex.add(stream, i, 0);
+        }
+        tableIndex.flush();
+
+        for (int i = entries; i < entries * 2; i++) {
+            tableIndex.add(stream, i, 0);
+        }
+
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
+
+            for (int i = 0; i < entries * 2; i++) {
+                IndexEntry poll = poller.poll();
+                assertNotNull(poll);
+                assertEquals(i, poll.version);
+            }
+        }
+    }
+
+    @Test
+    public void poll_returns_null_if_no_inmemory_stream_matches() throws IOException, InterruptedException {
+        int entries = 10;
+        long stream = 123L;
+        long someOtherStream = 456L;
+
+        for (int i = 0; i < entries; i++) {
+            tableIndex.add(stream, i, 0);
+        }
+
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(someOtherStream)) {
+            for (int i = 0; i < entries; i++) {
+                IndexEntry poll = poller.poll();
+                assertNull(poll);
+            }
+        }
+    }
+
+    @Test
+    public void poll_returns_null_if_no_disk_stream_matches() throws IOException, InterruptedException {
+        int entries = 10;
+        long stream = 123L;
+        long someOtherStream = 456L;
+
+        for (int i = 0; i < entries; i++) {
+            tableIndex.add(stream, i, 0);
         }
 
         tableIndex.flush();
 
-        //mem (stream from 500 to 999)
-        for (int i = diskEntries; i < totalEntries; i++) {
-            tableIndex.add(i, 0, 0);
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(someOtherStream)) {
+            for (int i = 0; i < entries; i++) {
+                IndexEntry poll = poller.poll();
+                assertNull(poll);
+            }
+        }
+    }
+
+    @Test
+    public void peek_returns_null_if_no_disk_stream_matches() throws IOException, InterruptedException {
+        int entries = 10;
+        long stream = 123L;
+        long someOtherStream = 456L;
+
+        for (int i = 0; i < entries; i++) {
+            tableIndex.add(stream, i, 0);
         }
 
-        try(PollingSubscriber<IndexEntry> poller = tableIndex.poller()) {
+        tableIndex.flush();
 
-            for (int i = 0; i < totalEntries; i++) {
-                IndexEntry poll = poller.poll();
-                System.out.println(poll);
-                assertNotNull("Failed on " + i, poll);
-                assertEquals(i, poll.stream);
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(someOtherStream)) {
+            for (int i = 0; i < entries; i++) {
+                IndexEntry poll = poller.peek();
+                assertNull(poll);
             }
+        }
+    }
 
+    @Test
+    public void peek_returns_null_if_no_inmemory_stream_matches() throws IOException, InterruptedException {
+        int entries = 10;
+        long stream = 123L;
+        long someOtherStream = 456L;
+
+        for (int i = 0; i < entries; i++) {
+            tableIndex.add(stream, i, 0);
+        }
+
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(someOtherStream)) {
+            for (int i = 0; i < entries; i++) {
+                IndexEntry poll = poller.peek();
+                assertNull(poll);
+            }
+        }
+    }
+
+    @Test
+    public void take_blocks_inmemory_until_stream_matches() throws IOException, InterruptedException {
+        int entries = 10;
+        long someOtherStream = 123L;
+        long expectedStream = 456L;
+
+        for (int i = 0; i < entries; i++) {
+            tableIndex.add(someOtherStream, i, 0);
+        }
+
+//        tableIndex.flush();
+
+        new Thread(() -> {
+            try {
+                Thread.sleep(3000);
+                tableIndex.add(expectedStream, 0, 0);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }).start();
+
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(expectedStream)) {
+            IndexEntry poll = poller.take();
+            assertNotNull(poll);
+            assertEquals(expectedStream, poll.stream);
+            assertEquals(0, poll.version);
         }
     }
 
@@ -429,28 +598,26 @@ public class TableIndexTest {
     public void concurrent_write_and_poller_returns_data_in_sequence() throws IOException, InterruptedException {
         int totalEntries = 2500000;
 
+        long stream = 123L;
         Thread writeThread = new Thread(() -> {
             for (int i = 0; i < totalEntries; i++) {
-                tableIndex.add(i, 0, 0);
+                tableIndex.add(stream, i, 0);
             }
             System.out.println("COMPLETED WRITE");
         });
         writeThread.start();
 
-        try(PollingSubscriber<IndexEntry> poller = tableIndex.poller()) {
+        try (PollingSubscriber<IndexEntry> poller = tableIndex.poller(stream)) {
             for (int i = 0; i < totalEntries; i++) {
 
                 IndexEntry poll = poller.take();
                 assertNotNull("Failed on " + i + ": " + poll, poll);
-                assertEquals("Failed on " + i + ": " + poll, i, poll.stream);
+                assertEquals("Failed on " + i + ": " + poll, i, poll.version);
             }
             System.out.println("COMPLETED READ");
         }
 
         writeThread.join();
-
     }
-
-
 
 }

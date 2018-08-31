@@ -1,5 +1,6 @@
 package io.joshworks.fstore.es.index;
 
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import org.junit.Test;
 
@@ -357,6 +358,36 @@ public class MemIndexTest {
 
         assertTrue(f6.isPresent());
         assertEquals(ie6, f6.get());
+    }
+
+    @Test
+    public void iterator_returns_ordered_entries() {
+
+        //given
+        IndexEntry ie1 = IndexEntry.of(0, 1, 0);
+        IndexEntry ie2 = IndexEntry.of(0, 2, 0);
+        IndexEntry ie3 = IndexEntry.of(0, 3, 0);
+        IndexEntry ie4 = IndexEntry.of(1, 1, 0);
+        IndexEntry ie5 = IndexEntry.of(1, 2, 0);
+        IndexEntry ie6 = IndexEntry.of(1, 3, 0);
+
+        index.add(ie6);
+        index.add(ie1);
+        index.add(ie3);
+        index.add(ie4);
+        index.add(ie2);
+        index.add(ie5);
+
+
+        LogIterator<IndexEntry> iterator = index.iterator();
+
+        assertEquals(ie1, iterator.next());
+        assertEquals(ie2, iterator.next());
+        assertEquals(ie3, iterator.next());
+        assertEquals(ie4, iterator.next());
+        assertEquals(ie5, iterator.next());
+        assertEquals(ie6, iterator.next());
+
     }
 
     @Test

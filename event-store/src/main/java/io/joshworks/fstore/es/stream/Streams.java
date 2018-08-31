@@ -11,6 +11,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -53,11 +54,27 @@ public class Streams implements Closeable {
         streamsMap.put(stream.hash, stream);
     }
 
-    public Set<String> streamsStartingWith(String value) {
+    //Only supports 'startingWith' wildcard
+    //EX: users-*
+    public Set<String> streamMatching(String value) {
+        if(value == null) {
+            return new HashSet<>();
+        }
+        //wildcard
+        if(value.endsWith("*")) {
+            final String prefix = value.substring(0, value.length() - 1);
+            return streamsMap.values().stream()
+                    .filter(stream -> stream.name.startsWith(prefix))
+                    .map(stream -> stream.name)
+                    .collect(Collectors.toSet());
+        }
+
         return streamsMap.values().stream()
-                .filter(stream -> stream.name.startsWith(value))
+                .filter(stream -> stream.name.equals(value))
                 .map(stream -> stream.name)
                 .collect(Collectors.toSet());
+
+
     }
 
     public int version(long stream) {

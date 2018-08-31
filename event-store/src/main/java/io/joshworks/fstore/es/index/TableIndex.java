@@ -13,12 +13,15 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.Flushable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class TableIndex implements Index, Flushable {
@@ -34,7 +37,7 @@ public class TableIndex implements Index, Flushable {
     private final IndexAppender diskIndex;
     private MemIndex memIndex = new MemIndex();
 
-    private final Set<IndexPoller> pollers = new HashSet<>();
+    private final Set<DiskMemIndexPoller> pollers = new HashSet<>();
 
 //    private final SedaContext sedaContext = new SedaContext();
 
@@ -86,10 +89,6 @@ public class TableIndex implements Index, Flushable {
             return;
         }
 
-        for (IndexPoller poller : pollers) {
-            poller.updateFlushed(memIndex.size());
-        }
-
         for (IndexEntry indexEntry : memIndex) {
             diskIndex.append(indexEntry);
         }
@@ -120,7 +119,7 @@ public class TableIndex implements Index, Flushable {
 //        this.flush(); //no need to flush, just reload from disk on startup
         memIndex.close();
         diskIndex.close();
-        for (IndexPoller poller : pollers) {
+        for (DiskMemIndexPoller poller : pollers) {
             IOUtils.closeQuietly(poller);
         }
         pollers.clear();
@@ -170,37 +169,125 @@ public class TableIndex implements Index, Flushable {
         memIndex = new MemIndex();
     }
 
-    public PollingSubscriber<IndexEntry> poller() {
-        IndexPoller indexPoller = new IndexPoller(diskIndex.poller());
-        return addReader(indexPoller);
+    public PollingSubscriber<IndexEntry> poller(long stream) {
+        return poller(Set.of(stream));
     }
 
-    public PollingSubscriber<IndexEntry> poller(long stream, int version) {
-
-        //FIXME this should read the index log / mem log skipping items, since the read is not ordered
-        Optional<IndexEntry> fromMemory = memIndex.get(stream, version);
-
-        //TODO if present 'fromMemory' was the latest, the next item should be used instead
-        //TODO pass the current index
-        //TODO the disk position should be the last position in the log
-        return fromMemory.map(indexEntry -> addReader(new IndexPoller(diskIndex.poller(indexEntry.position))))
-                .orElseGet(() -> addReader(new IndexPoller(diskIndex.poller())));
+    //TODO how to mark last read indexEntry ?
+    //timestamp / position (how about the mem items ?) / version (of each stream individually, then crash could cause repeated)
+    public PollingSubscriber<IndexEntry> poller(long stream, int lastVersion) {
+        throw new UnsupportedOperationException("Implement me");
+//        return poller(Set.of(stream));
     }
 
-    private IndexPoller addReader(IndexPoller poller) {
-        pollers.add(poller);
-        return poller;
+    public PollingSubscriber<IndexEntry> poller(Set<Long> streams) {
+        return new StreamIndexPoller(new DiskMemIndexPoller(diskIndex.poller()), streams);
     }
 
+    private class StreamIndexPoller implements PollingSubscriber<IndexEntry> {
 
-    private class IndexPoller implements PollingSubscriber<IndexEntry> {
+        private final PollingSubscriber<IndexEntry> poller;
+        private final Map<Long, Integer> streamsRead;
+        private IndexEntry lastEntry;
+
+        StreamIndexPoller(PollingSubscriber<IndexEntry> poller, Set<Long> streams) {
+            this.poller = poller;
+            this.streamsRead = streams.stream().collect(Collectors.toMap(aLong -> aLong, aLong -> -1));
+        }
+
+        private IndexEntry poolAndUpdateMap() throws InterruptedException {
+            while (!poller.headOfLog()) {
+                IndexEntry indexEntry = poller.poll();
+                if (indexEntry == null) {
+                    return null;
+                }
+                if (streamMatch(indexEntry)) {
+                    streamsRead.computeIfPresent(indexEntry.stream, (k, v) -> indexEntry.version);
+                    lastEntry = indexEntry;
+                    return indexEntry;
+                }
+            }
+            return null;
+        }
+
+        private boolean streamMatch(IndexEntry indexEntry) {
+            return streamsRead.getOrDefault(indexEntry.stream, Integer.MAX_VALUE) < indexEntry.version;
+        }
+
+        @Override
+        public IndexEntry peek() throws InterruptedException {
+            if (lastEntry != null) {
+                return lastEntry;
+            }
+            while (!poller.headOfLog()) {
+                IndexEntry indexEntry = poller.poll();
+                if (indexEntry == null) {
+                    return null;
+                }
+                if (streamMatch(indexEntry)) {
+                    lastEntry = indexEntry;
+                    return indexEntry;
+                }
+            }
+            return null;
+        }
+
+        @Override
+        public IndexEntry poll() throws InterruptedException {
+            return poll(-1, TimeUnit.SECONDS);
+        }
+
+        @Override
+        public IndexEntry poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+            IndexEntry indexEntry = poolAndUpdateMap();
+            if (indexEntry != null) {
+                lastEntry = null; //invalidate future peek
+            }
+            return indexEntry;
+        }
+
+        @Override
+        public IndexEntry take() throws InterruptedException {
+            IndexEntry indexEntry;
+            do {
+                indexEntry = poller.take();
+
+            } while (indexEntry == null || !streamMatch(indexEntry));
+            streamsRead.computeIfPresent(indexEntry.stream, (k, v) -> v + 1);
+
+            lastEntry = null; //invalidate future peek
+            return indexEntry;
+        }
+
+        @Override
+        public boolean headOfLog() {
+            return poller.headOfLog();
+        }
+
+        @Override
+        public boolean endOfLog() {
+            return poller.endOfLog();
+        }
+
+        @Override
+        public long position() {
+            return poller.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            poller.close();
+            //TODO store state ??
+        }
+    }
+
+    private class DiskMemIndexPoller implements PollingSubscriber<IndexEntry> {
 
         private final PollingSubscriber<IndexEntry> diskPoller;
         private PollingSubscriber<IndexEntry> memPoller;
         private long readFromMemory;
-        private long flushedItems;
 
-        private IndexPoller(PollingSubscriber<IndexEntry> diskPoller) {
+        private DiskMemIndexPoller(PollingSubscriber<IndexEntry> diskPoller) {
             this.diskPoller = diskPoller;
             this.memPoller = memIndex.poller();
         }
@@ -268,7 +355,7 @@ public class TableIndex implements Index, Flushable {
                     return diskPoller.poll();
                 }
                 IndexEntry polled = diskPoller.poll(3, TimeUnit.SECONDS);
-                if(polled != null) {
+                if (polled != null) {
                     return polled;
                 }
             }
@@ -304,10 +391,6 @@ public class TableIndex implements Index, Flushable {
         public synchronized void close() {
             IOUtils.closeQuietly(diskPoller);
             IOUtils.closeQuietly(memPoller);
-        }
-
-        private synchronized void updateFlushed(long num) {
-            this.flushedItems += num;
         }
 
         private PollingSubscriber<IndexEntry> newMemPoller() {

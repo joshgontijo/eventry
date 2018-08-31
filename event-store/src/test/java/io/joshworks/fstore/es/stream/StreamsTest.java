@@ -53,7 +53,7 @@ public class StreamsTest {
         streams.add(new StreamMetadata("another1", 3, 0));
         streams.add(new StreamMetadata("another2", 4, 0));
 
-        Set<String> names = streams.streamsStartingWith("abc-");
+        Set<String> names = streams.streamMatching("abc-");
 
         assertEquals(2, names.size());
         assertTrue(names.contains("abc-123"));

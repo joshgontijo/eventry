@@ -118,7 +118,7 @@ public class EventStore implements Closeable {
     }
 
     public LogIterator<Event> zipStreamsIter(String streamPrefix) {
-        Set<String> eventStreams = streams.streamsStartingWith(streamPrefix);
+        Set<String> eventStreams = streams.streamMatching(streamPrefix);
         return zipStreamsIter(eventStreams);
     }
 
@@ -207,14 +207,21 @@ public class EventStore implements Closeable {
         return add(streamMetadata, event, expectedVersion);
     }
 
-    public PollingSubscriber<Event> poller() {
-        return new EventStorePoller(index.poller(), eventLog);
+    //TODO: implement checkpoint ?
+    public PollingSubscriber<Event> poller(String stream) {
+        Set<Long> hashes = streams.streamMatching(stream).stream().map(hasher::hash).collect(Collectors.toSet());
+        return new EventStorePoller(index.poller(hashes), eventLog);
     }
 
-    public PollingSubscriber<Event> poller(String stream, int version) {
-        long streamHash = hasher.hash(stream);
-        return new EventStorePoller(index.poller(streamHash, version), eventLog);
+    public PollingSubscriber<Event> poller(Set<String> streams) {
+        Set<Long> hashes = streams.stream().map(hasher::hash).collect(Collectors.toSet());
+        return new EventStorePoller(index.poller(hashes), eventLog);
     }
+
+//    public PollingSubscriber<Event> poller(String stream, int version) {
+//        long streamHash = hasher.hash(stream);
+//        return new EventStorePoller(index.poller(streamHash, version), eventLog);
+//    }
 
     private Event add(StreamMetadata streamMetadata, Event event, int expectedVersion) {
         if(streamMetadata == null) {
@@ -275,7 +282,11 @@ public class EventStore implements Closeable {
         }
 
         private Event getOrElse(IndexEntry peek) {
-            return Optional.of(peek).map(i -> log.get(i.position)).orElse(null);
+            return Optional.ofNullable(peek).map(i -> {
+                Event event = log.get(i.position);
+                event.version(i.version);
+                return event;
+            }).orElse(null);
         }
 
         @Override

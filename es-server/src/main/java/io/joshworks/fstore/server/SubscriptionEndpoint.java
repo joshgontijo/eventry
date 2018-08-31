@@ -1,43 +1,80 @@
 package io.joshworks.fstore.server;
 
-import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.es.EventStore;
 import io.joshworks.fstore.es.log.Event;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.snappy.sse.SseBroadcaster;
+import io.joshworks.snappy.sse.SseCallback;
 import io.undertow.server.handlers.sse.ServerSentEventConnection;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.HashSet;
+import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class SubscriptionEndpoint {
 
-    public static final String PATH_PARAM_STREAM = "streamId";
+    public static final String PATH_PARAM_STREAM = "stream";
 
     private final EventStore store;
+    private final EventBroadcaster broadcast;
 
-    private Set<PollingSubscriber<Event>> pollers = new HashSet<>();
+    private static final Logger logger = LoggerFactory.getLogger(SubscriptionEndpoint.class);
 
-    public SubscriptionEndpoint(EventStore store) {
+    private Map<ServerSentEventConnection, PollingSubscriber<Event>> pollers = new HashMap<>();
+
+    public SubscriptionEndpoint(EventStore store, EventBroadcaster broadcast) {
         this.store = store;
+        this.broadcast = broadcast;
     }
 
-    public void newPushHandler(ServerSentEventConnection connection, String lastEventId) {
-        String streamId = connection.getParameter(PATH_PARAM_STREAM);
+    public SseCallback newPushHandler() {
+        return new SseCallback() {
+            @Override
+            public void connected(ServerSentEventConnection connection, String lastEventId) {
+                Map<String, Deque<String>> parameters = connection.getQueryParameters();
+                Set<String> streams = parameters.getOrDefault(PATH_PARAM_STREAM, new ArrayDeque<>())
+                        .stream()
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
 
-        int version = lastEventId == null || lastEventId.isEmpty() ? 0 : Integer.valueOf(lastEventId);
-        PollingSubscriber<Event> poller = store.poller(streamId, version);
-        pollers.add(poller);
-        //TODO implement me
-        Thread thread = new Thread(new EventBroadcast(poller));
-        thread.start();
+                if(streams.isEmpty()) {
+                    try {
+                        connection.close();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
 
-        connection.addCloseTask(conn -> {
-            IOUtils.closeQuietly(poller);
-            pollers.remove(poller);
-        });
+                logger.info("Adding push client for streams: {}", Arrays.toString(streams.toArray()));
 
-        SseBroadcaster.addToGroup(streamId, connection);
+                //TODO implement checkpoint
+//              int version = lastEventId == null || lastEventId.isEmpty() ? 0 : Integer.valueOf(lastEventId);
+                PollingSubscriber<Event> poller = store.poller(streams);
+                pollers.put(connection, poller);
+                broadcast.add(poller);
+
+                for (String stream : streams) {
+                    SseBroadcaster.addToGroup(stream, connection);
+                }
+
+            }
+
+            @Override
+            public void onClose(ServerSentEventConnection connection) {
+                PollingSubscriber<Event> poller = pollers.get(connection);
+                pollers.remove(connection);
+                broadcast.remove(poller);
+            }
+        };
+
     }
 
 //    private long process(ServerSentEventConnection connection, String streamId, String lastEventId) {

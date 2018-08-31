@@ -496,19 +496,52 @@ public class EventStoreIT {
     public void poller_returns_all_items() throws IOException, InterruptedException {
 
         int items = 1000000;
+        String stream = "stream-123";
         for (int i = 0; i < items; i++) {
-            store.add(Event.create("stream", "type", "data"));
+            store.add(Event.create(stream, "type", "data"));
             if(i % 10000 == 0) {
                 System.out.println("WRITE: " + i);
             }
         }
 
         System.out.println("Write completed");
-        try (PollingSubscriber<Event> poller = store.poller()) {
+        try (PollingSubscriber<Event> poller = store.poller(stream)) {
             for (int i = 0; i < items; i++) {
                 Event event = poller.take();
                 assertNotNull(event);
                 assertEquals(i, event.version());
+                if(i % 10000 == 0) {
+                    System.out.println("READ: " + i);
+                }
+            }
+        }
+
+    }
+
+    @Test
+    public void poller_with_multiple_streams_returns_all_items() throws IOException, InterruptedException {
+
+        int items = 1000000;
+        String streamPrefix = "stream-";
+        Set<String> allStreams = new HashSet<>();
+        for (int i = 0; i < items; i++) {
+            String stream = streamPrefix + i;
+            allStreams.add(stream);
+            store.add(Event.create(stream, "type", "data"));
+            if(i % 10000 == 0) {
+                System.out.println("WRITE: " + i);
+            }
+        }
+
+        System.out.println("Write completed");
+        //Orders of events is not guaranteed across streams
+        try (PollingSubscriber<Event> poller = store.poller(allStreams)) {
+            for (int i = 0; i < items; i++) {
+                Event event = poller.take();
+                System.out.println(event);
+                assertNotNull(event);
+                assertEquals(0, event.version());
+
                 if(i % 10000 == 0) {
                     System.out.println("READ: " + i);
                 }

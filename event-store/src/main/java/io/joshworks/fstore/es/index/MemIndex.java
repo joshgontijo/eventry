@@ -6,7 +6,9 @@ import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -17,6 +19,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class MemIndex implements Index {
@@ -106,7 +109,13 @@ public class MemIndex implements Index {
 
     @Override
     public LogIterator<IndexEntry> iterator() {
-        return Iterators.of(new ArrayList<>(insertOrder));
+        List<IndexEntry> ordered = index.entrySet().stream()
+                .sorted(Comparator.comparingLong(Map.Entry::getKey))
+                .map(Map.Entry::getValue)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
+
+        return Iterators.of(ordered);
     }
 
 //    private void adToPollers(IndexEntry entry) {
@@ -132,6 +141,9 @@ public class MemIndex implements Index {
         }
 
         private void waitFor(long time, TimeUnit timeUnit) throws InterruptedException {
+            if(time < 0) {
+                return;
+            }
             long elapsed = 0;
             long start = System.currentTimeMillis();
             long maxWaitTime = timeUnit.toMillis(time);
@@ -157,11 +169,8 @@ public class MemIndex implements Index {
         }
 
         @Override
-        public synchronized IndexEntry poll() {
-            if (hasData()) {
-                return insertOrder.get(position++);
-            }
-            return null;
+        public synchronized IndexEntry poll() throws InterruptedException {
+            return poll(-1, TimeUnit.SECONDS);
         }
 
         @Override
