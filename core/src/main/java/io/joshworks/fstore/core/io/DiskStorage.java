@@ -123,27 +123,20 @@ public abstract class DiskStorage implements Storage {
 
     @Override
     public void truncate(long pos) {
+        if(Mode.READ.equals(mode)) {
+            throw new StorageException("Cannot truncate readonly file");
+        }
         try {
             channel.truncate(pos);
+            this.position = position > pos ? pos : position;
         } catch (Exception e) {
             throw new StorageException(e);
         }
     }
 
-    public static class StorageException extends RuntimeException {
-
-        public StorageException(String message) {
-            super(message);
-        }
-
-        public StorageException(String message, Throwable cause) {
-            super(message, cause);
-        }
-
-        public StorageException(Throwable cause) {
-            super(cause);
-        }
-
+    @Override
+    public void markAsReadOnly() {
+        mode = Mode.READ;
     }
 
 }

@@ -74,6 +74,11 @@ public class StatsStorage implements Storage {
         delegate.truncate(pos);
     }
 
+    @Override
+    public void markAsReadOnly() {
+        delegate.markAsReadOnly();
+    }
+
 
     @Override
     public void close() throws IOException {

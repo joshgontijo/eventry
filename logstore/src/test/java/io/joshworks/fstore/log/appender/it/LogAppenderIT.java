@@ -66,8 +66,6 @@ public abstract class LogAppenderIT<L extends Log<String>> {
             fail("File " + f + " doesn't exist");
         }
 
-        assertEquals(lastPos, f.length()); //header + data + EOF;
-
         LogIterator<String> logIterator = appender.scanner();
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());

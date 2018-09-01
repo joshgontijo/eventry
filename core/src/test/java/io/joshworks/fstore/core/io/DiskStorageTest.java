@@ -22,9 +22,9 @@ import static org.junit.Assert.assertTrue;
 public abstract class DiskStorageTest {
 
     protected static final int DEFAULT_LENGTH = 5242880;
-    private static final String TEST_DATA = "TEST-DATA";
-    private Storage storage;
-    private File testFile;
+    protected static final String TEST_DATA = "TEST-DATA";
+    protected Storage storage;
+    protected File testFile;
 
     protected abstract Storage store(File file, long size);
 
@@ -185,14 +185,10 @@ public abstract class DiskStorageTest {
         assertEquals(bb.capacity(), pos);
     }
 
-    @Test
-    public void shrink_resize_the_file_to_the_current_position() {
-        ByteBuffer bb = ByteBuffer.wrap(TEST_DATA.getBytes(StandardCharsets.UTF_8));
-        storage.write(bb);
 
-        long pos = storage.position();
-        storage.truncate(pos);
-
-        assertEquals(pos, storage.length());
+    @Test(expected = StorageException.class)
+    public void truncate_readonly_throws_exception() {
+        storage.markAsReadOnly();
+        storage.truncate(10);
     }
 }

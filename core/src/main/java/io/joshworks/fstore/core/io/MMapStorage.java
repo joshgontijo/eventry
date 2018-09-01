@@ -38,7 +38,7 @@ public class MMapStorage extends DiskStorage {
                 long totalBuffers = diff == 0 ? numFullBuffers : numFullBuffers + 1;
 
                 //resize file to accommodate all buffers
-                raf.setLength(totalBuffers * bufferSize);
+//                raf.setLength(totalBuffers * bufferSize);
 
 //                for (long i = 0; i < totalBuffers; i++) {
 //                    MappedByteBuffer buffer = map(i * bufferSize, bufferSize);
@@ -51,7 +51,7 @@ public class MMapStorage extends DiskStorage {
                 writeBufferIdx = 0;
                 current = buffers.get(writeBufferIdx);
 
-            } else  { //readOnly, do not extend file size
+            } else { //readOnly, do not extend file size
                 //loading everything at once, can it be improved ?
                 for (long i = 0; i < numFullBuffers; i++) {
                     MappedByteBuffer buffer = map(i * bufferSize, bufferSize);
@@ -107,27 +107,41 @@ public class MMapStorage extends DiskStorage {
         }
 
         readOnly.position(bufferAddress);
-
-        //source buffer has enough data
-        int limit = data.remaining();
-        int size;
-        if (Mode.READ_WRITE.equals(mode)) {
-            size = Math.min(readOnly.remaining(), (int)(this.position - position));
-        } else {
-            size = readOnly.limit();
+        readOnly.limit(readOnly.capacity());
+        int tgtRemaining = data.remaining();
+        if (tgtRemaining > readOnly.remaining()) {
+            data.put(readOnly);
+            return read(position + tgtRemaining, data) + tgtRemaining;
         }
 
-        size = Math.min(limit, size);
-        readOnly.limit(bufferAddress + size);
+        readOnly.limit(bufferAddress + data.remaining());
+        int srcRemaining = readOnly.remaining();
         data.put(readOnly);
-        return size;
+        return srcRemaining;
+//
+//        //source buffer has enough data
+//        int limit = data.remaining();
+//        int size;
+//        if (Mode.READ_WRITE.equals(mode)) {
+//            size = Math.min(readOnly.remaining(), (int)(this.position - position));
+//        } else {
+//            size = readOnly.limit();
+//        }
+//
+//        size = Math.min(limit, size);
+//        readOnly.limit(bufferAddress + size);
+//        data.put(readOnly);
+//        return size;
     }
 
     @Override
     public void position(long position) {
         int idx = bufferIdx(position);
         if (idx == NO_BUFFER) {
-            throw new IllegalArgumentException("Invalid position");
+            do {
+                nextBuffer();
+            } while (bufferIdx(position) != NO_BUFFER);
+            position(position);
         }
         MappedByteBuffer buffer = getBuffer(idx);
         int bufferAddress = posOnBuffer(position);
@@ -240,16 +254,38 @@ public class MMapStorage extends DiskStorage {
 
     @Override
     public void truncate(long pos) {
-        super.mode = Mode.READ;
-        int remaining = current.flip().remaining();
-        buffers.remove(buffers.size() - 1);
+        if (Mode.READ.equals(mode)) {
+            throw new StorageException("Cannot truncate read only file");
+        }
+        int idx = bufferIdx(pos);
+        int bPos = posOnBuffer(pos);
+        MappedByteBuffer buffer = getBuffer(idx);
+        buffer.position(bPos);
 
-        unmap(current);
-        super.truncate(pos);
+        int clearBufferSize = 4096;
+        if (buffer == current) {
+            while (buffer.hasRemaining()) {
+                int min = Math.min(buffer.remaining(), clearBufferSize);
+                ByteBuffer clear = ByteBuffer.allocate(clearBufferSize);
+                clear.limit(min);
+                buffer.put(clear);
+            }
+            buffer.position(bPos);
+        }
 
-        long start = buffers.size() * bufferSize;
-        current = map(start, remaining);
+//        for (int i = idx + 1; i < buffers.size(); i++) {
+//            MappedByteBuffer toUnmap = buffers.remove(i);
+//            unmap(toUnmap);
+//        }
+//        current = buffers.get(buffers.size() - 1);
+        int fileSize = buffers.size() * bufferSize;
+        unmapAll();
+
+        super.truncate(fileSize);
+
+        current = map(0, bufferSize);
         buffers.add(current);
+        writeBufferIdx = 0;
     }
 
     @Override

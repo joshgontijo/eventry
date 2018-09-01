@@ -22,4 +22,6 @@ public interface Storage extends Flushable, Closeable {
 
     void truncate(long pos);
 
+    void markAsReadOnly();
+
 }

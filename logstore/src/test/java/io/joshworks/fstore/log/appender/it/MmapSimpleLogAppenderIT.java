@@ -16,7 +16,6 @@ public class MmapSimpleLogAppenderIT extends LogAppenderIT<Segment<String>> {
 //        return new SimpleLogAppender<>(LogAppender.builder(testDirectory, Serializers.STRING).mmap());
         return new SimpleLogAppender<>(LogAppender.builder(testDirectory, Serializers.STRING)
                 .mmap(83986080)
-
                 .segmentSize(83886080));
     }
 }
