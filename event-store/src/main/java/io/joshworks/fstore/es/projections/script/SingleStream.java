@@ -34,3 +34,31 @@ public class SingleStream {
         return new SingleStream(stream.filter(filter));
     }
 }
+
+
+//options({
+//   key: "value",
+//   anotherKey: "AanotherValue",
+//   persistState: true
+//});
+//state.t1 = 0;
+//state.t2 = 0;
+//state.t3 = 0;
+//fromStream("stream1")
+//	.when({
+//		"type-1" : function(event) {
+//			print("YOLO -> " + event);
+//			state.t1++;
+//		},
+//		"type-2" : function(event) {
+//			print(event);
+//			state.t2++;
+//		},
+//		"type-3" : function(event) {
+//			print(event);
+//			state.t3++;
+//		},
+//		"_any": function(event) {
+//			print("yolo " + event);
+//		}
+//	});
