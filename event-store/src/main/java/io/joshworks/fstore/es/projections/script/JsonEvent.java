@@ -45,4 +45,9 @@ public class JsonEvent {
     public String toJson() {
         return gson.toJson(this);
     }
+
+    @Override
+    public String toString() {
+        return toJson();
+    }
 }
