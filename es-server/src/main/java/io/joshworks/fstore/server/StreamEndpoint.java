@@ -54,6 +54,7 @@ public class StreamEndpoint {
         exchange.send(events);
     }
 
+    //TODO json parsing should be avoided
     public void append(HttpExchange exchange) {
         String stream = exchange.pathParameter(PATH_PARAM_STREAM);
         EventBody eventBody = exchange.body().asObject(EventBody.class);

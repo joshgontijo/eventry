@@ -2,7 +2,10 @@ package io.joshworks.fstore.es.stream;
 
 import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.es.LRUCache;
+import io.joshworks.fstore.es.hash.Murmur3Hash;
+import io.joshworks.fstore.es.hash.XXHash;
 import io.joshworks.fstore.es.index.IndexEntry;
+import io.joshworks.fstore.es.index.StreamHasher;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.LogAppender;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
@@ -29,6 +32,7 @@ public class Streams implements Closeable {
     private final LRUCache<Long, AtomicInteger> versions;
     private final Map<Long, StreamMetadata> streamsMap;
     private final SimpleLogAppender<StreamMetadata> appender;
+    private final StreamHasher hasher;
 
     private static final String DIRECTORY = "streams";
 
@@ -36,14 +40,30 @@ public class Streams implements Closeable {
         this.appender = new SimpleLogAppender<>(LogAppender.builder(new File(root, DIRECTORY), new EventStreamSerializer()));
         this.streamsMap = loadFromDisk(this.appender);
         this.versions = new LRUCache<>(versionLruCacheSize, streamHash -> new AtomicInteger(versionFetcher.apply(streamHash)));
+        this.hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
     }
 
     public Optional<StreamMetadata> get(long streamHash) {
         return Optional.ofNullable(streamsMap.get(streamHash));
     }
 
+    public StreamMetadata getOrCreate(String stream) {
+        long hash = hasher.hash(stream);
+        return streamsMap.compute(hash, (k, v) -> {
+            if(v == null) {
+                return new StreamMetadata(stream, hash, System.currentTimeMillis());
+            }
+            return v;
+        });
+    }
+
+
     public List<StreamMetadata> all() {
         return new ArrayList<>(streamsMap.values());
+    }
+
+    public long hashOf(String stream) {
+        return hasher.hash(stream);
     }
 
     //TODO implement 'remove'

@@ -14,6 +14,11 @@
 
     <dependencies>
         <dependency>
+            <groupId>io.joshworks.unirest</groupId>
+            <artifactId>unirest-java</artifactId>
+            <version>1.6.1</version>
+        </dependency>
+        <dependency>
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>event-store</artifactId>
         </dependency>

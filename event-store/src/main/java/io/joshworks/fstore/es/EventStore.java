@@ -1,10 +1,8 @@
 package io.joshworks.fstore.es;
 
-import io.joshworks.fstore.es.hash.Murmur3Hash;
-import io.joshworks.fstore.es.hash.XXHash;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
-import io.joshworks.fstore.es.index.StreamHasher;
 import io.joshworks.fstore.es.index.TableIndex;
 import io.joshworks.fstore.es.log.Event;
 import io.joshworks.fstore.es.log.EventLog;
@@ -13,7 +11,6 @@ import io.joshworks.fstore.es.projections.ProjectionsLog;
 import io.joshworks.fstore.es.stream.StreamInfo;
 import io.joshworks.fstore.es.stream.StreamMetadata;
 import io.joshworks.fstore.es.stream.Streams;
-import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.utils.Tuple;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -43,7 +40,6 @@ public class EventStore implements Closeable {
     private static final int LRU_CACHE_SIZE = 1000000;
 
     private final TableIndex index;
-    private final StreamHasher hasher;
     private final Streams streams;
     private final EventLog eventLog;
     private final ProjectionsLog projectionsLog;
@@ -52,7 +48,6 @@ public class EventStore implements Closeable {
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer()).segmentSize((int) Size.MEGABYTE.toBytes(200)).disableCompaction());
         this.projectionsLog = new ProjectionsLog(rootDir);
         this.index = new TableIndex(rootDir);
-        this.hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
         this.streams = new Streams(rootDir, LRU_CACHE_SIZE, this.index::version);
     }
 
@@ -73,7 +68,7 @@ public class EventStore implements Closeable {
     }
 
     public void createStream(String name, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
-        long hash = hasher.hash(name);
+        long hash = streams.hashOf(name);
         streams.add(new StreamMetadata(name, hash, System.currentTimeMillis(), maxAge, maxCount, permissions, metadata));
     }
 
@@ -85,7 +80,7 @@ public class EventStore implements Closeable {
     }
 
     public Optional<StreamInfo> streamMetadata(String stream) {
-        long streamHash = hasher.hash(stream);
+        long streamHash = streams.hashOf(stream);
         return streams.get(streamHash).map(meta -> {
             int version = streams.version(meta.hash);
             return StreamInfo.from(meta, version);
@@ -101,7 +96,7 @@ public class EventStore implements Closeable {
     }
 
     public LogIterator<Event> fromStreamIter(String stream, int versionInclusive) {
-        long streamHash = hasher.hash(stream);
+        long streamHash = streams.hashOf(stream);
         LogIterator<IndexEntry> addresses = index.iterator(Range.of(streamHash, versionInclusive));
         addresses = withMaxCountFilter(streamHash, addresses);
         return withMaxAgeFilter(Set.of(streamHash), new SingleStreamIterator(stream, addresses, eventLog));
@@ -126,17 +121,17 @@ public class EventStore implements Closeable {
         return Iterators.stream(zipStreamsIter(streamPrefix));
     }
 
-    public LogIterator<Event> zipStreamsIter(Set<String> streams) {
-        Set<String> uniqueStreams = new LinkedHashSet<>(streams);
+    public LogIterator<Event> zipStreamsIter(Set<String> streamNames) {
+        Set<String> uniqueStreams = new LinkedHashSet<>(streamNames);
 
-        List<LogIterator<IndexEntry>> indexes = new ArrayList<>(streams.size());
+        List<LogIterator<IndexEntry>> indexes = new ArrayList<>(streamNames.size());
         Map<Long, String> mappings = new HashMap<>();
         Set<Long> hashes = new HashSet<>();
         for (String stream : uniqueStreams) {
             if (stream == null || stream.isEmpty()) {
                 throw new IllegalArgumentException("Stream cannot empty");
             }
-            long streamHash = hasher.hash(stream);
+            long streamHash = streams.hashOf(stream);
             hashes.add(streamHash);
             LogIterator<IndexEntry> indexStream = index.iterator(Range.allOf(streamHash));
 
@@ -158,7 +153,7 @@ public class EventStore implements Closeable {
     }
 
     public int version(String stream) {
-        long streamHash = hasher.hash(stream);
+        long streamHash = streams.hashOf(stream);
         return streams.version(streamHash);
     }
 
@@ -172,17 +167,21 @@ public class EventStore implements Closeable {
     }
 
     public void linkTo(String stream, Event event) {
-        long streamHash = hasher.hash(stream);
+        StreamMetadata streamMeta = streams.getOrCreate(stream);
+        int newVersion = streams.tryIncrementVersion(streamMeta.hash, IndexEntry.NO_VERSION);
+        index.add(streamMeta.hash, newVersion, event.position());
+    }
 
-        int newVersion = streams.tryIncrementVersion(streamHash, IndexEntry.NO_VERSION);
-        index.add(streamHash, newVersion, event.position());
+    public void emit(String stream, Event event) {
+        event.stream(stream);
+        add(event);
     }
 
     public Optional<Event> get(String stream, int version) {
         if (version <= IndexEntry.NO_VERSION) {
             throw new IllegalArgumentException("Version must be greater than " + IndexEntry.NO_VERSION);
         }
-        long streamHash = hasher.hash(stream);
+        long streamHash = streams.hashOf(stream);
         Range range = Range.of(streamHash, version, version + 1);
         return index.stream(range).map(i -> {
             Event event = eventLog.get(i.position);
@@ -201,25 +200,24 @@ public class EventStore implements Closeable {
             throw new IllegalArgumentException("Invalid stream");
         }
         String stream = event.stream();
-        long streamHash = hasher.hash(stream);
-        StreamMetadata streamMetadata = streams.get(streamHash).orElseGet(() -> createStream(stream, streamHash));
+        StreamMetadata streamMetadata = streams.getOrCreate(stream);
 
         return add(streamMetadata, event, expectedVersion);
     }
 
     //TODO: implement checkpoint ?
     public PollingSubscriber<Event> poller(String stream) {
-        Set<Long> hashes = streams.streamMatching(stream).stream().map(hasher::hash).collect(Collectors.toSet());
+        Set<Long> hashes = streams.streamMatching(stream).stream().map(streams::hashOf).collect(Collectors.toSet());
         return new EventStorePoller(index.poller(hashes), eventLog);
     }
 
-    public PollingSubscriber<Event> poller(Set<String> streams) {
-        Set<Long> hashes = streams.stream().map(hasher::hash).collect(Collectors.toSet());
+    public PollingSubscriber<Event> poller(Set<String> streamNames) {
+        Set<Long> hashes = streamNames.stream().map(streams::hashOf).collect(Collectors.toSet());
         return new EventStorePoller(index.poller(hashes), eventLog);
     }
 
 //    public PollingSubscriber<Event> poller(String stream, int version) {
-//        long streamHash = hasher.hash(stream);
+//        long streamHash = streams.hashOf(stream);
 //        return new EventStorePoller(index.poller(streamHash, version), eventLog);
 //    }
 
@@ -237,12 +235,6 @@ public class EventStore implements Closeable {
 
         event.streamInfo(streamMetadata.name, indexEntry);
         return event;
-    }
-
-    private StreamMetadata createStream(String name, long hash) {
-        StreamMetadata streamMetadata = new StreamMetadata(name, hash, System.currentTimeMillis());
-        streams.add(streamMetadata);
-        return streamMetadata;
     }
 
     private LogIterator<IndexEntry> withMaxCountFilter(long streamHash, LogIterator<IndexEntry> iterator) {
