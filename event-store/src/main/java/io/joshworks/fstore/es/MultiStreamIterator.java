@@ -1,7 +1,7 @@
 package io.joshworks.fstore.es;
 
 import io.joshworks.fstore.es.index.IndexEntry;
-import io.joshworks.fstore.es.log.Event;
+import io.joshworks.fstore.es.log.EventRecord;
 import io.joshworks.fstore.es.log.EventLog;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -13,7 +13,7 @@ import java.util.PriorityQueue;
 import java.util.Queue;
 
 //Ordered by log position multiple streams
-public class MultiStreamIterator implements LogIterator<Event> {
+public class MultiStreamIterator implements LogIterator<EventRecord> {
 
     private final Map<Long, String> streamHashMappings;
     private final EventLog eventLog;
@@ -36,7 +36,7 @@ public class MultiStreamIterator implements LogIterator<Event> {
     }
 
     @Override
-    public Event next() {
+    public EventRecord next() {
         Iterators.PeekingIterator<IndexEntry> nextIterator = queue.remove();
         IndexEntry indexEntry = nextIterator.next();
         if (nextIterator.hasNext()) {
@@ -46,9 +46,8 @@ public class MultiStreamIterator implements LogIterator<Event> {
         if (stream == null) {
             throw new IllegalStateException("Invalid stream mapping for " + indexEntry.stream);
         }
-        Event event = eventLog.get(indexEntry.position);
-        event.streamInfo(stream, indexEntry);
-        return event;
+
+        return eventLog.get(indexEntry.position);
     }
 
     @Override

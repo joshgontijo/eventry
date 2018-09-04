@@ -2,7 +2,7 @@ package io.joshworks.fstore.server;
 
 import com.google.gson.Gson;
 import io.joshworks.fstore.core.io.IOUtils;
-import io.joshworks.fstore.es.log.Event;
+import io.joshworks.fstore.es.log.EventRecord;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.snappy.sse.EventData;
 import io.joshworks.snappy.sse.SseBroadcaster;
@@ -55,7 +55,7 @@ public class EventBroadcaster implements Closeable {
     }
 
 
-    public boolean add(PollingSubscriber<Event> poller) {
+    public boolean add(PollingSubscriber<EventRecord> poller) {
         if(closed.get()) {
             logger.warn("Event broadcaster is closed");
             return false;
@@ -75,7 +75,7 @@ public class EventBroadcaster implements Closeable {
         return true;
     }
 
-    public void remove(PollingSubscriber<Event> poller) {
+    public void remove(PollingSubscriber<EventRecord> poller) {
         for (BroadcastWorker worker : workers) {
             worker.remove(poller);
         }
@@ -109,7 +109,7 @@ public class EventBroadcaster implements Closeable {
         private static final Logger logger = LoggerFactory.getLogger(EventBroadcaster.class);
         private final Gson gson = new Gson();
         private final AtomicBoolean closed = new AtomicBoolean();
-        private final List<PollingSubscriber<Event>> pollers = new ArrayList<>();
+        private final List<PollingSubscriber<EventRecord>> pollers = new ArrayList<>();
         private final long waitTime;
 
         private BroadcastWorker(long waitTime) {
@@ -125,16 +125,16 @@ public class EventBroadcaster implements Closeable {
                         Thread.sleep(10000);
                     }
 
-                    List<Event> available = new ArrayList<>();
-                    for (PollingSubscriber<Event> poller : pollers) {
-                        Event event = poller.poll();
+                    List<EventRecord> available = new ArrayList<>();
+                    for (PollingSubscriber<EventRecord> poller : pollers) {
+                        EventRecord event = poller.poll();
                         if (event == null) {
                             continue;
                         }
                         available.add(event);
                     }
 
-                    for (Event event : available) {
+                    for (EventRecord event : available) {
                         send(event);
                     }
 
@@ -152,7 +152,7 @@ public class EventBroadcaster implements Closeable {
         @Override
         public void close() {
             closed.set(true);
-            for (PollingSubscriber<Event> poller : pollers) {
+            for (PollingSubscriber<EventRecord> poller : pollers) {
                 remove(poller);
             }
         }
@@ -162,13 +162,14 @@ public class EventBroadcaster implements Closeable {
             return pollers.size();
         }
 
-        private void send(Event event) {
+        private void send(EventRecord event) {
             try {
                 EventBody eventBody = EventBody.from(event);
 
                 String data = gson.toJson(eventBody);
-                String eventId = String.valueOf(event.position());
-                String stream = event.stream();
+//                String eventId = String.valueOf(event.position());
+                String eventId = String.valueOf(event.eventId());
+                String stream = event.stream;
 
                 EventData eventData = new EventData(data, eventId, stream);
                 SseBroadcaster.broadcast(eventData, stream);
@@ -178,7 +179,7 @@ public class EventBroadcaster implements Closeable {
 
         }
 
-        public void remove(PollingSubscriber<Event> poller) {
+        public void remove(PollingSubscriber<EventRecord> poller) {
             pollers.remove(poller);
             IOUtils.closeQuietly(poller);
         }

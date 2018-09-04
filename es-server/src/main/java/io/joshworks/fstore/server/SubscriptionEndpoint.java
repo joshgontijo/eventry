@@ -1,7 +1,7 @@
 package io.joshworks.fstore.server;
 
 import io.joshworks.fstore.es.EventStore;
-import io.joshworks.fstore.es.log.Event;
+import io.joshworks.fstore.es.log.EventRecord;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.snappy.sse.SseBroadcaster;
 import io.joshworks.snappy.sse.SseCallback;
@@ -28,7 +28,7 @@ public class SubscriptionEndpoint {
 
     private static final Logger logger = LoggerFactory.getLogger(SubscriptionEndpoint.class);
 
-    private Map<ServerSentEventConnection, PollingSubscriber<Event>> pollers = new HashMap<>();
+    private Map<ServerSentEventConnection, PollingSubscriber<EventRecord>> pollers = new HashMap<>();
 
     public SubscriptionEndpoint(EventStore store, EventBroadcaster broadcast) {
         this.store = store;
@@ -57,7 +57,7 @@ public class SubscriptionEndpoint {
 
                 //TODO implement checkpoint
 //              int version = lastEventId == null || lastEventId.isEmpty() ? 0 : Integer.valueOf(lastEventId);
-                PollingSubscriber<Event> poller = store.poller(streams);
+                PollingSubscriber<EventRecord> poller = store.poller(streams);
                 pollers.put(connection, poller);
                 broadcast.add(poller);
 
@@ -69,7 +69,7 @@ public class SubscriptionEndpoint {
 
             @Override
             public void onClose(ServerSentEventConnection connection) {
-                PollingSubscriber<Event> poller = pollers.get(connection);
+                PollingSubscriber<EventRecord> poller = pollers.get(connection);
                 pollers.remove(connection);
                 broadcast.remove(poller);
             }

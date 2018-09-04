@@ -11,22 +11,21 @@ import java.util.stream.Stream;
 
 public class EventLog {
 
-    private final SimpleLogAppender<Event> appender;
+    private final SimpleLogAppender<EventRecord> appender;
 
-    public EventLog(Config<Event> config) {
+    public EventLog(Config<EventRecord> config) {
         this.appender = new SimpleLogAppender<>(config);
     }
 
-    public long append(Event event) {
+    public long append(EventRecord event) {
         return appender.append(event);
     }
 
-    public Event get(long position) {
-        Event event = appender.get(position);
+    public EventRecord get(long position) {
+        EventRecord event = appender.get(position);
         if (event == null) {
             throw new IllegalArgumentException("No event found for " + position);
         }
-        event.position(position);
         return event;
     }
 
@@ -38,27 +37,27 @@ public class EventLog {
         appender.close();
     }
 
-    public LogIterator<Event> scanner() {
+    public LogIterator<EventRecord> scanner() {
         return new EventLogIterator(appender.scanner());
     }
 
-    public Stream<Event> stream() {
+    public Stream<EventRecord> stream() {
         return Iterators.stream(scanner());
     }
 
-    public PollingSubscriber<Event> poller() {
+    public PollingSubscriber<EventRecord> poller() {
         return appender.poller();
     }
 
-    public PollingSubscriber<Event> poller(long position) {
+    public PollingSubscriber<EventRecord> poller(long position) {
         return appender.poller(position);
     }
 
-    private static class EventLogIterator implements LogIterator<Event> {
+    private static class EventLogIterator implements LogIterator<EventRecord> {
 
-        private final LogIterator<Event> iterator;
+        private final LogIterator<EventRecord> iterator;
 
-        private EventLogIterator(LogIterator<Event> iterator) {
+        private EventLogIterator(LogIterator<EventRecord> iterator) {
             this.iterator = iterator;
         }
 
@@ -78,11 +77,8 @@ public class EventLog {
         }
 
         @Override
-        public Event next() {
-            long position = iterator.position();
-            Event next = iterator.next();
-            next.position(position);
-            return next;
+        public EventRecord next() {
+            return iterator.next();
         }
     }
 

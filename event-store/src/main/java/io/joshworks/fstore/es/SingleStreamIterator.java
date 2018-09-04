@@ -1,22 +1,19 @@
 package io.joshworks.fstore.es;
 
 import io.joshworks.fstore.es.index.IndexEntry;
-import io.joshworks.fstore.es.log.Event;
-import io.joshworks.fstore.es.log.EventLog;
+import io.joshworks.fstore.es.log.EventRecord;
 import io.joshworks.fstore.log.LogIterator;
 
 import java.io.IOException;
 
-public class SingleStreamIterator implements LogIterator<Event> {
+public class SingleStreamIterator implements LogIterator<EventRecord> {
 
-    private final String stream;
     private final LogIterator<IndexEntry> indexIterator;
-    private final EventLog eventLog;
+    private final EventStore store;
 
-    public SingleStreamIterator(String stream, LogIterator<IndexEntry> indexIterator, EventLog eventLog) {
-        this.stream = stream;
+    public SingleStreamIterator(LogIterator<IndexEntry> indexIterator, EventStore store) {
         this.indexIterator = indexIterator;
-        this.eventLog = eventLog;
+        this.store = store;
     }
 
     @Override
@@ -25,11 +22,9 @@ public class SingleStreamIterator implements LogIterator<Event> {
     }
 
     @Override
-    public Event next() {
+    public EventRecord next() {
         IndexEntry indexEntry = indexIterator.next();
-        Event event = eventLog.get(indexEntry.position);
-        event.streamInfo(stream, indexEntry);
-        return event;
+        return store.get(indexEntry);
     }
 
     @Override

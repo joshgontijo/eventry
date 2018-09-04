@@ -4,13 +4,14 @@ import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.es.index.TableIndex;
-import io.joshworks.fstore.es.log.Event;
 import io.joshworks.fstore.es.log.EventLog;
+import io.joshworks.fstore.es.log.EventRecord;
 import io.joshworks.fstore.es.log.EventSerializer;
 import io.joshworks.fstore.es.projections.ProjectionsLog;
 import io.joshworks.fstore.es.stream.StreamInfo;
 import io.joshworks.fstore.es.stream.StreamMetadata;
 import io.joshworks.fstore.es.stream.Streams;
+import io.joshworks.fstore.es.utils.StringUtils;
 import io.joshworks.fstore.es.utils.Tuple;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -87,41 +88,41 @@ public class EventStore implements Closeable {
         });
     }
 
-    public LogIterator<Event> fromStreamIter(String stream) {
+    public LogIterator<EventRecord> fromStreamIter(String stream) {
         return fromStreamIter(stream, Range.START_VERSION);
     }
 
-    public Stream<Event> fromStream(String stream) {
+    public Stream<EventRecord> fromStream(String stream) {
         return fromStream(stream, Range.START_VERSION);
     }
 
-    public LogIterator<Event> fromStreamIter(String stream, int versionInclusive) {
+    public LogIterator<EventRecord> fromStreamIter(String stream, int versionInclusive) {
         long streamHash = streams.hashOf(stream);
         LogIterator<IndexEntry> addresses = index.iterator(Range.of(streamHash, versionInclusive));
         addresses = withMaxCountFilter(streamHash, addresses);
-        return withMaxAgeFilter(Set.of(streamHash), new SingleStreamIterator(stream, addresses, eventLog));
+        return withMaxAgeFilter(Set.of(streamHash), new SingleStreamIterator(addresses, this));
     }
 
-    public Stream<Event> fromStream(String stream, int versionInclusive) {
-        LogIterator<Event> iterator = fromStreamIter(stream, versionInclusive);
+    public Stream<EventRecord> fromStream(String stream, int versionInclusive) {
+        LogIterator<EventRecord> iterator = fromStreamIter(stream, versionInclusive);
         return Iterators.stream(iterator);
     }
 
-    public Stream<Event> zipStreams(Set<String> streams) {
-        LogIterator<Event> iterator = zipStreamsIter(streams);
+    public Stream<EventRecord> zipStreams(Set<String> streams) {
+        LogIterator<EventRecord> iterator = zipStreamsIter(streams);
         return Iterators.stream(iterator);
     }
 
-    public LogIterator<Event> zipStreamsIter(String streamPrefix) {
+    public LogIterator<EventRecord> zipStreamsIter(String streamPrefix) {
         Set<String> eventStreams = streams.streamMatching(streamPrefix);
         return zipStreamsIter(eventStreams);
     }
 
-    public Stream<Event> zipStreams(String streamPrefix) {
+    public Stream<EventRecord> zipStreams(String streamPrefix) {
         return Iterators.stream(zipStreamsIter(streamPrefix));
     }
 
-    public LogIterator<Event> zipStreamsIter(Set<String> streamNames) {
+    public LogIterator<EventRecord> zipStreamsIter(Set<String> streamNames) {
         Set<String> uniqueStreams = new LinkedHashSet<>(streamNames);
 
         List<LogIterator<IndexEntry>> indexes = new ArrayList<>(streamNames.size());
@@ -142,11 +143,11 @@ public class EventStore implements Closeable {
         return withMaxAgeFilter(hashes, new MultiStreamIterator(mappings, indexes, eventLog));
     }
 
-    public Stream<Stream<Event>> fromStreams(Set<String> streams) {
+    public Stream<Stream<EventRecord>> fromStreams(Set<String> streams) {
         return streams.stream().map(this::fromStream);
     }
 
-    public Map<String, Stream<Event>> fromStreamsMapped(Set<String> streams) {
+    public Map<String, Stream<EventRecord>> fromStreamsMapped(Set<String> streams) {
         return streams.stream()
                 .map(stream -> Tuple.of(stream, fromStream(stream)))
                 .collect(Collectors.toMap(Tuple::a, Tuple::b));
@@ -157,85 +158,101 @@ public class EventStore implements Closeable {
         return streams.version(streamHash);
     }
 
-    public LogIterator<Event> fromAllIter() {
+    public LogIterator<EventRecord> fromAllIter() {
         return eventLog.scanner();
     }
 
     //Won't return the stream in the event !
-    public Stream<Event> fromAll() {
+    public Stream<EventRecord> fromAll() {
         return eventLog.stream();
     }
 
-    public void linkTo(String stream, Event event) {
+    public void linkTo(String stream, EventRecord event) {
         StreamMetadata streamMeta = streams.getOrCreate(stream);
         int newVersion = streams.tryIncrementVersion(streamMeta.hash, IndexEntry.NO_VERSION);
-        index.add(streamMeta.hash, newVersion, event.position());
+        EventRecord linkTo = add(EventRecord.createLinkTo(stream, newVersion, System.currentTimeMillis(), event));
+        add(linkTo);
     }
 
-    public void emit(String stream, Event event) {
-        event.stream(stream);
-        add(event);
+    public void emit(String stream, EventRecord event) {
+        EventRecord withStream = EventRecord.create(stream, event.type, event.data, event.metadata);
+        add(withStream);
     }
 
-    public Optional<Event> get(String stream, int version) {
+    public EventRecord get(String stream, int version) {
+        long streamHash = streams.hashOf(stream);
+       return get(streamHash, version);
+    }
+
+    public EventRecord get(long stream, int version) {
         if (version <= IndexEntry.NO_VERSION) {
             throw new IllegalArgumentException("Version must be greater than " + IndexEntry.NO_VERSION);
         }
-        long streamHash = streams.hashOf(stream);
-        Range range = Range.of(streamHash, version, version + 1);
-        return index.stream(range).map(i -> {
-            Event event = eventLog.get(i.position);
-            event.streamInfo(stream, i);
-            return event;
-        }).findFirst();
+        Range range = Range.of(stream, version, version + 1);
+        return index.stream(range).map(this::get).findFirst()
+                //TODO add stream string info when failed, like 'stream@version'
+                .orElseThrow(() -> new RuntimeException("EventRecord not found for"));
+
+
     }
 
-    public Event add(Event event) {
+    //TODO make it price and change SingleStreamIterator
+    EventRecord get(IndexEntry indexEntry) {
+        Objects.requireNonNull(indexEntry, "IndexEntry must be provided");
+        EventRecord record = eventLog.get(indexEntry.position);
+
+        if (record.type.equals(EventRecord.LINKTO_TYPE)) {
+            String[] split = record.dataAsString().split(EventRecord.VERSION_SEPARATOR);
+            var linkToStream = split[0];
+            var linkToVersion = Integer.parseInt(split[1]);
+            return get(linkToStream, linkToVersion);
+        }
+        return record;
+
+    }
+
+    public EventRecord add(EventRecord event) {
         return add(event, IndexEntry.NO_VERSION);
     }
 
-    public Event add(Event event, int expectedVersion) {
+    public EventRecord add(EventRecord event, int expectedVersion) {
         Objects.requireNonNull(event, "Event must be provided");
-        if (event.stream() == null || event.stream().isEmpty()) {
-            throw new IllegalArgumentException("Invalid stream");
-        }
-        String stream = event.stream();
-        StreamMetadata streamMetadata = streams.getOrCreate(stream);
+        StringUtils.requireNonBlank(event.stream, "stream must be provided");
+        StreamMetadata streamMetadata = streams.getOrCreate(event.stream);
 
         return add(streamMetadata, event, expectedVersion);
     }
 
-    //TODO: implement checkpoint ?
-    public PollingSubscriber<Event> poller(String stream) {
-        Set<Long> hashes = streams.streamMatching(stream).stream().map(streams::hashOf).collect(Collectors.toSet());
-        return new EventStorePoller(index.poller(hashes), eventLog);
+    private EventRecord add(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
+        if (streamMetadata == null) {
+            throw new IllegalArgumentException("EventStream cannot be null");
+        }
+        long streamHash = streamMetadata.hash;
+        int version = streams.tryIncrementVersion(streamHash, expectedVersion);
+
+        var record = new EventRecord(event.stream, event.type, version, System.currentTimeMillis(), event.data, event.metadata);
+
+        long position = eventLog.append(record);
+        index.add(streamHash, version, position);
+
+        return record;
     }
 
-    public PollingSubscriber<Event> poller(Set<String> streamNames) {
+    //TODO: implement checkpoint ?
+    public PollingSubscriber<EventRecord> poller(String stream) {
+        Set<Long> hashes = streams.streamMatching(stream).stream().map(streams::hashOf).collect(Collectors.toSet());
+        return new EventStorePoller(index.poller(hashes), this);
+    }
+
+    public PollingSubscriber<EventRecord> poller(Set<String> streamNames) {
         Set<Long> hashes = streamNames.stream().map(streams::hashOf).collect(Collectors.toSet());
-        return new EventStorePoller(index.poller(hashes), eventLog);
+        return new EventStorePoller(index.poller(hashes), this);
     }
 
 //    public PollingSubscriber<Event> poller(String stream, int version) {
 //        long streamHash = streams.hashOf(stream);
 //        return new EventStorePoller(index.poller(streamHash, version), eventLog);
 //    }
-
-    private Event add(StreamMetadata streamMetadata, Event event, int expectedVersion) {
-        if(streamMetadata == null) {
-            throw new IllegalArgumentException("EventStream cannot be null");
-        }
-        long streamHash = streamMetadata.hash;
-
-        int version = streams.tryIncrementVersion(streamHash, expectedVersion);
-
-        event.stream(streamMetadata.name);
-        long position = eventLog.append(event);
-        IndexEntry indexEntry = index.add(streamHash, version, position);
-
-        event.streamInfo(streamMetadata.name, indexEntry);
-        return event;
-    }
 
     private LogIterator<IndexEntry> withMaxCountFilter(long streamHash, LogIterator<IndexEntry> iterator) {
         return streams.get(streamHash)
@@ -245,7 +262,7 @@ public class EventStore implements Closeable {
                 .orElse(iterator);
     }
 
-    private LogIterator<Event> withMaxAgeFilter(Set<Long> streamHashes, LogIterator<Event> iterator) {
+    private LogIterator<EventRecord> withMaxAgeFilter(Set<Long> streamHashes, LogIterator<EventRecord> iterator) {
         Map<String, StreamMetadata> metadataMap = streamHashes.stream()
                 .map(streams::get)
                 .filter(Optional::isPresent)
@@ -263,44 +280,40 @@ public class EventStore implements Closeable {
         projectionsLog.close();
     }
 
-    private static class EventStorePoller implements PollingSubscriber<Event> {
+    private static class EventStorePoller implements PollingSubscriber<EventRecord> {
 
+        private final EventStore store;
         private final PollingSubscriber<IndexEntry> indexPoller;
-        private final EventLog log;
 
-        private EventStorePoller(PollingSubscriber<IndexEntry> indexPoller, EventLog log) {
+        private EventStorePoller(PollingSubscriber<IndexEntry> indexPoller, EventStore store) {
             this.indexPoller = indexPoller;
-            this.log = log;
+            this.store = store;
         }
 
-        private Event getOrElse(IndexEntry peek) {
-            return Optional.ofNullable(peek).map(i -> {
-                Event event = log.get(i.position);
-                event.version(i.version);
-                return event;
-            }).orElse(null);
+        private EventRecord getOrElse(IndexEntry peek) {
+            return Optional.ofNullable(peek).map(store::get).orElse(null);
         }
 
         @Override
-        public Event peek() throws InterruptedException {
+        public EventRecord peek() throws InterruptedException {
             IndexEntry peek = indexPoller.peek();
             return getOrElse(peek);
         }
 
         @Override
-        public Event poll() throws InterruptedException {
+        public EventRecord poll() throws InterruptedException {
             IndexEntry poll = indexPoller.poll();
             return getOrElse(poll);
         }
 
         @Override
-        public Event poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+        public EventRecord poll(long limit, TimeUnit timeUnit) throws InterruptedException {
             IndexEntry poll = indexPoller.poll(limit, timeUnit);
             return getOrElse(poll);
         }
 
         @Override
-        public Event take() throws InterruptedException {
+        public EventRecord take() throws InterruptedException {
             IndexEntry take = indexPoller.take();
             return getOrElse(take);
         }

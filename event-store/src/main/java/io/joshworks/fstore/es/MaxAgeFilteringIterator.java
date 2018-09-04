@@ -1,6 +1,6 @@
 package io.joshworks.fstore.es;
 
-import io.joshworks.fstore.es.log.Event;
+import io.joshworks.fstore.es.log.EventRecord;
 import io.joshworks.fstore.es.stream.StreamMetadata;
 import io.joshworks.fstore.log.LogIterator;
 
@@ -8,14 +8,14 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
-public class MaxAgeFilteringIterator implements LogIterator<Event> {
+public class MaxAgeFilteringIterator implements LogIterator<EventRecord> {
 
-    private final LogIterator<Event> delegate;
-    private Event next;
+    private final LogIterator<EventRecord> delegate;
+    private EventRecord next;
     private final long timestamp = System.currentTimeMillis();
     private Map<String, StreamMetadata> metadataMap;
 
-    public MaxAgeFilteringIterator(Map<String, StreamMetadata> metadataMap, LogIterator<Event> delegate) {
+    public MaxAgeFilteringIterator(Map<String, StreamMetadata> metadataMap, LogIterator<EventRecord> delegate) {
         this.metadataMap = metadataMap;
         this.delegate = delegate;
         next = dropEvents();
@@ -27,29 +27,29 @@ public class MaxAgeFilteringIterator implements LogIterator<Event> {
     }
 
     @Override
-    public Event next() {
+    public EventRecord next() {
         if (next == null) {
             throw new NoSuchElementException();
         }
-        Event temp = next;
+        EventRecord temp = next;
         next = dropEvents();
         return temp;
     }
 
-    private Event dropEvents() {
-        Event last = nextEntry();
+    private EventRecord dropEvents() {
+        EventRecord last = nextEntry();
         while(last != null && !withinMaxAge(last)) {
             last = nextEntry();
         }
         return last != null && withinMaxAge(last) ? last : null;
     }
 
-    private boolean withinMaxAge(Event event) {
-        StreamMetadata metadata = metadataMap.get(event.stream());
-        return metadata.maxAge <= 0 || ((timestamp - event.timestamp()) / 1000) <= metadata.maxAge;
+    private boolean withinMaxAge(EventRecord event) {
+        StreamMetadata metadata = metadataMap.get(event.stream);
+        return metadata.maxAge <= 0 || ((timestamp - event.timestamp) / 1000) <= metadata.maxAge;
     }
 
-    private Event nextEntry() {
+    private EventRecord nextEntry() {
         return delegate.hasNext() ? delegate.next() : null;
     }
 

@@ -1,7 +1,7 @@
 package io.joshworks.fstore.server;
 
 import io.joshworks.fstore.es.EventStore;
-import io.joshworks.fstore.es.log.Event;
+import io.joshworks.fstore.es.log.EventRecord;
 import io.joshworks.fstore.es.stream.StreamInfo;
 import io.joshworks.snappy.http.HttpException;
 import io.joshworks.snappy.http.HttpExchange;
@@ -59,9 +59,9 @@ public class StreamEndpoint {
         String stream = exchange.pathParameter(PATH_PARAM_STREAM);
         EventBody eventBody = exchange.body().asObject(EventBody.class);
 
-        Event event = eventBody.toEvent();
-        event.stream(stream);
-        Event result = store.add(event);
+        //TODO fix toEvent metadata when is empty
+        EventRecord event = eventBody.toEvent(stream);
+        EventRecord result = store.add(event);
 
         exchange.send(EventBody.from(result));
     }

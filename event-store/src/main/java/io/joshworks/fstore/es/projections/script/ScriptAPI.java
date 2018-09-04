@@ -1,7 +1,7 @@
 package io.joshworks.fstore.es.projections.script;
 
 import io.joshworks.fstore.es.EventStore;
-import io.joshworks.fstore.es.log.Event;
+import io.joshworks.fstore.es.log.EventRecord;
 
 import java.util.AbstractMap;
 import java.util.Map;
@@ -26,7 +26,7 @@ public class ScriptAPI {
         this.fromStreams = streams ->  new SingleStream(store.zipStreams( Set.of(streams)).map(JsonEvent::from));
         this.foreachstream = streams -> {
             Set<String> streams1 = Set.of(streams);
-            Map<String, Stream<Event>> mapped = store.fromStreamsMapped(streams1);
+            Map<String, Stream<EventRecord>> mapped = store.fromStreamsMapped(streams1);
             Map<String, Stream<JsonEvent>> mappedStream = mapped.entrySet().stream()
                     .map(kv -> new AbstractMap.SimpleEntry<>(kv.getKey(), kv.getValue().map(JsonEvent::from)))
                     .collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));

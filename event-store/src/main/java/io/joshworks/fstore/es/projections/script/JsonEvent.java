@@ -3,7 +3,7 @@ package io.joshworks.fstore.es.projections.script;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.es.log.Event;
+import io.joshworks.fstore.es.log.EventRecord;
 import io.joshworks.fstore.serializer.json.JsonSerializer;
 
 import java.nio.ByteBuffer;
@@ -13,33 +13,31 @@ public class JsonEvent {
 
     private static final Gson gson = new Gson();
     private static final Serializer<Map<String, Object>> jsonSerializer = JsonSerializer.of(new TypeToken<Map<String, Object>>(){}.getType());
-    public String type;
-    public Map<String, Object> data;
 
-    //response only
-    public long timestamp;
-    public String stream;
-    public int version = -1;
-    public long position = -1;
+    public final String type;
+    public final Map<String, Object> data;
+    public final Map<String, Object> metadata;
+
+    public final long timestamp;
+    public final String stream;
+    public final int version;
 
 
-    public static JsonEvent from(Event event) {
-        JsonEvent body = new JsonEvent();
-        body.type = event.type();
-        body.timestamp = event.timestamp();
-        body.version = event.version();
-        body.stream = event.stream();
-        body.position = event.position();
-        body.data = jsonSerializer.fromBytes(ByteBuffer.wrap(event.data()));
-
-        return body;
+    private JsonEvent(EventRecord event) {
+        this.type = event.type;
+        this.timestamp = event.timestamp;
+        this.version = event.version;
+        this.stream = event.stream;
+        this.data = jsonSerializer.fromBytes(ByteBuffer.wrap(event.data));
+        this.metadata = jsonSerializer.fromBytes(ByteBuffer.wrap(event.metadata));
     }
 
-    public Event toEvent() {
-        Event event = Event.of(stream, type, jsonSerializer.toBytes(data).array(), System.currentTimeMillis());
-        event.position(position);
-        event.version(version);
-        return event;
+    public static JsonEvent from(EventRecord event) {
+        return new JsonEvent(event);
+    }
+
+    public EventRecord toEvent() {
+        return new EventRecord(stream, type, version, timestamp, jsonSerializer.toBytes(data).array(), jsonSerializer.toBytes(metadata).array());
     }
 
     public String toJson() {

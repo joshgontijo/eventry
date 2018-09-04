@@ -2,7 +2,7 @@ package io.joshworks.fstore.es;
 
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.es.index.IndexEntry;
-import io.joshworks.fstore.es.log.Event;
+import io.joshworks.fstore.es.log.EventRecord;
 import io.joshworks.fstore.es.log.EventLog;
 import io.joshworks.fstore.es.projections.ProjectionEntry;
 import io.joshworks.fstore.log.PollingSubscriber;
@@ -10,9 +10,9 @@ import io.joshworks.fstore.log.PollingSubscriber;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class StreamPoller implements PollingSubscriber<Event> {
+public class StreamPoller implements PollingSubscriber<EventRecord> {
 
-    private final PollingSubscriber<Event> logPoller;
+    private final PollingSubscriber<EventRecord> logPoller;
     private final PollingSubscriber<ProjectionEntry> projectionsPoller;
 
     private final EventLog log;
@@ -21,18 +21,18 @@ public class StreamPoller implements PollingSubscriber<Event> {
     //TODO duplicated
     private static final int VERIFICATION_INTERVAL_MILLIS = 500;
 
-    public StreamPoller(PollingSubscriber<Event> logPoller, PollingSubscriber<ProjectionEntry> projectionsPoller, EventLog log) {
+    public StreamPoller(PollingSubscriber<EventRecord> logPoller, PollingSubscriber<ProjectionEntry> projectionsPoller, EventLog log) {
         this.logPoller = logPoller;
         this.projectionsPoller = projectionsPoller;
         this.log = log;
     }
 
-    private Event fetchEvent(IndexEntry indexEntry) {
+    private EventRecord fetchEvent(IndexEntry indexEntry) {
         return log.get(indexEntry.position);
     }
 
-    private Event tryPoll(long time, TimeUnit timeUnit) throws InterruptedException {
-        Event fromLog = logPoller.peek();
+    private EventRecord tryPoll(long time, TimeUnit timeUnit) throws InterruptedException {
+        EventRecord fromLog = logPoller.peek();
         ProjectionEntry fromProjection = projectionsPoller.peek();
 
         if (fromLog == null && fromProjection == null) {
@@ -51,8 +51,8 @@ public class StreamPoller implements PollingSubscriber<Event> {
         return getFirstEvent(fromLog, fromProjection);
     }
 
-    private Event tryTake() throws InterruptedException {
-        Event fromLog = logPoller.peek();
+    private EventRecord tryTake() throws InterruptedException {
+        EventRecord fromLog = logPoller.peek();
         ProjectionEntry fromProjection = projectionsPoller.peek();
 
         if (fromLog == null && fromProjection == null) {
@@ -64,7 +64,7 @@ public class StreamPoller implements PollingSubscriber<Event> {
         return getFirstEvent(fromLog, fromProjection);
     }
 
-    private Event getFirstEvent(Event fromLog, ProjectionEntry fromProjection) throws InterruptedException {
+    private EventRecord getFirstEvent(EventRecord fromLog, ProjectionEntry fromProjection) throws InterruptedException {
         if (fromLog == null && fromProjection == null) {
             return null;
         }
@@ -78,7 +78,7 @@ public class StreamPoller implements PollingSubscriber<Event> {
             return fetchEvent(polled.indexEntry);
         }
 
-        if (fromLog.timestamp() < fromProjection.timestamp) {
+        if (fromLog.timestamp < fromProjection.timestamp) {
             return logPoller.poll();
         } else {
             ProjectionEntry poll = projectionsPoller.poll();
@@ -88,19 +88,19 @@ public class StreamPoller implements PollingSubscriber<Event> {
 
 
     @Override
-    public Event peek() throws InterruptedException {
-        Event fromLog = logPoller.peek();
+    public EventRecord peek() throws InterruptedException {
+        EventRecord fromLog = logPoller.peek();
         ProjectionEntry fromProjection = projectionsPoller.peek();
         return getFirstEvent(fromLog, fromProjection);
     }
 
     @Override
-    public synchronized Event poll() throws InterruptedException {
+    public synchronized EventRecord poll() throws InterruptedException {
         return tryPoll(PollingSubscriber.NO_SLEEP, TimeUnit.MILLISECONDS);
     }
 
     @Override
-    public Event poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+    public EventRecord poll(long limit, TimeUnit timeUnit) throws InterruptedException {
         return tryPoll(limit, timeUnit);
     }
 
@@ -128,7 +128,7 @@ public class StreamPoller implements PollingSubscriber<Event> {
     }
 
     @Override
-    public Event take() throws InterruptedException {
+    public EventRecord take() throws InterruptedException {
         return tryTake();
     }
 
