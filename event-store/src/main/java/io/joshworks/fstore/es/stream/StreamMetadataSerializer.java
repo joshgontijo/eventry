@@ -9,7 +9,7 @@ import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class EventStreamSerializer implements Serializer<StreamMetadata> {
+public class StreamMetadataSerializer implements Serializer<StreamMetadata> {
 
     private final Serializer<Map<String, Integer>> permissionSerializer = Serializers.mapSerializer(Serializers.VSTRING, Serializers.INTEGER, VStringSerializer::sizeOf, v -> Integer.BYTES, ConcurrentHashMap::new);
     private final Serializer<Map<String, String>> metadataSerializer = Serializers.mapSerializer(Serializers.VSTRING, Serializers.VSTRING, VStringSerializer::sizeOf, VStringSerializer::sizeOf, ConcurrentHashMap::new);

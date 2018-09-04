@@ -1,5 +1,6 @@
 package io.joshworks.fstore.es;
 
+import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
@@ -7,9 +8,9 @@ import io.joshworks.fstore.es.index.TableIndex;
 import io.joshworks.fstore.es.log.EventLog;
 import io.joshworks.fstore.es.log.EventRecord;
 import io.joshworks.fstore.es.log.EventSerializer;
-import io.joshworks.fstore.es.projections.ProjectionsLog;
 import io.joshworks.fstore.es.stream.StreamInfo;
 import io.joshworks.fstore.es.stream.StreamMetadata;
+import io.joshworks.fstore.es.stream.StreamMetadataSerializer;
 import io.joshworks.fstore.es.stream.Streams;
 import io.joshworks.fstore.es.utils.StringUtils;
 import io.joshworks.fstore.es.utils.Tuple;
@@ -21,6 +22,7 @@ import io.joshworks.fstore.log.appender.LogAppender;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,17 +45,28 @@ public class EventStore implements Closeable {
     private final TableIndex index;
     private final Streams streams;
     private final EventLog eventLog;
-    private final ProjectionsLog projectionsLog;
 
     private EventStore(File rootDir) {
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer()).segmentSize((int) Size.MEGABYTE.toBytes(200)).disableCompaction());
-        this.projectionsLog = new ProjectionsLog(rootDir);
         this.index = new TableIndex(rootDir);
-        this.streams = new Streams(rootDir, LRU_CACHE_SIZE, this.index::version);
+        this.streams = new Streams(LRU_CACHE_SIZE, index::version);
+        this.loadStreams();
     }
 
     public static EventStore open(File rootDir) {
         return new EventStore(rootDir);
+    }
+
+    private void loadStreams() {
+        final Serializer<StreamMetadata> serializer = new StreamMetadataSerializer();
+        fromStream(EventRecord.System.STREAMS_STREAM).forEach(event -> {
+            StreamMetadata streamMetadata = serializer.fromBytes(ByteBuffer.wrap(event.data));
+            if(EventRecord.System.STREAM_DELETED_TYPE.equals(event.type)) {
+                streams.remove(streamMetadata.hash);
+            } else {
+                streams.add(streamMetadata);
+            }
+        });
     }
 
     public Iterator<IndexEntry> keys() {
@@ -68,9 +81,15 @@ public class EventStore implements Closeable {
         createStream(name, maxCount, maxAge, new HashMap<>(), new HashMap<>());
     }
 
-    public void createStream(String name, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
+    public StreamMetadata createStream(String name, int maxCount, long maxAge, Map<String, Integer> permissions, Map<String, String> metadata) {
         long hash = streams.hashOf(name);
-        streams.add(new StreamMetadata(name, hash, System.currentTimeMillis(), maxAge, maxCount, permissions, metadata));
+        StreamMetadata streamMetadata = new StreamMetadata(name, hash, System.currentTimeMillis(), maxAge, maxCount, permissions, metadata);
+
+        EventRecord eventRecord = EventRecord.System.streamCreatedRecord(streamMetadata);
+        this.append(eventRecord);
+        streams.add(streamMetadata);
+
+        return streamMetadata;
     }
 
     public List<StreamInfo> streamsMetadata() {
@@ -167,21 +186,23 @@ public class EventStore implements Closeable {
         return eventLog.stream();
     }
 
-    public void linkTo(String stream, EventRecord event) {
-        StreamMetadata streamMeta = streams.getOrCreate(stream);
-        int newVersion = streams.tryIncrementVersion(streamMeta.hash, IndexEntry.NO_VERSION);
-        EventRecord linkTo = add(EventRecord.createLinkTo(stream, newVersion, System.currentTimeMillis(), event));
-        add(linkTo);
+    public EventRecord linkTo(String stream, EventRecord event) {
+        if (event.isLinkToEvent()) {
+            //resolve event
+            event = get(event.stream, event.version);
+        }
+        EventRecord linkTo = EventRecord.System.createLinkTo(stream, event);
+        return append(linkTo);
     }
 
     public void emit(String stream, EventRecord event) {
         EventRecord withStream = EventRecord.create(stream, event.type, event.data, event.metadata);
-        add(withStream);
+        append(withStream);
     }
 
     public EventRecord get(String stream, int version) {
         long streamHash = streams.hashOf(stream);
-       return get(streamHash, version);
+        return get(streamHash, version);
     }
 
     public EventRecord get(long stream, int version) {
@@ -193,7 +214,6 @@ public class EventStore implements Closeable {
                 //TODO add stream string info when failed, like 'stream@version'
                 .orElseThrow(() -> new RuntimeException("EventRecord not found for"));
 
-
     }
 
     //TODO make it price and change SingleStreamIterator
@@ -201,29 +221,34 @@ public class EventStore implements Closeable {
         Objects.requireNonNull(indexEntry, "IndexEntry must be provided");
         EventRecord record = eventLog.get(indexEntry.position);
 
-        if (record.type.equals(EventRecord.LINKTO_TYPE)) {
-            String[] split = record.dataAsString().split(EventRecord.VERSION_SEPARATOR);
+        return resolve(record);
+    }
+
+    private EventRecord resolve(EventRecord record) {
+        if (record.isLinkToEvent()) {
+            String[] split = record.dataAsString().split(EventRecord.STREAM_VERSION_SEPARATOR);
             var linkToStream = split[0];
             var linkToVersion = Integer.parseInt(split[1]);
             return get(linkToStream, linkToVersion);
         }
         return record;
-
     }
 
-    public EventRecord add(EventRecord event) {
-        return add(event, IndexEntry.NO_VERSION);
+    public EventRecord append(EventRecord event) {
+        return append(event, IndexEntry.NO_VERSION);
     }
 
-    public EventRecord add(EventRecord event, int expectedVersion) {
+    public EventRecord append(EventRecord event, int expectedVersion) {
         Objects.requireNonNull(event, "Event must be provided");
         StringUtils.requireNonBlank(event.stream, "stream must be provided");
-        StreamMetadata streamMetadata = streams.getOrCreate(event.stream);
+        StreamMetadata streamMetadata = streams.getOrCreate(event.stream, streamMeta -> {
+            this.append(EventRecord.System.streamCreatedRecord(streamMeta));
+        });
 
-        return add(streamMetadata, event, expectedVersion);
+        return append(streamMetadata, event, expectedVersion);
     }
 
-    private EventRecord add(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
+    private EventRecord append(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
         if (streamMetadata == null) {
             throw new IllegalArgumentException("EventStream cannot be null");
         }
@@ -238,20 +263,27 @@ public class EventStore implements Closeable {
         return record;
     }
 
-    //TODO: implement checkpoint ?
+    public PollingSubscriber<EventRecord> poller() {
+        return new LogPoller(eventLog.poller(), this);
+    }
+
+    public PollingSubscriber<EventRecord> poller(long position) {
+        return new LogPoller(eventLog.poller(position), this);
+    }
+
     public PollingSubscriber<EventRecord> poller(String stream) {
         Set<Long> hashes = streams.streamMatching(stream).stream().map(streams::hashOf).collect(Collectors.toSet());
-        return new EventStorePoller(index.poller(hashes), this);
+        return new IndexedLogPoller(index.poller(hashes), this);
     }
 
     public PollingSubscriber<EventRecord> poller(Set<String> streamNames) {
         Set<Long> hashes = streamNames.stream().map(streams::hashOf).collect(Collectors.toSet());
-        return new EventStorePoller(index.poller(hashes), this);
+        return new IndexedLogPoller(index.poller(hashes), this);
     }
 
 //    public PollingSubscriber<Event> poller(String stream, int version) {
 //        long streamHash = streams.hashOf(stream);
-//        return new EventStorePoller(index.poller(streamHash, version), eventLog);
+//        return new IndexedLogPoller(index.poller(streamHash, version), eventLog);
 //    }
 
     private LogIterator<IndexEntry> withMaxCountFilter(long streamHash, LogIterator<IndexEntry> iterator) {
@@ -277,15 +309,65 @@ public class EventStore implements Closeable {
         index.close();
         eventLog.close();
         streams.close();
-        projectionsLog.close();
     }
 
-    private static class EventStorePoller implements PollingSubscriber<EventRecord> {
+    private static class LogPoller implements PollingSubscriber<EventRecord> {
+
+        private final EventStore store;
+        private final PollingSubscriber<EventRecord> logPoller;
+
+        private LogPoller(PollingSubscriber<EventRecord> logPoller, EventStore store) {
+            this.store = store;
+            this.logPoller = logPoller;
+        }
+
+        @Override
+        public EventRecord peek() throws InterruptedException {
+            return store.resolve(logPoller.peek());
+        }
+
+        @Override
+        public EventRecord poll() throws InterruptedException {
+            return store.resolve(logPoller.poll());
+        }
+
+        @Override
+        public EventRecord poll(long limit, TimeUnit timeUnit) throws InterruptedException {
+            return store.resolve(logPoller.poll(limit, timeUnit));
+        }
+
+        @Override
+        public EventRecord take() throws InterruptedException {
+            return store.resolve(logPoller.take());
+        }
+
+        @Override
+        public boolean headOfLog() {
+            return logPoller.headOfLog();
+        }
+
+        @Override
+        public boolean endOfLog() {
+            return false;
+        }
+
+        @Override
+        public long position() {
+            return logPoller.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            logPoller.close();
+        }
+    }
+
+    private static class IndexedLogPoller implements PollingSubscriber<EventRecord> {
 
         private final EventStore store;
         private final PollingSubscriber<IndexEntry> indexPoller;
 
-        private EventStorePoller(PollingSubscriber<IndexEntry> indexPoller, EventStore store) {
+        private IndexedLogPoller(PollingSubscriber<IndexEntry> indexPoller, EventStore store) {
             this.indexPoller = indexPoller;
             this.store = store;
         }
@@ -330,7 +412,7 @@ public class EventStore implements Closeable {
 
         @Override
         public long position() {
-            return -1;
+            return -1; //TODO this is not reliable for index log
         }
 
         @Override

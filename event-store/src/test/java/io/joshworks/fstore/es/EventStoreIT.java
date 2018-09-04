@@ -56,7 +56,7 @@ public class EventStoreIT {
         long start = System.currentTimeMillis();
         String stream = "test-stream";
         for (int i = 0; i < size; i++) {
-            store.add(EventRecord.create(stream, "" + i, "data-" + i));
+            store.append(EventRecord.create(stream, "" + i, "data-" + i));
         }
         System.out.println("WRITE: " + (System.currentTimeMillis() - start));
 
@@ -84,7 +84,7 @@ public class EventStoreIT {
 
         String stream = "test-stream";
         for (int i = 0; i < size; i++) {
-            store.add(EventRecord.create(stream, "" + i, "data-" + i));
+            store.append(EventRecord.create(stream, "" + i, "data-" + i));
         }
 
         System.out.println("WRITE: " + (System.currentTimeMillis() - start));
@@ -107,7 +107,7 @@ public class EventStoreIT {
 
         String streamPrefix = "test-stream-";
         for (int i = 0; i < size; i++) {
-            store.add(EventRecord.create(streamPrefix + i, "" + i, "data-" + i));
+            store.append(EventRecord.create(streamPrefix + i, "" + i, "data-" + i));
         }
         System.out.println("WRITE: " + (System.currentTimeMillis() - start));
 
@@ -127,30 +127,13 @@ public class EventStoreIT {
     }
 
     @Test
-    public void insert_100000_streams_with_10_version_each() {
-        testWith(100000, 10);
-    }
-
-
-    @Test
-    public void insert_500000_streams_with_2_version_each() {
-        testWith(500000, 2);
-    }
-
-    @Test
-    public void insert_1000000_streams_with_10_version_each() {
-        testWith(1000000, 10);
-    }
-
-
-    @Test
     public void fromStream_returns_all_items_when_store_is_reopened() {
 
         //given
         int size = 10000;
         String streamPrefix = "test-stream-";
         for (int i = 0; i < size; i++) {
-            store.add(EventRecord.create(streamPrefix + i, "" + i, "data-" + i));
+            store.append(EventRecord.create(streamPrefix + i, "" + i, "data-" + i));
         }
 
         store.close();
@@ -170,7 +153,7 @@ public class EventStoreIT {
         int size = 10000;
         String streamPrefix = "test-stream-";
         for (int i = 0; i < size; i++) {
-            store.add(EventRecord.create(streamPrefix + i, "" + i, "data-" + i));
+            store.append(EventRecord.create(streamPrefix + i, "" + i, "data-" + i));
         }
 
         store.close();
@@ -188,7 +171,7 @@ public class EventStoreIT {
         int size = 10000;
         String streamPrefix = "test-stream-";
         for (int i = 0; i < size; i++) {
-            store.add(EventRecord.create(streamPrefix + i, "" + i, "data-" + i));
+            store.append(EventRecord.create(streamPrefix + i, "" + i, "data-" + i));
         }
 
         store.close();
@@ -208,7 +191,7 @@ public class EventStoreIT {
         int numStreams = 1000;
         String streamPrefix = "stream-";
         for (int i = 0; i < numStreams; i++) {
-            store.add(EventRecord.create(streamPrefix + i, String.valueOf(i), "data-" + i));
+            store.append(EventRecord.create(streamPrefix + i, String.valueOf(i), "data-" + i));
         }
 
         for (int i = 0; i < numStreams; i++) {
@@ -228,7 +211,7 @@ public class EventStoreIT {
         int numEvents = 10000;
         String streamPrefix = "test-";
         for (int i = 0; i < numEvents; i++) {
-            store.add(EventRecord.create(streamPrefix + i, String.valueOf(i), "data-" + i));
+            store.append(EventRecord.create(streamPrefix + i, String.valueOf(i), "data-" + i));
         }
 
         //when
@@ -256,7 +239,7 @@ public class EventStoreIT {
         String streamPrefix = "test-";
         for (int stream = 0; stream < numStreams; stream++) {
             for (int version = 1; version <= numVersions; version++) {
-                store.add(EventRecord.create(streamPrefix + stream, String.valueOf("type"), "data-" + stream));
+                store.append(EventRecord.create(streamPrefix + stream, String.valueOf("type"), "data-" + stream));
             }
         }
 
@@ -279,7 +262,7 @@ public class EventStoreIT {
 
         int size = 1000;
         for (int i = 0; i < size; i++) {
-            store.add(EventRecord.create("stream-" + i, "test", "data"));
+            store.append(EventRecord.create("stream-" + i, "test", "data"));
         }
 
         Iterator<EventRecord> it = store.fromAllIter();
@@ -305,7 +288,7 @@ public class EventStoreIT {
         int numVersions = 50;
         for (int stream = 0; stream < numStreams; stream++) {
             for (int version = 0; version < numVersions; version++) {
-                store.add(EventRecord.create(streamPrefix + stream, "type", "data-" + stream));
+                store.append(EventRecord.create(streamPrefix + stream, "type", "data-" + stream));
             }
         }
 
@@ -332,7 +315,7 @@ public class EventStoreIT {
         store.createStream(stream, maxCount, -1);
 
         for (int version = 0; version < numVersions; version++) {
-            store.add(EventRecord.create(stream, "type", "data-" + stream));
+            store.append(EventRecord.create(stream, "type", "data-" + stream));
         }
 
         Iterator<EventRecord> eventStream = store.fromStreamIter(stream);
@@ -358,7 +341,7 @@ public class EventStoreIT {
         store.createStream(stream, -1, maxAgeSeconds);
 
         for (int version = 0; version < numVersions; version++) {
-            store.add(EventRecord.create(stream, "type", "data-" + stream));
+            store.append(EventRecord.create(stream, "type", "data-" + stream));
         }
 
         long count = store.fromStream(stream).count();
@@ -377,7 +360,7 @@ public class EventStoreIT {
         System.out.println("Creating entries");
         String streamName = "test-stream";
         for (int i = 0; i < size; i++) {
-            store.add(EventRecord.create(streamName, "test", UUID.randomUUID().toString().substring(0, 8)));
+            store.append(EventRecord.create(streamName, "test", UUID.randomUUID().toString().substring(0, 8)));
         }
 
         System.out.println("LinkTo 1");
@@ -422,7 +405,7 @@ public class EventStoreIT {
         int size = 1000;
         String streamPrefix = "stream-";
         for (int i = 0; i < size; i++) {
-            store.add(EventRecord.create(streamPrefix + i, "test", "data"));
+            store.append(EventRecord.create(streamPrefix + i, "test", "data"));
         }
 
         for (int i = 0; i < size; i++) {
@@ -439,7 +422,7 @@ public class EventStoreIT {
         int size = 3000000;
         String allStream = "all";
         for (int i = 0; i < size; i++) {
-            store.add(EventRecord.create(allStream, "test", UUID.randomUUID().toString()));
+            store.append(EventRecord.create(allStream, "test", UUID.randomUUID().toString()));
         }
 
         int numOtherIndexes = 5;
@@ -471,13 +454,13 @@ public class EventStoreIT {
 
         for (int stream = 0; stream < numStreams; stream++) {
             for (int version = 1; version <= numVersions; version++) {
-                store.add(EventRecord.create(streamPrefix + stream, String.valueOf("type"), "data-" + stream));
+                store.append(EventRecord.create(streamPrefix + stream, String.valueOf("type"), "data-" + stream));
             }
         }
 
         //some other stream we don't care about
         for (int version = 1; version <= numVersions; version++) {
-            store.add(EventRecord.create("someOtherStream", String.valueOf("type"), "data-" + version));
+            store.append(EventRecord.create("someOtherStream", String.valueOf("type"), "data-" + version));
         }
 
         Iterator<EventRecord> eventStream = store.zipStreamsIter(streamPrefix);
@@ -498,7 +481,7 @@ public class EventStoreIT {
         int items = 1000000;
         String stream = "stream-123";
         for (int i = 0; i < items; i++) {
-            store.add(EventRecord.create(stream, "type", "data"));
+            store.append(EventRecord.create(stream, "type", "data"));
             if(i % 10000 == 0) {
                 System.out.println("WRITE: " + i);
             }
@@ -527,7 +510,7 @@ public class EventStoreIT {
         for (int i = 0; i < items; i++) {
             String stream = streamPrefix + i;
             allStreams.add(stream);
-            store.add(EventRecord.create(stream, "type", "data"));
+            store.append(EventRecord.create(stream, "type", "data"));
             if(i % 10000 == 0) {
                 System.out.println("WRITE: " + i);
             }
@@ -547,6 +530,21 @@ public class EventStoreIT {
                 }
             }
         }
+    }
+
+    @Test
+    public void linkTo_events_are_resolved_on_get() {
+
+        var original = "stream-1";
+        var linkToStream = "stream-2";
+        var created = store.append(EventRecord.create(original, "type", "data"));
+
+        store.linkTo(linkToStream, created);
+
+        EventRecord eventRecord = store.get(linkToStream, 0);
+        assertNotNull(eventRecord);
+        assertEquals(original, eventRecord.stream);
+        assertEquals(0, eventRecord.version);
 
     }
 
@@ -559,7 +557,7 @@ public class EventStoreIT {
             for (int version = 1; version <= numVersionPerStream; version++) {
                 String streamName = streamPrefix + stream;
                 try {
-                    store.add(EventRecord.create(streamName, "" + stream, "data-" + stream));
+                    store.append(EventRecord.create(streamName, "" + stream, "data-" + stream));
                 } catch (Exception e) {
                     throw new RuntimeException("Failed on stream " + streamName, e);
                 }

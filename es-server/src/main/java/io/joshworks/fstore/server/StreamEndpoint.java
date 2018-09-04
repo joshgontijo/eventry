@@ -61,7 +61,7 @@ public class StreamEndpoint {
 
         //TODO fix toEvent metadata when is empty
         EventRecord event = eventBody.toEvent(stream);
-        EventRecord result = store.add(event);
+        EventRecord result = store.append(event);
 
         exchange.send(EventBody.from(result));
     }

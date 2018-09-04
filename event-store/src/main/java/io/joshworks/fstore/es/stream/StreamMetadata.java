@@ -1,5 +1,8 @@
 package io.joshworks.fstore.es.stream;
 
+import io.joshworks.fstore.es.log.EventRecord;
+
+import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 

@@ -1,4 +1,4 @@
-package io.joshworks.fstore.es.projections.script;
+package io.joshworks.fstore.es.projections;
 
 import io.joshworks.fstore.es.EventStore;
 

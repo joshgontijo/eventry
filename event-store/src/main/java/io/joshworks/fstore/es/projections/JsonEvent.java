@@ -1,4 +1,4 @@
-package io.joshworks.fstore.es.projections.script;
+package io.joshworks.fstore.es.projections;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;

@@ -1,7 +1,7 @@
 package io.joshworks.fstore.server;
 
 import io.joshworks.fstore.es.EventStore;
-import io.joshworks.fstore.es.projections.script.Script;
+import io.joshworks.fstore.es.projections.Script;
 import io.joshworks.snappy.http.HttpException;
 import io.joshworks.snappy.http.HttpExchange;
 
