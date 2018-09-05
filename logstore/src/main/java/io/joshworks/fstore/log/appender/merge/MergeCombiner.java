@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log.appender.merge;
 
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.segment.Log;
 
@@ -19,7 +20,7 @@ public abstract class MergeCombiner<T extends Comparable<T>>  implements Segment
     @Override
     public void merge(List<? extends Log<T>> segments, Log<T> output) {
 
-        List<LogIterator<T>> iterators = segments.stream().map(Log::iterator).collect(Collectors.toList());
+        List<LogIterator<T>> iterators = segments.stream().map(s -> s.iterator(Direction.FORWARD)).collect(Collectors.toList());
 
         for (LogIterator<T> iterator : iterators) {
             IteratorContainer<T> container = new IteratorContainer<>(iterator);

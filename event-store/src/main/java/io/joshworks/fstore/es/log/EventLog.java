@@ -1,5 +1,6 @@
 package io.joshworks.fstore.es.log;
 
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
@@ -37,12 +38,12 @@ public class EventLog {
         appender.close();
     }
 
-    public LogIterator<EventRecord> scanner() {
-        return new EventLogIterator(appender.scanner());
+    public LogIterator<EventRecord> iterator(Direction direction) {
+        return new EventLogIterator(appender.iterator(direction));
     }
 
-    public Stream<EventRecord> stream() {
-        return Iterators.stream(scanner());
+    public Stream<EventRecord> stream(Direction direction) {
+        return Iterators.stream(iterator(direction));
     }
 
     public PollingSubscriber<EventRecord> poller() {

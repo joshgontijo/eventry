@@ -1,6 +1,9 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.Iterators;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
 import io.joshworks.fstore.log.segment.block.Block;
@@ -9,6 +12,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 
 public class BlockAppender<T> extends SimpleLogAppender<Block<T>> {
 
@@ -52,16 +56,34 @@ public class BlockAppender<T> extends SimpleLogAppender<Block<T>> {
         return position;
     }
 
-    public Iterator<T> iterator() {
-        return new BlockItemIterator<>(scanner());
+
+    public LogIterator<T> entryIterator(Direction direction) {
+        return new BlockItemIterator<>(super.iterator(direction));
     }
 
-    private static class BlockItemIterator<T> implements Iterator<T> {
+    public LogIterator<T> entryIterator(long position, Direction direction) {
+        return new BlockItemIterator<>(super.iterator(position, direction));
+    }
+
+    public Stream<T> entryStream(long position, Direction direction) {
+        return Iterators.stream(entryIterator(position, direction));
+    }
+
+    public Stream<T> entryStream(Direction direction) {
+        return Iterators.stream(entryIterator(direction));
+    }
+
+    @Override
+    public LogIterator<Block<T>> iterator(long position, Direction direction) {
+        return super.iterator(position, direction);
+    }
+
+    private static class BlockItemIterator<T> implements LogIterator<T> {
 
         private Iterator<T> blockIterator;
-        private final Iterator<io.joshworks.fstore.log.segment.block.Block<T>> appenderIterator;
+        private final LogIterator<Block<T>> appenderIterator;
 
-        private BlockItemIterator(Iterator<io.joshworks.fstore.log.segment.block.Block<T>> iterator) {
+        private BlockItemIterator(LogIterator<Block<T>> iterator) {
             this.appenderIterator = iterator;
             blockIterator = appenderIterator.hasNext() ? appenderIterator.next().iterator() : new ArrayList<T>().iterator();
         }
@@ -82,11 +104,20 @@ public class BlockAppender<T> extends SimpleLogAppender<Block<T>> {
         public T next() {
             return blockIterator.next();
         }
+
+        @Override
+        public long position() {
+            return appenderIterator.position();
+        }
+
+        @Override
+        public void close() throws IOException {
+            appenderIterator.close();
+        }
     }
 
     private static class BlockAppenderPoller<T> implements PollingSubscriber<String> {
 
-        
 
         @Override
         public String peek() throws InterruptedException {

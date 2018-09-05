@@ -46,11 +46,11 @@ public class FixedBufferDataReader extends ChecksumDataReader {
         if(length == 0) {
             return EMPTY;
         }
-        int checksum = buffer.getInt();
-        if (length + Log.ENTRY_HEADER_SIZE > buffer.capacity()) {
-            return extending(storage, position, length, checksum);
+        if (length + Log.MAIN_HEADER > buffer.capacity()) {
+            return extending(storage, position, length);
         }
 
+        int checksum = buffer.getInt();
         buffer.limit(buffer.position() + length);
         checksum(checksum, buffer);
         return buffer;
@@ -85,14 +85,14 @@ public class FixedBufferDataReader extends ChecksumDataReader {
             return EMPTY;
         }
 
+        if (length + Log.HEADER_OVERHEAD > buffer.capacity()) {
+            return extending(storage, position, length);
+        }
+
         buffer.reset();
         buffer.limit(buffer.position());
         buffer.position(buffer.position() - length - Log.CHECKSUM_SIZE);
         int checksum = buffer.getInt();
-        if (length + Log.ENTRY_HEADER_SIZE > buffer.capacity()) {
-            return extending(storage, position, length, checksum);
-        }
-
         checksum(checksum, buffer);
         return buffer;
     }
@@ -102,11 +102,15 @@ public class FixedBufferDataReader extends ChecksumDataReader {
         return direct ? ByteBuffer.allocateDirect(bufferSize) : ByteBuffer.allocate(bufferSize);
     }
 
-    private ByteBuffer extending(Storage storage, long position, int length, int checksum) {
-        ByteBuffer extra = ByteBuffer.allocate(Log.ENTRY_HEADER_SIZE + length);
+    private ByteBuffer extending(Storage storage, long position, int length) {
+        ByteBuffer extra = ByteBuffer.allocate(Log.MAIN_HEADER + length);
         storage.read(position, extra);
         extra.flip();
-        extra.position(Log.ENTRY_HEADER_SIZE);
+        int foundLength = extra.getInt();
+        if(foundLength != length) {
+            throw new IllegalStateException("Expected length " + length + " got " + foundLength);
+        }
+        int checksum = extra.getInt();
         checksum(checksum, extra);
         return extra;
     }

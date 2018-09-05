@@ -4,8 +4,9 @@ import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
-import io.joshworks.fstore.log.Order;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.Marker;
 import io.joshworks.fstore.log.segment.SegmentState;
 import org.junit.Test;
 
@@ -81,7 +82,7 @@ public class LevelsTest {
     }
 
     @Test
-    public void segments_return_OLDEST_segments_order_for_multiple_levels() {
+    public void segments_return_FORWARD_segments_order_for_multiple_levels() {
         DummySegment zero = new DummySegment(0);
         DummySegment seg1 = new DummySegment(1);
         DummySegment seg2 = new DummySegment(2);
@@ -95,7 +96,7 @@ public class LevelsTest {
                         seg3));
 
 
-        Iterator<DummySegment> it = levels.segments(Order.FORWARD);
+        Iterator<DummySegment> it = levels.segments(Direction.FORWARD);
 
         List<DummySegment> segments = Iterators.toList(it);
 
@@ -108,7 +109,7 @@ public class LevelsTest {
     }
 
     @Test
-    public void segments_return_OLDEST_ordered_segments_on_multiple_levels() {
+    public void segments_return_FORWARD_ordered_segments_on_multiple_levels() {
         DummySegment zero = new DummySegment(0);
         DummySegment seg11 = new DummySegment("seg11", 1);
         DummySegment seg12 = new DummySegment("seg12", 1);
@@ -127,7 +128,7 @@ public class LevelsTest {
                         seg31,
                         seg32));
 
-        Iterator<DummySegment> it = levels.segments(Order.FORWARD);
+        Iterator<DummySegment> it = levels.segments(Direction.FORWARD);
 
         List<DummySegment> segments = Iterators.toList(it);
 
@@ -143,7 +144,7 @@ public class LevelsTest {
     }
 
     @Test
-    public void segments_return_NEWEST_ordered_segments_on_multiple_levels() {
+    public void segments_return_BACKWARD_ordered_segments_on_multiple_levels() {
         DummySegment zero = new DummySegment(0);
         DummySegment seg11 = new DummySegment("seg11", 1);
         DummySegment seg12 = new DummySegment("seg12", 1);
@@ -162,7 +163,7 @@ public class LevelsTest {
                         seg31,
                         seg32));
 
-        Iterator<DummySegment> it = levels.segments(Order.BACKWARD);
+        Iterator<DummySegment> it = levels.segments(Direction.BACKWARD);
 
         List<DummySegment> segments = Iterators.toList(it);
 
@@ -301,33 +302,28 @@ public class LevelsTest {
         }
 
         @Override
-        public LogIterator<String> iterator() {
+        public Stream<String> stream(Direction direction) {
             return null;
         }
 
         @Override
-        public Stream<String> stream() {
+        public LogIterator<String> iterator(long position, Direction direction) {
             return null;
         }
 
         @Override
-        public LogIterator<String> iterator(long position) {
-            return null;
-        }
-
-        @Override
-        public LogIterator<String> iterator(Order order) {
-            return null;
-        }
-
-        @Override
-        public LogIterator<String> iterator(long position, Order order) {
+        public LogIterator<String> iterator(Direction direction) {
             return null;
         }
 
         @Override
         public long position() {
             return 0;
+        }
+
+        @Override
+        public Marker marker() {
+            return null;
         }
 
         @Override

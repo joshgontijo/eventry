@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.reader.FixedBufferDataReader;
@@ -71,7 +72,7 @@ public class BlockSegmentTest {
 
         segment.flush();
 
-        long count = segment.stream().count();
+        long count = segment.stream(Direction.FORWARD).count();
         assertEquals(entriesPerBlock, count);
     }
 

@@ -5,8 +5,8 @@ import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.Order;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
@@ -103,7 +103,7 @@ public class LogAppenderTest {
 
         assertEquals(2, appender.levels.numSegments());
 
-        LogIterator<String> logIterator = appender.scanner();
+        LogIterator<String> logIterator = appender.iterator(Direction.FORWARD);
 
         String lastValue = null;
 
@@ -149,7 +149,7 @@ public class LogAppenderTest {
         long pos3 = appender.append("3");
 
         appender.flush();
-        LogIterator<String> logIterator = appender.scanner();
+        LogIterator<String> logIterator = appender.iterator(Direction.FORWARD);
 
         assertEquals(pos1, logIterator.position());
         String found = logIterator.next();
@@ -177,7 +177,7 @@ public class LogAppenderTest {
 
         appender.flush();
 
-        LogIterator<String> logIterator = appender.scanner(lastWrittenPosition);
+        LogIterator<String> logIterator = appender.iterator(lastWrittenPosition, Direction.FORWARD);
 
         assertTrue(logIterator.hasNext());
         assertEquals(lastEntry, logIterator.next());
@@ -207,7 +207,7 @@ public class LogAppenderTest {
             assertEquals("3", testAppender.get(pos3));
             assertEquals("4", testAppender.get(pos4));
 
-            Set<String> values = testAppender.stream().collect(Collectors.toSet());
+            Set<String> values = testAppender.stream(Direction.FORWARD).collect(Collectors.toSet());
             assertTrue(values.contains("1"));
             assertTrue(values.contains("2"));
             assertTrue(values.contains("3"));
@@ -226,7 +226,7 @@ public class LogAppenderTest {
 
         appender = new SimpleLogAppender<>(config);
         assertEquals(2, appender.entries());
-        assertEquals(2, appender.stream().count());
+        assertEquals(2, appender.stream(Direction.FORWARD).count());
     }
 
     @Test
@@ -248,7 +248,7 @@ public class LogAppenderTest {
         File file = new File(testDirectory, segmentName);
         try (Storage storage = new RafStorage(file, file.length(), Mode.READ_WRITE)) {
             storage.position(Log.START);
-            ByteBuffer broken = ByteBuffer.allocate(Log.ENTRY_HEADER_SIZE + 4);
+            ByteBuffer broken = ByteBuffer.allocate(Log.HEADER_OVERHEAD + 4);
             broken.putInt(444); //expected length
             broken.putInt(123); // broken checksum
             broken.putChar('A'); // broken data
@@ -260,7 +260,7 @@ public class LogAppenderTest {
         }
 
         try (LogAppender<String, Segment<String>> testAppender = new SimpleLogAppender<>(config)) {
-            Set<String> values = testAppender.stream().collect(Collectors.toSet());
+            Set<String> values = testAppender.stream(Direction.FORWARD).collect(Collectors.toSet());
             assertTrue(values.contains("1"));
             assertTrue(values.contains("2"));
             assertTrue(values.contains("3"));
@@ -386,7 +386,7 @@ public class LogAppenderTest {
         assertEquals(2, appender.levels.depth());
         assertEquals(2, appender.entries());
 
-        List<String> found = appender.stream().collect(Collectors.toList());
+        List<String> found = appender.stream(Direction.FORWARD).collect(Collectors.toList());
         assertEquals("SEGMENT-A", found.get(0));
         assertEquals("SEGMENT-B", found.get(1));
     }
@@ -418,10 +418,10 @@ public class LogAppenderTest {
             }
         }
 
-        assertEquals(size, appender.stream().count());
+        assertEquals(size, appender.stream(Direction.FORWARD).count());
         assertEquals(size, appender.entries());
 
-        LogIterator<String> scanner = appender.scanner();
+        LogIterator<String> scanner = appender.iterator(Direction.FORWARD);
 
         int val = 0;
         while(scanner.hasNext()) {
@@ -535,7 +535,7 @@ public class LogAppenderTest {
         }
 
         int current = entries - 1;
-        try (LogIterator<String> iterator = appender.scanBackwards()) {
+        try (LogIterator<String> iterator = appender.iterator(Direction.BACKWARD)) {
             while (iterator.hasNext()) {
                 String next = iterator.next();
                 assertEquals(String.valueOf(current--), next);

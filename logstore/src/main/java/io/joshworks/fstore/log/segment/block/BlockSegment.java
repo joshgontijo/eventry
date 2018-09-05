@@ -4,26 +4,27 @@ import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.Order;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.segment.Log;
+import io.joshworks.fstore.log.segment.Marker;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.SegmentState;
 import io.joshworks.fstore.log.segment.Type;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Queue;
 import java.util.Set;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
@@ -73,24 +74,20 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
         return delegate.name();
     }
 
+
     @Override
-    public LogIterator<T> iterator() {
-        return new BlockIterator<>(delegate.iterator());
+    public Stream<T> stream(Direction direction) {
+        return Iterators.stream(iterator(direction));
     }
 
     @Override
-    public Stream<T> stream() {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(), Spliterator.ORDERED), false);
+    public Marker marker() {
+        return delegate.marker();
     }
 
     @Override
     public Set<TimeoutReader> readers() {
         return delegate.readers();
-    }
-
-    @Override
-    public LogIterator<T> iterator(long position) {
-        return new BlockIterator<>(delegate.iterator(position));
     }
 
     @Override
@@ -131,7 +128,6 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
         block = createBlock(serializer, maxBlockSize);
         delegate.delete();
     }
-
 
     @Override
     public void roll(int level, ByteBuffer footer) {
@@ -182,13 +178,13 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     }
 
     @Override
-    public LogIterator<T> iterator(Order order) {
-        return null;
+    public LogIterator<T> iterator(Direction direction) {
+        return new BlockIterator<>(delegate.iterator(direction), direction);
     }
 
     @Override
-    public LogIterator<T> iterator(long position, Order order) {
-        return null;
+    public LogIterator<T> iterator(long position, Direction direction) {
+        return new BlockIterator<>(delegate.iterator(position, direction), direction);
     }
 
     @Override
@@ -198,11 +194,21 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
 
     private static class BlockIterator<T, B extends Block<T>> implements LogIterator<T> {
 
+        private final Direction direction;
         private final LogIterator<B> segmentIterator;
         private Queue<T> entries = new LinkedList<>();
 
-        public BlockIterator(LogIterator<B> segmentIterator) {
+        public BlockIterator(LogIterator<B> segmentIterator,  Direction direction) {
             this.segmentIterator = segmentIterator;
+            this.direction = direction;
+        }
+
+        private List<T> readBlockEntries(B block) {
+            List<T> blockEntries = block.entries();
+            if(Direction.BACKWARD.equals(direction)) {
+                Collections.reverse(blockEntries);
+            }
+            return blockEntries;
         }
 
         @Override
@@ -220,7 +226,7 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
                 return false;
             }
             B block = segmentIterator.next();
-            entries.addAll(block.entries());
+            entries.addAll(readBlockEntries(block));
 
             return !entries.isEmpty();
         }

@@ -1,6 +1,7 @@
 package io.joshworks.fstore.es.index;
 
 
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
@@ -66,27 +67,40 @@ public class MemIndex implements Index {
         for (MemPoller poller : new ArrayList<>(pollers)) {
             poller.close();
         }
-
     }
 
     @Override
-    public LogIterator<IndexEntry> iterator(Range range) {
+    public LogIterator<IndexEntry> iterator(Direction direction) {
+        List<IndexEntry> ordered = index.entrySet().stream()
+                .sorted(Comparator.comparingLong(Map.Entry::getKey))
+                .map(Map.Entry::getValue)
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
+
+        return Iterators.of(ordered);
+    }
+
+    @Override
+    public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
         SortedSet<IndexEntry> entries = index.get(range.stream);
         if (entries == null) {
             return Iterators.empty();
         }
-        Set<IndexEntry> indexEntries = Collections.unmodifiableSet(entries.subSet(range.start(), range.end()));
-        return Iterators.of(indexEntries);
+        Set<IndexEntry> indexEntries = entries.subSet(range.start(), range.end());
+        if(Direction.FORWARD.equals(direction)) {
+            return Iterators.of(Collections.unmodifiableSet(indexEntries));
+        }
+        return Iterators.reversed(List.copyOf(indexEntries));
     }
 
     @Override
-    public Stream<IndexEntry> stream() {
-        return Iterators.stream(iterator());
+    public Stream<IndexEntry> stream(Direction direction) {
+        return Iterators.stream(iterator(direction));
     }
 
     @Override
-    public Stream<IndexEntry> stream(Range range) {
-        return Iterators.stream(iterator(range));
+    public Stream<IndexEntry> stream(Direction direction, Range range) {
+        return Iterators.stream(iterator(direction, range));
     }
 
     @Override
@@ -107,16 +121,6 @@ public class MemIndex implements Index {
         return Optional.of(entries.first());
     }
 
-    @Override
-    public LogIterator<IndexEntry> iterator() {
-        List<IndexEntry> ordered = index.entrySet().stream()
-                .sorted(Comparator.comparingLong(Map.Entry::getKey))
-                .map(Map.Entry::getValue)
-                .flatMap(Collection::stream)
-                .collect(Collectors.toList());
-
-        return Iterators.of(ordered);
-    }
 
 //    private void adToPollers(IndexEntry entry) {
 //        for (MemPoller poller : new ArrayList<>(pollers)) {

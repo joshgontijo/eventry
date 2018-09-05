@@ -2,6 +2,8 @@ package io.joshworks.fstore.es.index.disk;
 
 import io.joshworks.fstore.es.Utils;
 import io.joshworks.fstore.es.index.IndexEntry;
+import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.LogAppender;
 import org.junit.After;
@@ -49,7 +51,10 @@ public class IndexAppenderTest {
 
         int found = 0;
         IndexEntry last = null;
-        for (IndexEntry next : appender) {
+
+        LogIterator<IndexEntry> iterator = appender.iterator(Direction.FORWARD);
+        while(iterator.hasNext()) {
+            IndexEntry next = iterator.next();
             found++;
             System.out.println(next);
             if (last != null) {
@@ -76,7 +81,7 @@ public class IndexAppenderTest {
         start = System.currentTimeMillis();
         int count = 0;
         IndexEntry last = null;
-        Iterator<IndexEntry> iterator = appender.iterator();
+        Iterator<IndexEntry> iterator = appender.iterator(Direction.FORWARD);
         while (iterator.hasNext()) {
             IndexEntry next = iterator.next();
             last = next;

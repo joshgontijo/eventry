@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log.appender.it;
 
 import io.joshworks.fstore.core.io.IOUtils;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
@@ -66,7 +67,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
             fail("File " + f + " doesn't exist");
         }
 
-        LogIterator<String> logIterator = appender.scanner();
+        LogIterator<String> logIterator = appender.iterator(Direction.FORWARD);
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
 
@@ -95,7 +96,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
         assertEquals(position, f.length());
 
         try (LogAppender<String, L> appender = appender(testDirectory)) {
-            LogIterator<String> logIterator = appender.scanner();
+            LogIterator<String> logIterator = appender.iterator(Direction.FORWARD);
             assertTrue(logIterator.hasNext());
             assertEquals(data, logIterator.next());
         }
@@ -164,7 +165,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
         }
 
         try (LogAppender<String, L> appender = appender(testDirectory)) {
-            assertEquals(iterations, appender.stream().count());
+            assertEquals(iterations, appender.stream(Direction.FORWARD).count());
             assertEquals(iterations, appender.entries());
         }
     }
@@ -222,7 +223,7 @@ public abstract class LogAppenderIT<L extends Log<String>> {
 
     private void scanAllAssertingSameValue(String expected) {
         long start = System.currentTimeMillis();
-        try(LogIterator<String> logIterator = appender.scanner()) {
+        try(LogIterator<String> logIterator = appender.iterator(Direction.FORWARD)) {
 
             long avg = 0;
             long lastUpdate = System.currentTimeMillis();

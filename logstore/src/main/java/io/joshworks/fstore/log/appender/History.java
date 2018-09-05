@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.reader.FixedBufferDataReader;
 import io.joshworks.fstore.log.segment.Segment;
 import io.joshworks.fstore.log.segment.Type;
@@ -36,7 +37,7 @@ public class History {
 
     public List<List<String>> rebuildState() {
 
-        LogIterator<SegmentStateChange> iterator = history.iterator();
+        LogIterator<SegmentStateChange> iterator = history.iterator(Direction.FORWARD);
 
         Map<Integer, List<String>> levels = new HashMap<>();
 

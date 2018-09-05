@@ -1,17 +1,21 @@
 package io.joshworks.fstore.es.index;
 
+import io.joshworks.fstore.log.Direction;
+import io.joshworks.fstore.log.LogIterator;
+
 import java.io.Closeable;
-import java.util.Iterator;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-public interface Index extends Closeable, Iterable<IndexEntry> {
+public interface Index extends Closeable {
 
-    Iterator<IndexEntry> iterator(Range range);
+    LogIterator<IndexEntry> iterator(Direction direction);
 
-    Stream<IndexEntry> stream(Range range);
+    LogIterator<IndexEntry> iterator(Direction direction, Range range);
 
-    Stream<IndexEntry> stream();
+    Stream<IndexEntry> stream(Direction direction);
+
+    Stream<IndexEntry> stream(Direction direction, Range range);
 
     Optional<IndexEntry> get(long stream, int version);
 

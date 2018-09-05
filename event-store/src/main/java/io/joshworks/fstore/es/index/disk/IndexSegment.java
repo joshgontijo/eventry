@@ -11,6 +11,7 @@ import io.joshworks.fstore.es.index.filter.BloomFilter;
 import io.joshworks.fstore.es.index.midpoint.Midpoint;
 import io.joshworks.fstore.es.index.midpoint.Midpoints;
 import io.joshworks.fstore.index.filter.Hash;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.segment.Type;
@@ -83,21 +84,6 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
         midpoints.delete();
     }
 
-    @Override
-    public LogIterator<IndexEntry> iterator(Range range) {
-        if (!mightHaveEntries(range)) {
-            return Iterators.empty();
-        }
-
-        Midpoint lowBound = midpoints.getMidpointFor(range.start());
-        if (lowBound == null) {
-            return Iterators.empty();
-        }
-
-        LogIterator<IndexEntry> logIterator = iterator(lowBound.position);
-        return new RangeIndexEntryIterator(range, logIterator);
-    }
-
     void newBloomFilter(long numElements) {
         this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, new Hash.Murmur64<>(Serializers.LONG));
     }
@@ -108,8 +94,23 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
 
 
     @Override
-    public Stream<IndexEntry> stream(Range range) {
-        return Iterators.stream(iterator(range));
+    public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
+        if (!mightHaveEntries(range)) {
+            return Iterators.empty();
+        }
+
+        Midpoint lowBound = midpoints.getMidpointFor(range.start());
+        if (lowBound == null) {
+            return Iterators.empty();
+        }
+
+        LogIterator<IndexEntry> logIterator = iterator(lowBound.position, direction);
+        return new RangeIndexEntryIterator(range, logIterator);
+    }
+
+    @Override
+    public Stream<IndexEntry> stream(Direction direction, Range range) {
+        return Iterators.stream(iterator(direction, range));
     }
 
     @Override

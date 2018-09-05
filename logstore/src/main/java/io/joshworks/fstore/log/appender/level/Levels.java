@@ -2,7 +2,7 @@ package io.joshworks.fstore.log.appender.level;
 
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.Order;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.segment.Log;
 
 import java.util.ArrayList;
@@ -119,9 +119,9 @@ public class Levels<T, L extends Log<T>> {
         return segments.get(segments.size() - 1);
     }
 
-    public LogIterator<L> segments(Order order) {
+    public LogIterator<L> segments(Direction direction) {
         ArrayList<L> copy = new ArrayList<>(segments);
-        return Order.FORWARD.equals(order) ? Iterators.of(copy) : Iterators.reversed(copy);
+        return Direction.FORWARD.equals(direction) ? Iterators.of(copy) : Iterators.reversed(copy);
     }
 
     @Override

@@ -1,5 +1,5 @@
 package io.joshworks.fstore.log;
 
-public enum Order {
+public enum Direction {
     FORWARD, BACKWARD
 }

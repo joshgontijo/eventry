@@ -46,7 +46,7 @@ public class Iterators {
     }
 
     public static <T> List<T> toList(Iterator<T> iterator) {
-        List<T> copy = new ArrayList<T>();
+        List<T> copy = new ArrayList<>();
         while (iterator.hasNext())
             copy.add(iterator.next());
         return copy;

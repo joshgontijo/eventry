@@ -68,7 +68,7 @@ public abstract class SegmentTest {
         String data = "hello";
         segment.append(data);
 
-        assertEquals(Header.BYTES + 4 + 4 + data.length(), segment.position()); // 4 + 4 (header) + data length
+        assertEquals(Header.BYTES + Log.HEADER_OVERHEAD + data.length(), segment.position()); // 4 + 4 (header) + data length
     }
 
     @Test
@@ -89,10 +89,10 @@ public abstract class SegmentTest {
         String data = "hello";
         segment.append(data);
 
-        LogIterator<String> logIterator = segment.iterator();
+        LogIterator<String> logIterator = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
-        assertEquals(Header.BYTES + 4 + 4 + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + Log.HEADER_OVERHEAD + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -100,7 +100,7 @@ public abstract class SegmentTest {
         String data = "hello";
         segment.append(data);
 
-        LogIterator<String> logIterator = segment.iterator();
+        LogIterator<String> logIterator = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
 
@@ -109,11 +109,11 @@ public abstract class SegmentTest {
 
         segment = open(testFile);
 
-        logIterator = segment.iterator();
+        logIterator = segment.iterator(Direction.FORWARD);
         assertEquals(position, segment.position());
         assertTrue(logIterator.hasNext());
         assertEquals(data, logIterator.next());
-        assertEquals(Header.BYTES + Log.ENTRY_HEADER_SIZE + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + Log.HEADER_OVERHEAD + data.length(), logIterator.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -121,15 +121,15 @@ public abstract class SegmentTest {
         String data = "hello";
         segment.append(data);
 
-        LogIterator<String> logIterator1 = segment.iterator();
+        LogIterator<String> logIterator1 = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator1.hasNext());
         assertEquals(data, logIterator1.next());
-        assertEquals(Header.BYTES + Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + Log.HEADER_OVERHEAD + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
 
-        LogIterator<String> logIterator2 = segment.iterator();
+        LogIterator<String> logIterator2 = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator2.hasNext());
         assertEquals(data, logIterator2.next());
-        assertEquals(Header.BYTES + Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + Log.HEADER_OVERHEAD + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
     }
 
     @Test
@@ -141,10 +141,10 @@ public abstract class SegmentTest {
         String data = sb.toString();
         segment.append(data);
 
-        LogIterator<String> logIterator1 = segment.iterator();
+        LogIterator<String> logIterator1 = segment.iterator(Direction.FORWARD);
         assertTrue(logIterator1.hasNext());
         assertEquals(data, logIterator1.next());
-        assertEquals(Header.BYTES + Log.ENTRY_HEADER_SIZE + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
+        assertEquals(Header.BYTES + Log.HEADER_OVERHEAD + data.length(), logIterator1.position()); // 4 + 4 (heading) + data length
 
     }
 
@@ -216,7 +216,7 @@ public abstract class SegmentTest {
         segment.roll(1, ByteBuffer.wrap(fData));
 
 
-        Stream<String> stream = segment.stream();
+        Stream<String> stream = segment.stream(Direction.FORWARD);
         assertEquals(numEntries, stream.count());
     }
 
@@ -235,7 +235,7 @@ public abstract class SegmentTest {
         segment.roll(1, ByteBuffer.wrap(fData));
 
 
-        Stream<String> stream = segment.stream();
+        Stream<String> stream = segment.stream(Direction.FORWARD);
         assertEquals(numEntries, stream.count());
     }
 
@@ -268,7 +268,7 @@ public abstract class SegmentTest {
                 testSegment.append("a");
             }
 
-            LogIterator<String> reader = testSegment.iterator();
+            LogIterator<String> reader = testSegment.iterator(Direction.FORWARD);
             new Thread(() -> {
                 while (reader.hasNext()) {
                     String next = reader.next();
@@ -295,7 +295,7 @@ public abstract class SegmentTest {
         }
 
         int current = entries - 1;
-        try (LogIterator<String> iterator = segment.iterator(Order.BACKWARD)) {
+        try (LogIterator<String> iterator = segment.iterator(Direction.BACKWARD)) {
             while (iterator.hasNext()) {
                 String next = iterator.next();
                 assertEquals(String.valueOf(current--), next);
@@ -307,7 +307,7 @@ public abstract class SegmentTest {
     @Test
     public void segment_read_backwards_returns_false_when_empty_log() throws IOException {
 
-        try (LogIterator<String> iterator = segment.iterator(Order.BACKWARD)) {
+        try (LogIterator<String> iterator = segment.iterator(Direction.BACKWARD)) {
             assertFalse(iterator.hasNext());
         }
     }
@@ -323,7 +323,7 @@ public abstract class SegmentTest {
 
         int i = 0;
 
-        LogIterator<String> logIterator = segment.iterator();
+        LogIterator<String> logIterator = segment.iterator(Direction.FORWARD);
         while (logIterator.hasNext()) {
             assertEquals("Failed on iteration " + i, values.get(i), logIterator.next());
             i++;
@@ -336,13 +336,13 @@ public abstract class SegmentTest {
         segment.append("a");
         segment.append("b");
 
-        assertEquals(Header.BYTES + (Log.ENTRY_HEADER_SIZE + 1) * 2, segment.size());
+        assertEquals(Header.BYTES + (Log.HEADER_OVERHEAD + 1) * 2, segment.size());
 
         segment.position();
         segment.close();
 
         segment = open(testFile);
-        assertEquals(Header.BYTES + (Log.ENTRY_HEADER_SIZE + 1) * 2, segment.size());
+        assertEquals(Header.BYTES + (Log.HEADER_OVERHEAD + 1) * 2, segment.size());
     }
 
     @Test

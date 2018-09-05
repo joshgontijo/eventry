@@ -8,7 +8,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Checksum;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.Order;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import org.slf4j.Logger;
@@ -144,6 +144,14 @@ public class Segment<T> implements Log<T> {
     }
 
     @Override
+    public Marker marker() {
+        if (readOnly()) {
+            return new Marker(header.logStart, header.logEnd, header.footerStart, header.footerEnd);
+        }
+        return new Marker(header.logStart, -1, -1, -1);
+    }
+
+    @Override
     public T get(long position) {
         checkBounds(position);
         ByteBuffer data = reader.readForward(storage, position);
@@ -200,30 +208,26 @@ public class Segment<T> implements Log<T> {
     }
 
     @Override
-    public LogIterator<T> iterator() {
-        return newLogReader(Log.START, Order.FORWARD);
+    public Stream<T> stream(Direction direction) {
+        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(direction), Spliterator.ORDERED), false);
     }
 
     @Override
-    public Stream<T> stream() {
-        return StreamSupport.stream(Spliterators.spliteratorUnknownSize(iterator(), Spliterator.ORDERED), false);
+    public LogIterator<T> iterator(Direction direction) {
+        if (Direction.FORWARD.equals(direction)) {
+            return iterator(Log.START, direction);
+        }
+        if(readOnly()) {
+            return iterator(header.logEnd, direction);
+        }
+        return iterator(position(), direction);
+
     }
 
     @Override
-    public LogIterator<T> iterator(long position) {
-        return newLogReader(position, Order.FORWARD);
+    public LogIterator<T> iterator(long position, Direction direction) {
+        return newLogReader(position, direction);
     }
-
-    @Override
-    public LogIterator<T> iterator(Order order) {
-        return newLogReader(position(), order);
-    }
-
-    @Override
-    public LogIterator<T> iterator(long position, Order order) {
-        return newLogReader(position, Order.FORWARD);
-    }
-
 
     @Override
     public void close() {
@@ -251,7 +255,7 @@ public class Segment<T> implements Log<T> {
         int foundEntries = 0;
         try {
             logger.info("Restoring log state and checking consistency from position {}", lastKnownPosition);
-            LogIterator<T> logIterator = iterator(lastKnownPosition);
+            LogIterator<T> logIterator = iterator(lastKnownPosition, Direction.FORWARD);
             while (logIterator.hasNext()) {
                 logIterator.next();
                 foundEntries++;
@@ -340,7 +344,7 @@ public class Segment<T> implements Log<T> {
 
     //TODO properly implement reader pool
     //TODO implement race condition on acquiring readers and closing / deleting segment
-    protected LogReader newLogReader(long pos, Order order) {
+    protected LogReader newLogReader(long pos, Direction direction) {
 
         while (readers.size() >= 10) {
             try {
@@ -352,7 +356,7 @@ public class Segment<T> implements Log<T> {
             }
         }
 
-        LogReader logReader = new LogReader(storage, reader, serializer, pos, order);
+        LogReader logReader = new LogReader(storage, reader, serializer, pos, direction);
         return addToReaders(logReader);
     }
 
@@ -378,7 +382,7 @@ public class Segment<T> implements Log<T> {
 
     static long write(Storage storage, ByteBuffer bytes) {
         int entrySize = bytes.remaining();
-        ByteBuffer bb = ByteBuffer.allocate(ENTRY_HEADER_SIZE + entrySize);
+        ByteBuffer bb = ByteBuffer.allocate(HEADER_OVERHEAD + entrySize);
         bb.putInt(entrySize);
         bb.putInt(Checksum.crc32(bytes));
         bb.put(bytes);
@@ -437,11 +441,11 @@ public class Segment<T> implements Log<T> {
         private T data;
         protected long position;
         private long readAheadPosition;
-        private long lastReadSize;
-        private final Order order;
+        private int lastReadSize;
+        private final Direction direction;
 
-        LogReader(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition, Order order) {
-            this.order = order;
+        LogReader(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition, Direction direction) {
+            this.direction = direction;
             checkBounds(initialPosition);
             this.storage = storage;
             this.reader = reader;
@@ -471,19 +475,19 @@ public class Segment<T> implements Log<T> {
             lastReadTs = System.currentTimeMillis();
 
             T current = data;
-            position = Order.FORWARD.equals(order) ? position + lastReadSize : position - lastReadSize;
+            position = Direction.FORWARD.equals(direction) ? position + lastReadSize : position - lastReadSize;
             data = readAhead();
             return current;
         }
 
         private T readAhead() {
-            ByteBuffer bb = Order.FORWARD.equals(order) ? reader.readForward(storage, readAheadPosition) : reader.readBackward(storage, readAheadPosition);
+            ByteBuffer bb = Direction.FORWARD.equals(direction) ? reader.readForward(storage, readAheadPosition) : reader.readBackward(storage, readAheadPosition);
             if (bb.remaining() == 0) { //EOF
                 close();
                 return null;
             }
-            lastReadSize = bb.remaining() + Log.ENTRY_HEADER_SIZE;
-            readAheadPosition = Order.FORWARD.equals(order) ? readAheadPosition + lastReadSize : readAheadPosition - lastReadSize;
+            lastReadSize = bb.remaining() + Log.HEADER_OVERHEAD;
+            readAheadPosition = Direction.FORWARD.equals(direction) ? readAheadPosition + lastReadSize : readAheadPosition - lastReadSize;
             return serializer.fromBytes(bb);
         }
 
@@ -494,8 +498,9 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public String toString() {
-            return "SegmentPoller{" + ", uuid='" + uuid + '\'' +
+            return "SegmentPoller{ uuid='" + uuid + '\'' +
                     ", readPosition=" + position +
+                    ", order=" + direction +
                     ", readAheadPosition=" + readAheadPosition +
                     ", lastReadTs=" + lastReadTs +
                     '}';
@@ -527,7 +532,7 @@ public class Segment<T> implements Log<T> {
                 return null;
             }
             if (advance) {
-                readPosition += bb.limit();
+                readPosition += bb.remaining() + Log.HEADER_OVERHEAD;
             }
             return serializer.fromBytes(bb);
         }

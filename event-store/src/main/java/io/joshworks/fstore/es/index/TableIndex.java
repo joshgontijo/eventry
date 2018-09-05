@@ -4,6 +4,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.es.index.disk.IndexAppender;
 import io.joshworks.fstore.es.index.disk.IndexCompactor;
 import io.joshworks.fstore.es.index.disk.IndexEntrySerializer;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
@@ -89,9 +90,7 @@ public class TableIndex implements Index, Flushable {
             return;
         }
 
-        for (IndexEntry indexEntry : memIndex) {
-            diskIndex.append(indexEntry);
-        }
+        memIndex.stream(Direction.FORWARD).forEach(diskIndex::append);
 
         diskIndex.roll();
 
@@ -127,21 +126,29 @@ public class TableIndex implements Index, Flushable {
     }
 
     @Override
-    public Stream<IndexEntry> stream(Range range) {
-        return Iterators.stream(iterator(range));
-    }
-
-    @Override
-    public Stream<IndexEntry> stream() {
-        return Iterators.stream(iterator());
-    }
-
-    @Override
-    public LogIterator<IndexEntry> iterator(Range range) {
-        LogIterator<IndexEntry> cacheIterator = memIndex.iterator(range);
-        LogIterator<IndexEntry> diskIterator = diskIndex.iterator(range);
+    public LogIterator<IndexEntry> iterator(Direction direction) {
+        LogIterator<IndexEntry> cacheIterator = memIndex.iterator(direction);
+        LogIterator<IndexEntry> diskIterator = diskIndex.iterator(direction);
 
         return joiningDiskAndMem(diskIterator, cacheIterator);
+    }
+
+    @Override
+    public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
+        LogIterator<IndexEntry> cacheIterator = memIndex.iterator(direction, range);
+        LogIterator<IndexEntry> diskIterator = diskIndex.iterator(direction, range);
+
+        return joiningDiskAndMem(diskIterator, cacheIterator);
+    }
+
+    @Override
+    public Stream<IndexEntry> stream(Direction direction) {
+        return Iterators.stream(iterator(direction));
+    }
+
+    @Override
+    public Stream<IndexEntry> stream(Direction direction, Range range) {
+        return Iterators.stream(iterator(direction, range));
     }
 
     @Override
@@ -151,11 +158,6 @@ public class TableIndex implements Index, Flushable {
             return fromMemory;
         }
         return diskIndex.get(stream, version);
-    }
-
-    @Override
-    public LogIterator<IndexEntry> iterator() {
-        return joiningDiskAndMem(diskIndex.iterator(), memIndex.iterator());
     }
 
     private LogIterator<IndexEntry> joiningDiskAndMem(LogIterator<IndexEntry> diskIterator, LogIterator<IndexEntry> memIndex) {

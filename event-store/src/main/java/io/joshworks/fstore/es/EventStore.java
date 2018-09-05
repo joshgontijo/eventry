@@ -14,6 +14,7 @@ import io.joshworks.fstore.es.stream.StreamMetadataSerializer;
 import io.joshworks.fstore.es.stream.Streams;
 import io.joshworks.fstore.es.utils.StringUtils;
 import io.joshworks.fstore.es.utils.Tuple;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
@@ -122,7 +123,7 @@ public class EventStore implements Closeable {
 
     public LogIterator<EventRecord> fromStreamIter(String stream, int versionInclusive) {
         long streamHash = streams.hashOf(stream);
-        LogIterator<IndexEntry> addresses = index.iterator(Range.of(streamHash, versionInclusive));
+        LogIterator<IndexEntry> addresses = index.iterator(Direction.FORWARD, Range.of(streamHash, versionInclusive));
         addresses = withMaxCountFilter(streamHash, addresses);
         return withMaxAgeFilter(Set.of(streamHash), new SingleStreamIterator(addresses, this));
     }
@@ -158,7 +159,7 @@ public class EventStore implements Closeable {
             }
             long streamHash = streams.hashOf(stream);
             hashes.add(streamHash);
-            LogIterator<IndexEntry> indexStream = index.iterator(Range.allOf(streamHash));
+            LogIterator<IndexEntry> indexStream = index.iterator(Direction.FORWARD, Range.allOf(streamHash));
 
             indexes.add(indexStream);
             mappings.put(streamHash, stream);
@@ -183,12 +184,12 @@ public class EventStore implements Closeable {
     }
 
     public LogIterator<EventRecord> fromAllIter() {
-        return eventLog.scanner();
+        return eventLog.iterator(Direction.FORWARD);
     }
 
     //Won't return the stream in the event !
     public Stream<EventRecord> fromAll() {
-        return eventLog.stream();
+        return eventLog.stream(Direction.FORWARD);
     }
 
     public EventRecord linkTo(String stream, EventRecord event) {
@@ -218,7 +219,6 @@ public class EventStore implements Closeable {
         }
 
         return indexEntry.map(this::get).orElseThrow(() -> new RuntimeException("EventRecord not found for " + indexEntry));
-
     }
 
 
