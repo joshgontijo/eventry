@@ -1,6 +1,7 @@
 package io.joshworks.fstore.log.segment;
 
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.Order;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.Writer;
@@ -12,7 +13,9 @@ import java.util.stream.Stream;
 
 public interface Log<T> extends Writer<T>, Closeable {
 
-    int ENTRY_HEADER_SIZE = Integer.BYTES * 2; //length + crc32
+    int LENGTH_SIZE = Integer.BYTES; //length
+    int CHECKSUM_SIZE = Integer.BYTES; //crc32
+    int ENTRY_HEADER_SIZE = LENGTH_SIZE + CHECKSUM_SIZE + LENGTH_SIZE; //length + crc32
     byte[] EOL = ByteBuffer.allocate(ENTRY_HEADER_SIZE).putInt(0).putInt(0).array(); //eof header, -1 length, 0 crc
     long START = Header.BYTES;
 
@@ -23,6 +26,8 @@ public interface Log<T> extends Writer<T>, Closeable {
     Stream<T> stream();
 
     LogIterator<T> iterator(long position);
+    LogIterator<T> iterator(Order order);
+    LogIterator<T> iterator(long position, Order order);
 
     long position();
 

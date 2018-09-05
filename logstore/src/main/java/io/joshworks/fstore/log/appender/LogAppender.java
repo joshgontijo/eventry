@@ -13,6 +13,7 @@ import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.Order;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.compaction.Compactor;
 import io.joshworks.fstore.log.appender.level.Levels;
@@ -319,15 +320,19 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     //TODO implement reader pool, instead using a new instance of reader, provide a pool of reader to better performance
     public LogIterator<T> scanner() {
-        return new RollingSegmentReader(Log.START);
+        return new RollingSegmentReader(Log.START, Order.FORWARD);
     }
 
     public Stream<T> stream() {
         return Iterators.stream(scanner());
     }
 
+    public LogIterator<T> scanBackwards() {
+        return new RollingSegmentReader(position(), Order.BACKWARD);
+    }
+
     public LogIterator<T> scanner(long position) {
-        return new RollingSegmentReader(position);
+        return new RollingSegmentReader(position, Order.FORWARD);
     }
 
     public PollingSubscriber<T> poller() {
@@ -479,25 +484,33 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         private LogIterator<T> current;
         private int segmentIdx;
 
-        RollingSegmentReader(long startPosition) {
-            Iterator<L> segments = segments(Order.FORWARD);
+        RollingSegmentReader(long startPosition, Order order) {
+
             this.segmentIdx = getSegment(startPosition);
+
+            Iterator<L> segments = segments(order);
             validateSegmentIdx(segmentIdx, startPosition);
             long positionOnSegment = getPositionOnSegment(startPosition);
+
+            List<LogIterator<T>> subsequentIterators = new ArrayList<>();
+            segments.forEachRemaining(it -> subsequentIterators.add(segments.next().iterator()));
+
+
+
+
+            if (segments.hasNext()) {
+                this.current = segments.next().iterator(positionOnSegment, order);
+            }
+
 
             // skip
             for (int i = 0; i <= segmentIdx - 1; i++) {
                 segments.next();
             }
 
-            if (segments.hasNext()) {
-                this.current = segments.next().iterator(positionOnSegment);
-            }
 
-            List<LogIterator<T>> subsequentIterators = new ArrayList<>();
-            while (segments.hasNext()) {
-                subsequentIterators.add(segments.next().iterator());
-            }
+
+
             this.segmentsIterators = subsequentIterators.iterator();
 
         }

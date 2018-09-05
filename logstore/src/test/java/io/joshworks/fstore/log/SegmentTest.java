@@ -287,6 +287,31 @@ public abstract class SegmentTest {
         }
     }
 
+    @Test
+    public void segment_read_backwards() throws IOException {
+        int entries = 1000000;
+        for (int i = 0; i < entries; i++) {
+            segment.append(String.valueOf(i));
+        }
+
+        int current = entries - 1;
+        try (LogIterator<String> iterator = segment.iterator(Order.BACKWARD)) {
+            while (iterator.hasNext()) {
+                String next = iterator.next();
+                assertEquals(String.valueOf(current--), next);
+            }
+        }
+        assertEquals(-1, current);
+    }
+
+    @Test
+    public void segment_read_backwards_returns_false_when_empty_log() throws IOException {
+
+        try (LogIterator<String> iterator = segment.iterator(Order.BACKWARD)) {
+            assertFalse(iterator.hasNext());
+        }
+    }
+
     private void testScanner(int items) throws IOException {
         List<String> values = new ArrayList<>();
         for (int i = 0; i < items; i++) {
@@ -401,7 +426,7 @@ public abstract class SegmentTest {
 
         segment.roll(1);
 
-        if(!latch.await(5, TimeUnit.SECONDS)) {
+        if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("Thread was not released");
         }
         assertNull(captured.get());
@@ -427,7 +452,7 @@ public abstract class SegmentTest {
         Thread.sleep(1000);
         segment.close();
 
-        if(!latch.await(5, TimeUnit.SECONDS)) {
+        if (!latch.await(5, TimeUnit.SECONDS)) {
             fail("Thread was not released");
         }
         assertNull(captured.get());

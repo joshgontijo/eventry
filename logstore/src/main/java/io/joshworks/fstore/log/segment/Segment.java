@@ -8,6 +8,7 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.Checksum;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.Order;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import org.slf4j.Logger;
@@ -145,7 +146,7 @@ public class Segment<T> implements Log<T> {
     @Override
     public T get(long position) {
         checkBounds(position);
-        ByteBuffer data = reader.read(storage, position);
+        ByteBuffer data = reader.readForward(storage, position);
         if (data.remaining() == 0) { //EOF
             return null;
         }
@@ -200,7 +201,7 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public LogIterator<T> iterator() {
-        return newLogReader(Log.START);
+        return newLogReader(Log.START, Order.FORWARD);
     }
 
     @Override
@@ -210,8 +211,19 @@ public class Segment<T> implements Log<T> {
 
     @Override
     public LogIterator<T> iterator(long position) {
-        return newLogReader(position);
+        return newLogReader(position, Order.FORWARD);
     }
+
+    @Override
+    public LogIterator<T> iterator(Order order) {
+        return newLogReader(position(), order);
+    }
+
+    @Override
+    public LogIterator<T> iterator(long position, Order order) {
+        return newLogReader(position, Order.FORWARD);
+    }
+
 
     @Override
     public void close() {
@@ -328,7 +340,7 @@ public class Segment<T> implements Log<T> {
 
     //TODO properly implement reader pool
     //TODO implement race condition on acquiring readers and closing / deleting segment
-    protected LogReader newLogReader(long pos) {
+    protected LogReader newLogReader(long pos, Order order) {
 
         while (readers.size() >= 10) {
             try {
@@ -340,7 +352,7 @@ public class Segment<T> implements Log<T> {
             }
         }
 
-        LogReader logReader = new LogReader(storage, reader, serializer, pos);
+        LogReader logReader = new LogReader(storage, reader, serializer, pos, order);
         return addToReaders(logReader);
     }
 
@@ -365,10 +377,12 @@ public class Segment<T> implements Log<T> {
     }
 
     static long write(Storage storage, ByteBuffer bytes) {
-        ByteBuffer bb = ByteBuffer.allocate(ENTRY_HEADER_SIZE + bytes.remaining());
-        bb.putInt(bytes.remaining());
+        int entrySize = bytes.remaining();
+        ByteBuffer bb = ByteBuffer.allocate(ENTRY_HEADER_SIZE + entrySize);
+        bb.putInt(entrySize);
         bb.putInt(Checksum.crc32(bytes));
         bb.put(bytes);
+        bb.putInt(entrySize);
 
         bb.flip();
         return storage.write(bb);
@@ -424,8 +438,10 @@ public class Segment<T> implements Log<T> {
         protected long position;
         private long readAheadPosition;
         private long lastReadSize;
+        private final Order order;
 
-        LogReader(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition) {
+        LogReader(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition, Order order) {
+            this.order = order;
             checkBounds(initialPosition);
             this.storage = storage;
             this.reader = reader;
@@ -455,19 +471,19 @@ public class Segment<T> implements Log<T> {
             lastReadTs = System.currentTimeMillis();
 
             T current = data;
-            position += lastReadSize;
+            position = Order.FORWARD.equals(order) ? position + lastReadSize : position - lastReadSize;
             data = readAhead();
             return current;
         }
 
         private T readAhead() {
-            ByteBuffer bb = reader.read(storage, readAheadPosition);
+            ByteBuffer bb = Order.FORWARD.equals(order) ? reader.readForward(storage, readAheadPosition) : reader.readBackward(storage, readAheadPosition);
             if (bb.remaining() == 0) { //EOF
                 close();
                 return null;
             }
-            lastReadSize = bb.limit();
-            readAheadPosition += bb.limit();
+            lastReadSize = bb.remaining() + Log.ENTRY_HEADER_SIZE;
+            readAheadPosition = Order.FORWARD.equals(order) ? readAheadPosition + lastReadSize : readAheadPosition - lastReadSize;
             return serializer.fromBytes(bb);
         }
 
@@ -505,7 +521,7 @@ public class Segment<T> implements Log<T> {
         }
 
         private T read(boolean advance) {
-            ByteBuffer bb = reader.read(storage, readPosition);
+            ByteBuffer bb = reader.readForward(storage, readPosition);
             if (bb.remaining() == 0) { //EOF
                 close();
                 return null;

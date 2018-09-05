@@ -10,7 +10,7 @@ import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.appender.Config;
 import io.joshworks.fstore.log.appender.LogAppender;
-import io.joshworks.fstore.log.appender.Order;
+import io.joshworks.fstore.log.Order;
 import io.joshworks.fstore.log.appender.SegmentFactory;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
 import io.joshworks.fstore.log.segment.Log;

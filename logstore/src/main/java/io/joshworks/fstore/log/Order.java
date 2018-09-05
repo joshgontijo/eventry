@@ -1,4 +1,4 @@
-package io.joshworks.fstore.log.appender;
+package io.joshworks.fstore.log;
 
 public enum Order {
     FORWARD, BACKWARD

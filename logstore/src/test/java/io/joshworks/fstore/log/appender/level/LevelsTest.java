@@ -4,7 +4,7 @@ import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
-import io.joshworks.fstore.log.appender.Order;
+import io.joshworks.fstore.log.Order;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.SegmentState;
 import org.junit.Test;
@@ -312,6 +312,16 @@ public class LevelsTest {
 
         @Override
         public LogIterator<String> iterator(long position) {
+            return null;
+        }
+
+        @Override
+        public LogIterator<String> iterator(Order order) {
+            return null;
+        }
+
+        @Override
+        public LogIterator<String> iterator(long position, Order order) {
             return null;
         }
 

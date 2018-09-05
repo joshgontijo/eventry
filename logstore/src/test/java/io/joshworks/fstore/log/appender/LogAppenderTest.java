@@ -4,7 +4,9 @@ import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
+import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.Order;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.appenders.SimpleLogAppender;
@@ -36,7 +38,7 @@ import static org.junit.Assert.fail;
 
 public class LogAppenderTest {
 
-    private static final int SEGMENT_SIZE = 1024 * 64;//64kb
+    private static final int SEGMENT_SIZE = (int) Size.MEGABYTE.toBytes(10);//64kb
 
     private Config<String> config;
     private LogAppender<String, Segment<String>> appender;
@@ -523,6 +525,23 @@ public class LogAppenderTest {
         appender.append("a");
         assertFalse(poller.endOfLog());
 
+    }
+
+    @Test
+    public void backwards_scanner() throws IOException {
+        int entries = 1000000;
+        for (int i = 0; i < entries; i++) {
+            appender.append(String.valueOf(i));
+        }
+
+        int current = entries - 1;
+        try (LogIterator<String> iterator = appender.scanBackwards()) {
+            while (iterator.hasNext()) {
+                String next = iterator.next();
+                assertEquals(String.valueOf(current--), next);
+            }
+        }
+        assertEquals(-1, current);
     }
 
     private static void sleep(long time) {

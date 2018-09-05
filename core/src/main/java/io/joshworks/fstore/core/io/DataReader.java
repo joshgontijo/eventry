@@ -4,6 +4,8 @@ import java.nio.ByteBuffer;
 
 public interface DataReader {
 
-   ByteBuffer read(Storage storage, long position);
+   ByteBuffer readForward(Storage storage, long position);
+   ByteBuffer readBackward(Storage storage, long position);
+   ByteBuffer getBuffer();
 
 }

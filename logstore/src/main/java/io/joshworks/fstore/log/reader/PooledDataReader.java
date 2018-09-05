@@ -30,16 +30,30 @@ public class PooledDataReader extends ChecksumDataReader {
     }
 
     @Override
-    public ByteBuffer read(Storage storage, long position) {
+    public ByteBuffer readForward(Storage storage, long position) {
+        return read(storage, position);
+    }
+
+    private ByteBuffer read(Storage storage, long position) {
         DataReader reader = null;
         try {
             reader = readers.take();
-            return reader.read(storage, position);
+            return reader.readForward(storage, position);
         } catch (InterruptedException e) {
             throw new RuntimeException("Could not acquire reader", e);
         } finally {
             if (reader != null)
                 readers.offer(reader);
         }
+    }
+
+    @Override
+    public ByteBuffer readBackward(Storage storage, long position) {
+        return read(storage, position);
+    }
+
+    @Override
+    public ByteBuffer getBuffer() {
+        throw new UnsupportedOperationException();
     }
 }

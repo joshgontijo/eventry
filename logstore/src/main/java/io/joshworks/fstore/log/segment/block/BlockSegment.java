@@ -5,6 +5,7 @@ import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Storage;
 import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.log.Order;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.TimeoutReader;
 import io.joshworks.fstore.log.segment.Log;
@@ -178,6 +179,16 @@ public abstract class BlockSegment<T, B extends Block<T>> implements Log<T> {
     public void close() {
         flush();
         delegate.close();
+    }
+
+    @Override
+    public LogIterator<T> iterator(Order order) {
+        return null;
+    }
+
+    @Override
+    public LogIterator<T> iterator(long position, Order order) {
+        return null;
     }
 
     @Override
