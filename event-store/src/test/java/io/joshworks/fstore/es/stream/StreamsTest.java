@@ -1,11 +1,9 @@
 package io.joshworks.fstore.es.stream;
 
-import io.joshworks.fstore.es.Utils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.File;
 import java.util.Set;
 
 import static org.junit.Assert.assertEquals;
@@ -15,43 +13,41 @@ import static org.junit.Assert.fail;
 public class StreamsTest {
 
     private Streams streams;
-    private File directory;
+
 
     @Before
     public void setUp() {
-        directory = Utils.testFolder();
-        streams = new Streams(directory, 10, streamHash -> -1);
+        streams = new Streams(10, streamHash -> -1);
     }
 
     @After
     public void tearDown() {
         streams.close();
-        Utils.tryDelete(directory);
     }
 
 
     @Test
     public void get_returns_correct_stream() {
-        streams.add(new StreamMetadata("a", 1, 0));
+        streams.create(new StreamMetadata("a", 1, 0));
         assertTrue(streams.get(1).isPresent());
     }
 
     @Test
     public void get_returns_correct_stream_after_reopening() {
-        streams.add(new StreamMetadata("a", 1, 0));
+        streams.create(new StreamMetadata("a", 1, 0));
         streams.close();
 
-        streams = new Streams(directory, 10, streamHash -> -1);
+        streams = new Streams(10, streamHash -> -1);
         assertTrue(streams.get(1).isPresent());
     }
 
     @Test
     public void streamsStartingWith() {
 
-        streams.add(new StreamMetadata("abc-123", 1, 0));
-        streams.add(new StreamMetadata("abc-345", 2, 0));
-        streams.add(new StreamMetadata("another1", 3, 0));
-        streams.add(new StreamMetadata("another2", 4, 0));
+        streams.create(new StreamMetadata("abc-123", 1, 0));
+        streams.create(new StreamMetadata("abc-345", 2, 0));
+        streams.create(new StreamMetadata("another1", 3, 0));
+        streams.create(new StreamMetadata("another2", 4, 0));
 
         Set<String> names = streams.streamMatching("abc-");
 

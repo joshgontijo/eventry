@@ -1,19 +1,14 @@
 package io.joshworks.fstore.es.stream;
 
-import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.es.LRUCache;
 import io.joshworks.fstore.es.hash.Murmur3Hash;
 import io.joshworks.fstore.es.hash.XXHash;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.StreamHasher;
-import io.joshworks.fstore.es.log.EventLog;
-import io.joshworks.fstore.es.log.EventRecord;
-import io.joshworks.fstore.log.LogIterator;
+import io.joshworks.fstore.es.utils.StringUtils;
 
 import java.io.Closeable;
-import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +17,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -41,22 +35,13 @@ public class Streams implements Closeable {
         this.hasher = new StreamHasher(new XXHash(), new Murmur3Hash());
     }
 
+    public Optional<StreamMetadata> get(String stream) {
+        return get(hashOf(stream));
+    }
+
     public Optional<StreamMetadata> get(long streamHash) {
         return Optional.ofNullable(streamsMap.get(streamHash));
     }
-
-    public StreamMetadata getOrCreate(String stream, Consumer<StreamMetadata> creationHandler) {
-        long hash = hasher.hash(stream);
-        return streamsMap.compute(hash, (k, v) -> {
-            if(v == null) {
-                StreamMetadata streamMetadata = new StreamMetadata(stream, hash, System.currentTimeMillis());
-                creationHandler.accept(streamMetadata);
-                return streamMetadata;
-            }
-            return v;
-        });
-    }
-
 
     public List<StreamMetadata> all() {
         return new ArrayList<>(streamsMap.values());
@@ -66,11 +51,10 @@ public class Streams implements Closeable {
         return hasher.hash(stream);
     }
 
-    //TODO implement 'remove'
-    //TODO field validation needed
-    public StreamMetadata add(StreamMetadata stream) {
+    public boolean create(StreamMetadata stream) {
         Objects.requireNonNull(stream);
-        streamsMap.put(stream.hash, stream);
+        StringUtils.requireNonBlank(stream.name);
+        return streamsMap.putIfAbsent(stream.hash, stream) == null;
     }
 
     public StreamMetadata remove(long streamHash) {

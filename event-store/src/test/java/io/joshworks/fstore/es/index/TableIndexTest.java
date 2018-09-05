@@ -232,6 +232,7 @@ public class TableIndexTest {
     }
 
     @Test
+    //TODO create a new test on load segments and refresh memIndex state
     public void reopened_index_returns_all_items() {
 
         //given

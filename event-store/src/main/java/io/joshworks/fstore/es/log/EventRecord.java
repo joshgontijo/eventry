@@ -6,7 +6,6 @@ import io.joshworks.fstore.es.stream.StreamMetadataSerializer;
 import io.joshworks.fstore.es.utils.StringUtils;
 
 import java.nio.ByteBuffer;
-import java.nio.LongBuffer;
 import java.nio.charset.StandardCharsets;
 
 public class EventRecord {
@@ -62,6 +61,15 @@ public class EventRecord {
         return System.LINKTO_TYPE.equals(type);
     }
 
+
+    @Override
+    public String toString() {
+        return "EventRecord{" + "stream='" + stream + '\'' +
+                ", type='" + type + '\'' +
+                ", version=" + version +
+                ", timestamp=" + timestamp +
+                '}';
+    }
 
     public static class System  {
 

@@ -57,14 +57,19 @@ public class EventStore implements Closeable {
         return new EventStore(rootDir);
     }
 
+    //TODO relies on read backwards
+    private void loadIndex() {
+
+    }
+
     private void loadStreams() {
         final Serializer<StreamMetadata> serializer = new StreamMetadataSerializer();
         fromStream(EventRecord.System.STREAMS_STREAM).forEach(event -> {
             StreamMetadata streamMetadata = serializer.fromBytes(ByteBuffer.wrap(event.data));
-            if(EventRecord.System.STREAM_DELETED_TYPE.equals(event.type)) {
+            if (EventRecord.System.STREAM_DELETED_TYPE.equals(event.type)) {
                 streams.remove(streamMetadata.hash);
             } else {
-                streams.add(streamMetadata);
+                streams.create(streamMetadata);
             }
         });
     }
@@ -87,7 +92,7 @@ public class EventStore implements Closeable {
 
         EventRecord eventRecord = EventRecord.System.streamCreatedRecord(streamMetadata);
         this.append(eventRecord);
-        streams.add(streamMetadata);
+        streams.create(streamMetadata);
 
         return streamMetadata;
     }
@@ -202,19 +207,20 @@ public class EventStore implements Closeable {
 
     public EventRecord get(String stream, int version) {
         long streamHash = streams.hashOf(stream);
-        return get(streamHash, version);
-    }
 
-    public EventRecord get(long stream, int version) {
         if (version <= IndexEntry.NO_VERSION) {
             throw new IllegalArgumentException("Version must be greater than " + IndexEntry.NO_VERSION);
         }
-        Range range = Range.of(stream, version, version + 1);
-        return index.stream(range).map(this::get).findFirst()
-                //TODO add stream string info when failed, like 'stream@version'
-                .orElseThrow(() -> new RuntimeException("EventRecord not found for"));
+        Optional<IndexEntry> indexEntry = index.get(streamHash, version);
+        if (!indexEntry.isPresent()) {
+            //TODO improve this to a non exception response
+            throw new RuntimeException("IndexEntry not found for " + stream + "@" + version);
+        }
+
+        return indexEntry.map(this::get).orElseThrow(() -> new RuntimeException("EventRecord not found for " + indexEntry));
 
     }
+
 
     //TODO make it price and change SingleStreamIterator
     EventRecord get(IndexEntry indexEntry) {
@@ -241,11 +247,21 @@ public class EventStore implements Closeable {
     public EventRecord append(EventRecord event, int expectedVersion) {
         Objects.requireNonNull(event, "Event must be provided");
         StringUtils.requireNonBlank(event.stream, "stream must be provided");
-        StreamMetadata streamMetadata = streams.getOrCreate(event.stream, streamMeta -> {
-            this.append(EventRecord.System.streamCreatedRecord(streamMeta));
-        });
 
-        return append(streamMetadata, event, expectedVersion);
+        StreamMetadata metadata = getOrCreateStream(event.stream);
+        return append(metadata, event, expectedVersion);
+    }
+
+    private StreamMetadata getOrCreateStream(String stream) {
+        long streamHash = streams.hashOf(stream);
+        return streams.get(streamHash).orElseGet(() -> {
+            StreamMetadata streamMetadata = new StreamMetadata(stream, streamHash, System.currentTimeMillis());
+            if (streams.create(streamMetadata)) {
+                EventRecord eventRecord = EventRecord.System.streamCreatedRecord(streamMetadata);
+                this.append(eventRecord);
+            }
+            return streamMetadata;
+        });
     }
 
     private EventRecord append(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
