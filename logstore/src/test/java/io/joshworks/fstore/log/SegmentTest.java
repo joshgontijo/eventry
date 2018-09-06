@@ -72,6 +72,17 @@ public abstract class SegmentTest {
     }
 
     @Test
+    public void segment_position_is_the_same_as_append_position() {
+        String data = "hello";
+
+        for (int i = 0; i < 1000; i++) {
+            long segPos = segment.position();
+            long pos = segment.append(data);
+            assertEquals(pos, segPos);
+        }
+    }
+
+    @Test
     public void writePosition_reopen() throws IOException {
         String data = "hello";
         segment.append(data);

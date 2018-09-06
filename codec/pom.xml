@@ -14,7 +14,6 @@
 
     <modules>
         <module>snappy</module>
-        <module>lz4</module>
     </modules>
 
     <dependencies>
@@ -23,6 +22,7 @@
             <artifactId>core</artifactId>
             <scope>provided</scope>
         </dependency>
+
     </dependencies>
 
 

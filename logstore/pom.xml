@@ -39,7 +39,6 @@
         <dependency>
             <groupId>io.joshworks.fstore</groupId>
             <artifactId>snappy</artifactId>
-
         </dependency>
     </dependencies>
 

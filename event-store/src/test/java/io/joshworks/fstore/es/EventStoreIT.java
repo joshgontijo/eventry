@@ -499,23 +499,24 @@ public class EventStoreIT {
                 }
             }
         }
-
     }
 
     @Test
     public void poller_with_multiple_streams_returns_all_items() throws IOException, InterruptedException {
 
         int items = 1000000;
-        String streamPrefix = "stream-";
         Set<String> allStreams = new HashSet<>();
         for (int i = 0; i < items; i++) {
-            String stream = streamPrefix + i;
+            String stream = "stream123-" + i;
             allStreams.add(stream);
             store.append(EventRecord.create(stream, "type", "data"));
             if (i % 10000 == 0) {
                 System.out.println("WRITE: " + i);
             }
         }
+
+//        LogDump.dumpLog(new File("J:\\event-store-debug\\log.txt"), store);
+//        LogDump.dumpIndex(new File("J:\\event-store-debug\\idx.txt"), store);
 
         System.out.println("Write completed");
         //Orders of events is not guaranteed across streams
@@ -561,7 +562,6 @@ public class EventStoreIT {
         }
 
         store.close();
-
         store = EventStore.open(directory);
 
         Stream<EventRecord> dataStream = store.fromStream(stream);

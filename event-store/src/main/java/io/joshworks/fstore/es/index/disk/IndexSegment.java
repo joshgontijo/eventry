@@ -159,7 +159,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
         idx = idx >= 0 ? idx : Math.abs(idx) - 2;
         IndexEntry lastVersion = entries.get(idx);
         if (lastVersion.stream != stream) { //false positive on the bloom filter
-            return 0;
+            return IndexEntry.NO_VERSION;
         }
         return lastVersion.version;
     }

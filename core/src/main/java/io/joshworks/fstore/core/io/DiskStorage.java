@@ -48,7 +48,6 @@ public abstract class DiskStorage implements Storage {
         } catch (Exception e) {
             IOUtils.closeQuietly(raf);
             IOUtils.closeQuietly(channel);
-            IOUtils.releaseLock(lock);
             throw new StorageException("Failed to open storage of " + target.getName(), e);
         }
     }

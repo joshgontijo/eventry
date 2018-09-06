@@ -462,7 +462,6 @@ public class IndexSegmentTest {
         assertEquals(2, next.version);
 
         assertFalse(it.hasNext());
-
     }
 
 

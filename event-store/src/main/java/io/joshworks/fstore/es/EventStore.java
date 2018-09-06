@@ -27,7 +27,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -61,12 +60,12 @@ public class EventStore implements Closeable {
 
 
     private void loadIndex() {
-        try(LogIterator<EventRecord> iterator = eventLog.iterator(Direction.BACKWARD)) {
+        try (LogIterator<EventRecord> iterator = eventLog.iterator(Direction.BACKWARD)) {
 
             while (iterator.hasNext()) {
-                long position = iterator.position();
                 EventRecord next = iterator.next();
-                if(next.isSystemEvent() && EventRecord.System.INDEX_FLUSHED_TYPE.equals(next.type)) {
+                long position = iterator.position();
+                if (next.isSystemEvent() && EventRecord.System.INDEX_FLUSHED_TYPE.equals(next.type)) {
                     break;
                 }
                 long streamHash = streams.hashOf(next.stream);
@@ -81,18 +80,26 @@ public class EventStore implements Closeable {
 
     private void loadStreams() {
         final Serializer<StreamMetadata> serializer = new StreamMetadataSerializer();
-        fromStream(EventRecord.System.STREAMS_STREAM).forEach(event -> {
+
+        long streamHash = streams.hashOf(EventRecord.System.STREAMS_STREAM);
+        LogIterator<IndexEntry> addresses = index.iterator(Direction.FORWARD, Range.of(streamHash, Range.START_VERSION));
+
+        while (addresses.hasNext()) {
+            IndexEntry next = addresses.next();
+            EventRecord event = eventLog.get(next.position);
+
             StreamMetadata streamMetadata = serializer.fromBytes(ByteBuffer.wrap(event.data));
             if (EventRecord.System.STREAM_DELETED_TYPE.equals(event.type)) {
                 streams.remove(streamMetadata.hash);
             } else {
                 streams.create(streamMetadata);
             }
-        });
+        }
+
     }
 
-    public Iterator<IndexEntry> keys() {
-        throw new UnsupportedOperationException("TODO");
+    public LogIterator<IndexEntry> keys() {
+        return index.iterator(Direction.FORWARD);
     }
 
     public void createStream(String name) {
@@ -272,14 +279,19 @@ public class EventStore implements Closeable {
         if (streamMetadata == null) {
             throw new IllegalArgumentException("EventStream cannot be null");
         }
-        long streamHash = streamMetadata.hash;
+        long streamHash = streams.hashOf(event.stream);
+        if (streamMetadata.name.equals(event.stream) && streamMetadata.hash != streamHash) {
+            //TODO improve ??
+            throw new IllegalStateException("Hash collision of stream: " + event.stream + " with existing name: " + streamMetadata.name);
+        }
+
         int version = streams.tryIncrementVersion(streamHash, expectedVersion);
 
         var record = new EventRecord(event.stream, event.type, version, System.currentTimeMillis(), event.data, event.metadata);
 
         long position = eventLog.append(record);
         boolean flushed = index.add(streamHash, version, position);
-        if(flushed) {
+        if (flushed) {
             var indexFlushedEvent = EventRecord.System.indexFlushed();
             eventLog.append(indexFlushedEvent);
         }

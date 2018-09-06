@@ -53,6 +53,18 @@ public abstract class DiskStorageTest {
     }
 
     @Test
+    public void position_is_updated_on_insert() {
+        int recordSize = 10;
+        var buffer = ByteBuffer.allocate(recordSize);
+        buffer.limit(buffer.capacity());
+
+        assertEquals(0, storage.position());
+
+        storage.write(buffer);
+        assertEquals(recordSize, storage.position());
+    }
+
+    @Test
     public void when_data_is_read_it_must_be_the_same_that_was_written() {
         ByteBuffer bb = ByteBuffer.wrap(TEST_DATA.getBytes(StandardCharsets.UTF_8));
         int write = storage.write(bb);

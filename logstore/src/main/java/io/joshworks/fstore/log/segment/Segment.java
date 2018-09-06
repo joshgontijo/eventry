@@ -253,6 +253,7 @@ public class Segment<T> implements Log<T> {
         }
         long position = lastKnownPosition;
         int foundEntries = 0;
+        long start = System.currentTimeMillis();
         try {
             logger.info("Restoring log state and checking consistency from position {}", lastKnownPosition);
             LogIterator<T> logIterator = iterator(lastKnownPosition, Direction.FORWARD);
@@ -264,7 +265,7 @@ public class Segment<T> implements Log<T> {
         } catch (Exception e) {
             logger.warn("Found inconsistent entry on position {}, segment '{}': {}", position, name(), e.getMessage());
         }
-        logger.info("Log state restored, current position {}", position);
+        logger.info("Log state restored in {}ms, current position: {}, entries: {}", start, position, foundEntries);
         if (position < Header.BYTES) {
             throw new IllegalStateException("Initial log state position must be at least " + Header.BYTES);
         }

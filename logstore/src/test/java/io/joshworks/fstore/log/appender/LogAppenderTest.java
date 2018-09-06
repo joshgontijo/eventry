@@ -28,6 +28,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -227,6 +228,22 @@ public class LogAppenderTest {
         appender = new SimpleLogAppender<>(config);
         assertEquals(2, appender.entries());
         assertEquals(2, appender.stream(Direction.FORWARD).count());
+    }
+
+    @Test
+    public void when_reopened_the_index_returns_all_items() {
+
+        int entries = 100000;
+        for (int i = 0; i < entries; i++) {
+            appender.append(String.valueOf(i));
+        }
+
+        appender.close();
+
+        appender = new SimpleLogAppender<>(config);
+
+        Stream<String> stream = appender.stream(Direction.FORWARD);
+        assertEquals(entries, stream.count());
     }
 
     @Test
