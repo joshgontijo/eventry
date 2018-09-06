@@ -3,6 +3,7 @@ package io.joshworks.fstore.es;
 import io.joshworks.fstore.es.hash.Murmur3Hash;
 import io.joshworks.fstore.es.hash.XXHash;
 import io.joshworks.fstore.es.index.StreamHasher;
+import io.joshworks.fstore.es.index.TableIndex;
 import io.joshworks.fstore.es.log.EventRecord;
 import io.joshworks.fstore.log.PollingSubscriber;
 import org.junit.After;
@@ -546,6 +547,25 @@ public class EventStoreIT {
         assertEquals(original, eventRecord.stream);
         assertEquals(0, eventRecord.version);
 
+    }
+
+    @Test
+    public void index_is_loaded_with_not_persisted_entries() {
+
+        //given
+        String stream = "stream-1";
+        //1 segment + in memory
+        int size = TableIndex.DEFAULT_FLUSH_THRESHOLD + (TableIndex.DEFAULT_FLUSH_THRESHOLD / 2);
+        for (int i = 0; i < size; i++) {
+            store.append(EventRecord.create(stream, "type-1", "data-" + 1));
+        }
+
+        store.close();
+
+        store = EventStore.open(directory);
+
+        Stream<EventRecord> dataStream = store.fromStream(stream);
+        assertEquals(size, dataStream.count());
     }
 
     private void testWith(int streams, int numVersionPerStream) {

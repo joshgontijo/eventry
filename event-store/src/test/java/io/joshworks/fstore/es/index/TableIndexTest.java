@@ -230,26 +230,6 @@ public class TableIndexTest {
         assertEquals(size, dataStream.count());
     }
 
-    @Test
-    //TODO create a new test on load segments and refresh memIndex state
-    public void reopened_index_returns_all_items() {
-
-        //given
-        long stream = 1;
-        //1 segment + in memory
-        int size = FLUSH_THRESHOLD + (FLUSH_THRESHOLD / 2);
-        for (int i = 0; i < size; i++) {
-            tableIndex.add(stream, i, 0);
-        }
-
-        tableIndex.close();
-
-        tableIndex = new TableIndex(testDirectory, FLUSH_THRESHOLD, USE_COMPRESSION);
-
-        Stream<IndexEntry> dataStream = tableIndex.stream(Direction.FORWARD);
-
-        assertEquals(size, dataStream.count());
-    }
 
     @Test
     public void reopened_index_returns_all_items_for_stream_rang() {

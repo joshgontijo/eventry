@@ -86,7 +86,7 @@ public class EventRecord {
         //system types
         private static final String LINKTO_TYPE = PREFIX + ">";
 
-        private static final String INDEX_FLUSHED_TYPE = PREFIX + "INDEX_FLUSHED";
+        public static final String INDEX_FLUSHED_TYPE = PREFIX + "INDEX_FLUSHED";
 
 //        private static final String SEGMENT_ROLLED_TYPE = PREFIX + "SEGMENT_ROLLED";
         public static final String STREAM_CREATED_TYPE = PREFIX + "STREAM_CREATED";
@@ -103,7 +103,7 @@ public class EventRecord {
         }
 
         //TODO add data
-        public static EventRecord createIndexFlushed() {
+        public static EventRecord indexFlushed() {
             return EventRecord.create(INDEX_STREAM, INDEX_FLUSHED_TYPE, "");
         }
 

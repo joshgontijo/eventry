@@ -62,7 +62,8 @@ public class TableIndex implements Index, Flushable {
 //        this.sedaContext.addStage(INDEX_WRITER, this::writeToDiskAsync, new Stage.Builder().corePoolSize(1).maximumPoolSize(1).blockWhenFull().queueSize(10));
     }
 
-    public IndexEntry add(long stream, int version, long position) {
+    //returns true if flushed to disk
+    public boolean add(long stream, int version, long position) {
         if (version <= IndexEntry.NO_VERSION) {
             throw new IllegalArgumentException("Version must be greater than or equals to zero");
         }
@@ -75,8 +76,9 @@ public class TableIndex implements Index, Flushable {
             writeToDisk();
             memIndex.close();
             memIndex = new MemIndex();
+            return true;
         }
-        return entry;
+        return false;
     }
 
 //    private void writeToDiskAsync(final EventContext<Set<IndexEntry>> ctx) {
@@ -84,7 +86,7 @@ public class TableIndex implements Index, Flushable {
 //    }
 
     //only single write can happen at time
-    private void writeToDisk() {
+    public void writeToDisk() {
         logger.info("Writing index to disk");
         if (memIndex.isEmpty()) {
             return;

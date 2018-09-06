@@ -320,7 +320,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     //TODO implement reader pool, instead using a new instance of reader, provide a pool of reader to better performance
     public LogIterator<T> iterator(Direction direction) {
-        long startPosition = Direction.FORWARD.equals(direction) ? Log.START : position();
+        long startPosition = Direction.FORWARD.equals(direction) ? Log.START : Math.max(position(), Log.START);
         return iterator(startPosition, direction);
     }
 

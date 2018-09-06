@@ -51,6 +51,7 @@ public class EventStore implements Closeable {
         this.eventLog = new EventLog(LogAppender.builder(rootDir, new EventSerializer()).segmentSize((int) Size.MEGABYTE.toBytes(200)).disableCompaction());
         this.index = new TableIndex(rootDir);
         this.streams = new Streams(LRU_CACHE_SIZE, index::version);
+        this.loadIndex();
         this.loadStreams();
     }
 
@@ -58,8 +59,23 @@ public class EventStore implements Closeable {
         return new EventStore(rootDir);
     }
 
-    //TODO relies on read backwards
+
     private void loadIndex() {
+        try(LogIterator<EventRecord> iterator = eventLog.iterator(Direction.BACKWARD)) {
+
+            while (iterator.hasNext()) {
+                long position = iterator.position();
+                EventRecord next = iterator.next();
+                if(next.isSystemEvent() && EventRecord.System.INDEX_FLUSHED_TYPE.equals(next.type)) {
+                    break;
+                }
+                long streamHash = streams.hashOf(next.stream);
+                index.add(streamHash, next.version, position);
+            }
+
+        } catch (IOException e) {
+            throw new RuntimeException("Failed to load memindex", e);
+        }
 
     }
 
@@ -252,18 +268,6 @@ public class EventStore implements Closeable {
         return append(metadata, event, expectedVersion);
     }
 
-    private StreamMetadata getOrCreateStream(String stream) {
-        long streamHash = streams.hashOf(stream);
-        return streams.get(streamHash).orElseGet(() -> {
-            StreamMetadata streamMetadata = new StreamMetadata(stream, streamHash, System.currentTimeMillis());
-            if (streams.create(streamMetadata)) {
-                EventRecord eventRecord = EventRecord.System.streamCreatedRecord(streamMetadata);
-                this.append(eventRecord);
-            }
-            return streamMetadata;
-        });
-    }
-
     private EventRecord append(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
         if (streamMetadata == null) {
             throw new IllegalArgumentException("EventStream cannot be null");
@@ -274,9 +278,25 @@ public class EventStore implements Closeable {
         var record = new EventRecord(event.stream, event.type, version, System.currentTimeMillis(), event.data, event.metadata);
 
         long position = eventLog.append(record);
-        index.add(streamHash, version, position);
+        boolean flushed = index.add(streamHash, version, position);
+        if(flushed) {
+            var indexFlushedEvent = EventRecord.System.indexFlushed();
+            eventLog.append(indexFlushedEvent);
+        }
 
         return record;
+    }
+
+    private StreamMetadata getOrCreateStream(String stream) {
+        long streamHash = streams.hashOf(stream);
+        return streams.get(streamHash).orElseGet(() -> {
+            StreamMetadata streamMetadata = new StreamMetadata(stream, streamHash, System.currentTimeMillis());
+            if (streams.create(streamMetadata)) {
+                EventRecord eventRecord = EventRecord.System.streamCreatedRecord(streamMetadata);
+                this.append(eventRecord);
+            }
+            return streamMetadata;
+        });
     }
 
     public PollingSubscriber<EventRecord> poller() {
