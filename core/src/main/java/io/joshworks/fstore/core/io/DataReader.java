@@ -2,10 +2,18 @@ package io.joshworks.fstore.core.io;
 
 import java.nio.ByteBuffer;
 
-public interface DataReader {
+public abstract class DataReader {
 
-   ByteBuffer readForward(Storage storage, long position);
-   ByteBuffer readBackward(Storage storage, long position);
-   ByteBuffer getBuffer();
+    protected final int maxRecordSize;
+
+    protected DataReader(int maxRecordSize) {
+        this.maxRecordSize = maxRecordSize;
+    }
+
+    public abstract ByteBuffer readForward(Storage storage, long position);
+
+    public abstract ByteBuffer readBackward(Storage storage, long position);
+
+    public abstract ByteBuffer getBuffer();
 
 }

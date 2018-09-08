@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.segment.block;
 
+import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.appender.LogAppender;
@@ -28,7 +29,7 @@ public class BlockTest {
     @Before
     public void setUp() {
         testFolder = Utils.testFile();
-        appender = new SimpleLogAppender<>(LogAppender.builder(testFolder, new BlockSerializer<>(Serializers.STRING)).segmentSize(5242880));
+        appender = new SimpleLogAppender<>(LogAppender.builder(testFolder, new BlockSerializer<>(Serializers.STRING, Codec.noCompression())).segmentSize(5242880));
     }
 
     @After

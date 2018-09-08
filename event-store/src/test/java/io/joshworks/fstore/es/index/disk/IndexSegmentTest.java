@@ -1,5 +1,6 @@
 package io.joshworks.fstore.es.index.disk;
 
+import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
@@ -10,7 +11,6 @@ import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.reader.FixedBufferDataReader;
 import io.joshworks.fstore.log.segment.Type;
-import io.joshworks.fstore.log.segment.block.FixedSizeBlockSerializer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -51,8 +51,8 @@ public class IndexSegmentTest {
         long size = location.length() == 0 ? 1048576 : location.length();
         return new IndexSegment(
                 new RafStorage(location, size, Mode.READ_WRITE),
-                new FixedSizeBlockSerializer<>(new IndexEntrySerializer(), IndexEntry.BYTES, true),
-                new FixedBufferDataReader(),
+                new IndexBlockSerializer(Codec.noCompression()),
+                new FixedBufferDataReader(4096),
                 "magic",
                 Type.LOG_HEAD,
                 indexDir,

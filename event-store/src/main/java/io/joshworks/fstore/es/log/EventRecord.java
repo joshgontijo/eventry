@@ -1,11 +1,12 @@
 package io.joshworks.fstore.es.log;
 
-import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.es.data.Constant;
+import io.joshworks.fstore.es.data.IndexFlushed;
+import io.joshworks.fstore.es.data.LinkTo;
 import io.joshworks.fstore.es.stream.StreamMetadata;
-import io.joshworks.fstore.es.stream.StreamMetadataSerializer;
 import io.joshworks.fstore.es.utils.StringUtils;
+import io.joshworks.fstore.serializer.json.JsonSerializer;
 
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 public class EventRecord {
@@ -20,6 +21,8 @@ public class EventRecord {
     public final byte[] metadata;
 
     public EventRecord(String stream, String type, int version, long timestamp, byte[] data, byte[] metadata) {
+        StringUtils.requireNonBlank(stream, "Stream must be provided");
+        StringUtils.requireNonBlank(type, "Type must be provided");
         this.stream = stream;
         this.type = type;
         this.version = version;
@@ -54,11 +57,11 @@ public class EventRecord {
     }
 
     public boolean isSystemEvent() {
-        return type.startsWith(System.PREFIX);
+        return type.startsWith(Constant.SYSTEM_PREFIX);
     }
 
     public boolean isLinkToEvent() {
-        return System.LINKTO_TYPE.equals(type);
+        return LinkTo.TYPE.equals(type);
     }
 
 
@@ -71,61 +74,44 @@ public class EventRecord {
                 '}';
     }
 
-    public static class System  {
+    public static class System {
 
-        private static final Serializer<StreamMetadata> streamSerializer = new StreamMetadataSerializer();
+//        private static final Serializer<StreamMetadata> streamSerializer = new StreamMetadataSerializer();
 
-        private static final String PREFIX = "_";
+        private static final JsonSerializer<StreamMetadata> streamSerializer = JsonSerializer.of(StreamMetadata.class);
+        private static final JsonSerializer<IndexFlushed> indexFlushed = JsonSerializer.of(IndexFlushed.class);
 
-        //system streams
-//        private static final String SEGMENT_STREAM = PREFIX + "segments";
-        public static final String INDEX_STREAM = PREFIX + "index";
-        public static final String STREAMS_STREAM = PREFIX + "streams";
-        public static final String PROJECTIONS_STREAM = PREFIX + "projections";
-
-        //system types
-        private static final String LINKTO_TYPE = PREFIX + ">";
-
-        public static final String INDEX_FLUSHED_TYPE = PREFIX + "INDEX_FLUSHED";
-
-//        private static final String SEGMENT_ROLLED_TYPE = PREFIX + "SEGMENT_ROLLED";
-        public static final String STREAM_CREATED_TYPE = PREFIX + "STREAM_CREATED";
-        public static final String STREAM_DELETED_TYPE = PREFIX + "STREAM_DELETED";
-        public static final String STREAM_UPDATED_TYPE = PREFIX + "STREAM_UPDATED";
-        public static final String PROJECTION_CREATED_TYPE = PREFIX + "PROJECTION_CREATED";
-        public static final String PROJECTION_UPDATED_TYPE = PREFIX + "PROJECTION_UPDATED";
-        public static final String PROJECTION_DELETED_TYPE = PREFIX + "PROJECTION_DELETED";
-        public static final String PROJECTION_COMPLETED_TYPE = PREFIX + "PROJECTION_COMPLETED";
-        public static final String PROJECTION_STARTED_TYPE = PREFIX + "PROJECTION_STARTED";
-
-        public static EventRecord createLinkTo(String stream, EventRecord event) {
-            return EventRecord.create(stream, LINKTO_TYPE, StringUtils.toUtf8Bytes(event.eventId()));
-        }
-
-        //TODO add data
-        public static EventRecord indexFlushed() {
-            return EventRecord.create(INDEX_STREAM, INDEX_FLUSHED_TYPE, "");
-        }
-
-//        //TODO add data
-//        public static EventRecord createSegmentRecord(String type, EventRecord event) {
-//            return EventRecord.create(SEGMENT_STREAM, type, StringUtils.toUtf8Bytes(event.eventId()));
+//
+//
+//        public static EventRecord createLinkTo(String stream, EventRecord event) {
+//            return EventRecord.create(stream, LINKTO_TYPE, StringUtils.toUtf8Bytes(event.eventId()));
 //        }
-
-        public static EventRecord streamDeletedRecord(long streamHash) {
-            byte[] data = ByteBuffer.allocate(Long.BYTES).putLong(streamHash).array();
-            return EventRecord.create(STREAMS_STREAM, STREAM_DELETED_TYPE, data);
-        }
-
-        public static EventRecord streamCreatedRecord(StreamMetadata metadata) {
-            byte[] data = streamSerializer.toBytes(metadata).array();
-            return EventRecord.create(STREAMS_STREAM, STREAM_CREATED_TYPE, data);
-        }
-
-        //TODO add data
-        public static EventRecord createProjectionsRecord(String type, EventRecord event) {
-            return EventRecord.create(PROJECTIONS_STREAM, type, StringUtils.toUtf8Bytes(event.eventId()));
-        }
+//
+//        //TODO add data
+//        public static EventRecord indexFlushed(long logPosition, long timeTaken, int numEntries) {
+//
+//            return EventRecord.create(INDEX_STREAM, INDEX_FLUSHED_TYPE, "");
+//        }
+//
+////        //TODO add data
+////        public static EventRecord createSegmentRecord(String type, EventRecord event) {
+////            return EventRecord.create(SEGMENT_STREAM, type, StringUtils.toUtf8Bytes(event.eventId()));
+////        }
+//
+//        public static EventRecord streamDeletedRecord(long streamHash) {
+//            byte[] data = ByteBuffer.allocate(Long.BYTES).putLong(streamHash).array();
+//            return EventRecord.create(STREAMS_STREAM, STREAM_DELETED_TYPE, data);
+//        }
+//
+//        public static EventRecord streamCreatedRecord(StreamMetadata metadata) {
+//            byte[] data = streamSerializer.toBytes(metadata).array();
+//            return EventRecord.create(STREAMS_STREAM, STREAM_CREATED_TYPE, data);
+//        }
+//
+//        //TODO add data
+//        public static EventRecord createProjectionsRecord(String type, EventRecord event) {
+//            return EventRecord.create(PROJECTIONS_STREAM, type, StringUtils.toUtf8Bytes(event.eventId()));
+//        }
 
     }
 

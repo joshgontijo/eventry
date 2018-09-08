@@ -1,13 +1,14 @@
 package io.joshworks.fstore.log.appender.level;
 
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.segment.Log;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class Levels<T, L extends Log<T>> {
@@ -71,6 +72,11 @@ public class Levels<T, L extends Log<T>> {
 
     public int numSegments() {
         return segments.size();
+    }
+
+    //TODO testing atomic acquiring of readers without the risk of closing the segment in between
+    public synchronized List<LogIterator<T>> select(Direction direction, Function<L, LogIterator<T>> mapper) {
+        return Iterators.stream(segments(direction)).map(mapper).collect(Collectors.toList());
     }
 
     public synchronized int size(int level) {

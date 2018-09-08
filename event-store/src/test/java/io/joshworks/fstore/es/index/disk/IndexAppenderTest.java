@@ -1,5 +1,6 @@
 package io.joshworks.fstore.es.index.disk;
 
+import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.es.Utils;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.log.Direction;
@@ -25,7 +26,7 @@ public class IndexAppenderTest {
     public void setUp() {
         location = new File("J:\\EVENT-STORE\\" + UUID.randomUUID().toString().substring(0, 8));
         Config<IndexEntry> config = LogAppender.builder(location, new IndexEntrySerializer()).disableCompaction();
-        appender = new IndexAppender(config, 10000, true);
+        appender = new IndexAppender(config, 10000, Codec.noCompression());
     }
 
     @After

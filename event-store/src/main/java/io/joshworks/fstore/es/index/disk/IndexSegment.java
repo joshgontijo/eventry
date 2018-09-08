@@ -16,7 +16,6 @@ import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
 import io.joshworks.fstore.log.segment.Type;
 import io.joshworks.fstore.log.segment.block.BlockSegment;
-import io.joshworks.fstore.log.segment.block.FixedSizeEntryBlock;
 import io.joshworks.fstore.serializer.Serializers;
 
 import java.io.File;
@@ -27,7 +26,7 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<IndexEntry>> implements Index {
+public class IndexSegment extends BlockSegment<IndexEntry, IndexBlock> implements Index {
 
     BloomFilter<Long> filter;
     final Midpoints midpoints;
@@ -37,7 +36,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     private static final double FALSE_POSITIVE_PROB = 0.01;
 
     IndexSegment(Storage storage,
-                        Serializer<FixedSizeEntryBlock<IndexEntry>> serializer,
+                        Serializer<IndexBlock> serializer,
                         DataReader reader,
                         String magic,
                         Type type,
@@ -51,7 +50,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
 
     @Override
     protected synchronized long writeBlock() {
-        FixedSizeEntryBlock<IndexEntry> block = currentBlock();
+        IndexBlock block = currentBlock();
         long position = position();
         if (block.isEmpty()) {
             return position;
@@ -126,7 +125,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
             return Optional.empty();
         }
 
-        FixedSizeEntryBlock<IndexEntry> block = getBlock(lowBound.position);
+        IndexBlock block = getBlock(lowBound.position);
         List<IndexEntry> entries = block.entries();
         int idx = Collections.binarySearch(entries, start);
         if(idx < 0) { //if not exact match, wasn't found
@@ -153,7 +152,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
             return IndexEntry.NO_VERSION;
         }
 
-        FixedSizeEntryBlock<IndexEntry> block = getBlock(lowBound.position);
+        IndexBlock block = getBlock(lowBound.position);
         List<IndexEntry> entries = block.entries();
         int idx = Collections.binarySearch(entries, end);
         idx = idx >= 0 ? idx : Math.abs(idx) - 2;
@@ -165,8 +164,8 @@ public class IndexSegment extends BlockSegment<IndexEntry, FixedSizeEntryBlock<I
     }
 
     @Override
-    protected FixedSizeEntryBlock<IndexEntry> createBlock(Serializer<IndexEntry> serializer, int maxBlockSize) {
-        return new FixedSizeEntryBlock<>(serializer, maxBlockSize, IndexEntry.BYTES);
+    protected IndexBlock createBlock(Serializer<IndexEntry> serializer, int maxBlockSize) {
+        return new IndexBlock(maxBlockSize);
     }
 
     @Override

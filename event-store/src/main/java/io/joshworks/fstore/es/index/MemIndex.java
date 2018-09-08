@@ -83,7 +83,7 @@ public class MemIndex implements Index {
     @Override
     public LogIterator<IndexEntry> iterator(Direction direction, Range range) {
         SortedSet<IndexEntry> entries = index.get(range.stream);
-        if (entries == null) {
+        if (entries == null || entries.isEmpty()) {
             return Iterators.empty();
         }
         Set<IndexEntry> indexEntries = entries.subSet(range.start(), range.end());

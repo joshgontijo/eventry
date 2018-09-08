@@ -10,14 +10,15 @@ import io.joshworks.fstore.core.seda.Stage;
 import io.joshworks.fstore.core.seda.StageHandler;
 import io.joshworks.fstore.core.seda.StageStats;
 import io.joshworks.fstore.log.BitUtil;
+import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogFileUtils;
 import io.joshworks.fstore.log.LogIterator;
-import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.PollingSubscriber;
 import io.joshworks.fstore.log.appender.compaction.Compactor;
 import io.joshworks.fstore.log.appender.level.Levels;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
+import io.joshworks.fstore.log.reader.FixedBufferDataReader;
 import io.joshworks.fstore.log.segment.Log;
 import io.joshworks.fstore.log.segment.Type;
 import org.slf4j.Logger;
@@ -90,7 +91,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         this.serializer = config.serializer;
         this.factory = factory;
         this.storageProvider = config.mmap ? StorageProvider.mmap(config.mmapBufferSize) : StorageProvider.raf();
-        this.dataReader = config.reader;
+        this.dataReader = new FixedBufferDataReader(config.maxRecordSize);
         this.namingStrategy = config.namingStrategy;
 
         boolean metadataExists = LogFileUtils.metadataExists(directory);
@@ -102,6 +103,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             this.metadata = Metadata.create(
                     directory,
                     config.segmentSize,
+                    config.maxRecordSize,
                     config.segmentBitShift,
                     config.maxSegmentsPerLevel,
                     config.mmap,
@@ -296,22 +298,24 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
     public long append(T data) {
         L current = levels.current();
-        if (shouldRoll(current)) {
-            roll();
-            current = levels.current();
-        }
         long positionOnSegment = current.append(data);
         if (metadata.flushAfterWrite) {
             flushInternal();
         }
-        long segmentedPosition = toSegmentedPosition(levels.numSegments() - 1L, positionOnSegment);
+        long entryPosition = toSegmentedPosition(levels.numSegments() - 1L, positionOnSegment);
         if (positionOnSegment < 0) {
             throw new IllegalStateException("Invalid address " + positionOnSegment);
         }
 
-        state.position(current.position());
+        if (shouldRoll(current)) {
+            roll();
+            current = levels.current();
+        }
+
+        long currentPosition = toSegmentedPosition(levels.numSegments() - 1L, current.position());
+        state.position(currentPosition);
         state.incrementEntryCount();
-        return segmentedPosition;
+        return entryPosition;
     }
 
     public String name() {
@@ -329,7 +333,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
     public LogIterator<T> iterator(long position, Direction direction) {
-        return new RollingSegmentReader(position, direction);
+        return Direction.FORWARD.equals(direction) ? new ForwardLogReader(position) : new BackwardLogReader(position);
     }
 
     public PollingSubscriber<T> poller() {
@@ -393,7 +397,7 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         L currentSegment = levels.current();
         if (currentSegment != null) {
             IOUtils.flush(currentSegment);
-            state.position(currentSegment.position());
+            state.position(this.position());
         }
 
         state.flush();
@@ -473,34 +477,35 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
     }
 
 
-    private class RollingSegmentReader implements LogIterator<T> {
+    //FORWARD SCAN: When at the end of a segment, advance to the next, so the current position is correct
+    //----
+    //BACKWARD SCAN: At the beginning of a segment, do not move to previous until next is called.
+    // hasNext calls will always return true, since the previous segment always has data
+    private class ForwardLogReader implements LogIterator<T> {
 
         private final Iterator<LogIterator<T>> segmentsIterators;
         private LogIterator<T> current;
         private int segmentIdx;
 
-        RollingSegmentReader(long startPosition, Direction direction) {
-            int numSegments = levels.numSegments();
-            Iterator<L> segments = segments(direction);
-            int segIdx = getSegment(startPosition);
-
-            this.segmentIdx = Direction.FORWARD.equals(direction) ? segIdx : numSegments - segIdx - 1;
+        ForwardLogReader(long startPosition) {
+            Iterator<L> segments = segments(Direction.FORWARD);
+            this.segmentIdx = getSegment(startPosition);
 
             validateSegmentIdx(segmentIdx, startPosition);
             long positionOnSegment = getPositionOnSegment(startPosition);
 
             // skip
-            for (int i = 0; i < segmentIdx - 1; i++) {
+            for (int i = 0; i < this.segmentIdx; i++) {
                 segments.next();
             }
 
             if (segments.hasNext()) {
-                this.current = segments.next().iterator(positionOnSegment, direction);
+                this.current = segments.next().iterator(positionOnSegment, Direction.FORWARD);
             }
 
             List<LogIterator<T>> subsequentIterators = new ArrayList<>();
             while (segments.hasNext()) {
-                subsequentIterators.add(segments.next().iterator(direction));
+                subsequentIterators.add(segments.next().iterator(Direction.FORWARD));
             }
             this.segmentsIterators = subsequentIterators.iterator();
 
@@ -518,11 +523,12 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
             }
             boolean hasNext = current.hasNext();
             if (!hasNext) {
+                IOUtils.closeQuietly(current);
                 if (!segmentsIterators.hasNext()) {
                     return false;
                 }
                 current = segmentsIterators.next();
-                segmentIdx++; //TODO verify if the segment index is correct, also how iterating during the merge ?
+                segmentIdx++;
                 return current.hasNext();
             }
             return true;
@@ -530,6 +536,87 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
 
         @Override
         public T next() {
+            T next = current.next();
+            if ((next == null || !current.hasNext())) {
+                IOUtils.closeQuietly(current);
+                if (segmentsIterators.hasNext()) {
+                    current = segmentsIterators.next();
+                    segmentIdx++;
+                }
+            }
+            return next;
+        }
+
+        @Override
+        public void close() {
+            try {
+                current.close();
+                while (segmentsIterators.hasNext()) {
+                    segmentsIterators.next().close();
+                }
+            } catch (IOException e) {
+                throw RuntimeIOException.of(e);
+            }
+        }
+    }
+
+    private class BackwardLogReader implements LogIterator<T> {
+
+        private final Iterator<LogIterator<T>> segmentsIterators;
+        private LogIterator<T> current;
+        private int segmentIdx;
+
+        BackwardLogReader(long startPosition) {
+            int numSegments = levels.numSegments();
+            Iterator<L> segments = segments(Direction.BACKWARD);
+            int segIdx = getSegment(startPosition);
+
+            this.segmentIdx = numSegments - (numSegments - segIdx);
+            int skips = (numSegments - 1) - segIdx;
+
+            validateSegmentIdx(segmentIdx, startPosition);
+            long positionOnSegment = getPositionOnSegment(startPosition);
+
+            // skip
+            for (int i = 0; i < skips; i++) {
+                segments.next();
+            }
+
+            if (segments.hasNext()) {
+                this.current = segments.next().iterator(positionOnSegment, Direction.BACKWARD);
+            }
+
+            List<LogIterator<T>> subsequentIterators = new ArrayList<>();
+            while (segments.hasNext()) {
+                subsequentIterators.add(segments.next().iterator(Direction.BACKWARD));
+            }
+            this.segmentsIterators = subsequentIterators.iterator();
+
+        }
+
+        @Override
+        public long position() {
+            return toSegmentedPosition(segmentIdx, current.position());
+        }
+
+        @Override
+        public boolean hasNext() {
+            if (current == null) {
+                return false;
+            }
+            return current.hasNext() || segmentsIterators.hasNext();
+        }
+
+        @Override
+        public T next() {
+            if ((current == null || !current.hasNext()) && segmentsIterators.hasNext()) {
+                IOUtils.closeQuietly(current);
+                current = segmentsIterators.next();
+                segmentIdx--;
+            }
+            if(current == null || !hasNext()) {
+                return null; //TODO throw nosuchelementexception
+            }
             return current.next();
         }
 
@@ -537,11 +624,15 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         public void close() {
             try {
                 current.close();
+                while (segmentsIterators.hasNext()) {
+                    segmentsIterators.next().close();
+                }
             } catch (IOException e) {
                 throw RuntimeIOException.of(e);
             }
         }
     }
+
 
     private class LogPoller implements PollingSubscriber<T> {
 
@@ -665,10 +756,10 @@ public abstract class LogAppender<T, L extends Log<T>> implements Closeable {
         @Override
         public synchronized boolean headOfLog() {
             //if end of current segment, check the next one
-            if(currentPoller.headOfLog()) {
+            if (currentPoller.headOfLog()) {
                 //TODO verify if the !segmentPollers.isEmpty() is actually correct and is a replacement for the commented out code below
 //                boolean isLatestSegment = segmentIdx == levels.numSegments() - 1;
-                if(!segmentPollers.isEmpty()) {
+                if (!segmentPollers.isEmpty()) {
                     PollingSubscriber<T> poll = segmentPollers.peek();
                     return poll.headOfLog();
                 }

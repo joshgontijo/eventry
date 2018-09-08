@@ -1,5 +1,7 @@
 package io.joshworks.fstore.es.index;
 
+import io.joshworks.fstore.codec.snappy.SnappyCodec;
+import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.core.io.IOUtils;
 import io.joshworks.fstore.es.index.disk.IndexAppender;
 import io.joshworks.fstore.es.index.disk.IndexCompactor;
@@ -13,7 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.Flushable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -25,7 +26,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class TableIndex implements Index, Flushable {
+public class TableIndex implements Index {
 
     private static final Logger logger = LoggerFactory.getLogger(TableIndex.class);
     public static final int DEFAULT_FLUSH_THRESHOLD = 1000000;
@@ -40,30 +41,28 @@ public class TableIndex implements Index, Flushable {
 
     private final Set<DiskMemIndexPoller> pollers = new HashSet<>();
 
-//    private final SedaContext sedaContext = new SedaContext();
-
     public TableIndex(File rootDirectory) {
         this(rootDirectory, DEFAULT_FLUSH_THRESHOLD, DEFAULT_USE_COMPRESSION);
     }
 
     public TableIndex(File rootDirectory, int flushThreshold, boolean useCompression) {
-//        this.log = log;
         if (flushThreshold < 1000) {//arbitrary number
             throw new IllegalArgumentException("Flush threshold must be at least 1000");
         }
+
+        Codec codec = useCompression ? new SnappyCodec() : Codec.noCompression();
         diskIndex = new IndexAppender(LogAppender
                 .builder(new File(rootDirectory, INDEX_DIR), new IndexEntrySerializer())
                 .compactionStrategy(new IndexCompactor())
                 .maxSegmentsPerLevel(2)
                 .segmentSize(flushThreshold * IndexEntry.BYTES)
-                .namingStrategy(new IndexAppender.IndexNaming()), flushThreshold, useCompression);
+                .namingStrategy(new IndexAppender.IndexNaming()), flushThreshold, codec);
 
         this.flushThreshold = flushThreshold;
-//        this.sedaContext.addStage(INDEX_WRITER, this::writeToDiskAsync, new Stage.Builder().corePoolSize(1).maximumPoolSize(1).blockWhenFull().queueSize(10));
     }
 
     //returns true if flushed to disk
-    public boolean add(long stream, int version, long position) {
+    public FlushInfo add(long stream, int version, long position) {
         if (version <= IndexEntry.NO_VERSION) {
             throw new IllegalArgumentException("Version must be greater than or equals to zero");
         }
@@ -73,32 +72,27 @@ public class TableIndex implements Index, Flushable {
         IndexEntry entry = IndexEntry.of(stream, version, position);
         memIndex.add(entry);
         if (memIndex.size() >= flushThreshold) {
-            writeToDisk();
+            var flushInfo = writeToDisk();
             memIndex.close();
             memIndex = new MemIndex();
-            return true;
+            return flushInfo;
         }
-        return false;
+        return null;
     }
 
-//    private void writeToDiskAsync(final EventContext<Set<IndexEntry>> ctx) {
-//        writeToDisk(ctx.data);
-//    }
-
     //only single write can happen at time
-    public void writeToDisk() {
+    public FlushInfo writeToDisk() {
         logger.info("Writing index to disk");
         if (memIndex.isEmpty()) {
-            return;
+            return null;
         }
 
+        long start = System.currentTimeMillis();
         memIndex.stream(Direction.FORWARD).forEach(diskIndex::append);
-
         diskIndex.roll();
-
-
-//        long checkpoint = log.position();
-//        writeCheckpoint(checkpoint);
+        long timeTaken = System.currentTimeMillis() - start;
+        logger.info("Flush completed in {}ms", timeTaken);
+        return new FlushInfo(memIndex.size(), timeTaken);
     }
 
     @Override
@@ -166,11 +160,11 @@ public class TableIndex implements Index, Flushable {
         return Iterators.concat(Arrays.asList(diskIterator, memIndex));
     }
 
-    @Override
-    public void flush() {
-        writeToDisk();
+    public FlushInfo flush() {
+        FlushInfo flushInfo = writeToDisk();
         memIndex.close();
         memIndex = new MemIndex();
+        return flushInfo;
     }
 
     public PollingSubscriber<IndexEntry> poller(long stream) {
@@ -405,58 +399,13 @@ public class TableIndex implements Index, Flushable {
     }
 
 
-    //TODO LogAppender's LOG_HEAD segment must be able to store different data layout: with stream name in this case
-//    private MemIndex restoreFromCheckpoint(){
-//        long checkpoint = readCheckpoint();
-//
-//        MemIndex memIndex = new MemIndex();
-//        if(checkpoint > 0) {
-//            return memIndex;
-//        }
-//
-//        try(LogIterator<Event> scanner = log.scanner(checkpoint)) {
-//            while(scanner.hasNext()) {
-//                long position = scanner.position();
-//                Event next = scanner.next();
-//                String stream = next.stream();
-//                int version = version(next.version());
-//
-//                memIndex.add(IndexEntry.of(stream, version, position));
-//
-//            }
-//        } catch (IOException e) {
-//            throw new IllegalStateException("Failed to restore index from checkpoint at position " + checkpoint, e);
-//        }
-//
-//
-//    }
-//
-//    private long readCheckpoint() {
-//        logger.info("Loading index checkpoint");
-//        try(Storage storage = new RafStorage(new File(directory, ".checkpoint"), 1024, Mode.READ_WRITE)) {
-//
-//            ByteBuffer bb = ByteBuffer.allocate(1024);
-//            storage.read(0, bb);
-//            bb.flip();
-//            if(bb.hasRemaining()) {
-//                return  bb.getLong();
-//            }
-//            return 0;
-//        } catch (IOException e) {
-//            throw RuntimeIOException.of(e);
-//        }
-//    }
-//
-//    private void writeCheckpoint(long checkpoint) {
-//        logger.info("Updating index checkpoint");
-//        try(Storage storage = new RafStorage(new File(directory, ".checkpoint"), 1024, Mode.READ_WRITE)) {
-//
-//            ByteBuffer bb = ByteBuffer.allocate(1024);
-//            bb.putLong(checkpoint);
-//            bb.flip();
-//            storage.write(bb);
-//        } catch (IOException e) {
-//            throw RuntimeIOException.of(e);
-//        }
-//    }
+    public class FlushInfo {
+        public int entries;
+        public final long timeTaken;
+
+        private FlushInfo(int entries, long timeTaken) {
+            this.entries = entries;
+            this.timeTaken = timeTaken;
+        }
+    }
 }

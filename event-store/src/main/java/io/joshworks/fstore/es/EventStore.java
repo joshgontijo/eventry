@@ -1,7 +1,12 @@
 package io.joshworks.fstore.es;
 
-import io.joshworks.fstore.core.Serializer;
 import io.joshworks.fstore.core.util.Size;
+import io.joshworks.fstore.es.data.Constant;
+import io.joshworks.fstore.es.data.IndexFlushed;
+import io.joshworks.fstore.es.data.LinkTo;
+import io.joshworks.fstore.es.data.StreamCreated;
+import io.joshworks.fstore.es.data.StreamDeleted;
+import io.joshworks.fstore.es.data.SystemStreams;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.es.index.TableIndex;
@@ -10,7 +15,6 @@ import io.joshworks.fstore.es.log.EventRecord;
 import io.joshworks.fstore.es.log.EventSerializer;
 import io.joshworks.fstore.es.stream.StreamInfo;
 import io.joshworks.fstore.es.stream.StreamMetadata;
-import io.joshworks.fstore.es.stream.StreamMetadataSerializer;
 import io.joshworks.fstore.es.stream.Streams;
 import io.joshworks.fstore.es.utils.StringUtils;
 import io.joshworks.fstore.es.utils.Tuple;
@@ -23,11 +27,7 @@ import io.joshworks.fstore.log.appender.LogAppender;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -36,6 +36,8 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static io.joshworks.fstore.es.stream.Streams.STREAM_WILDCARD;
 
 public class EventStore implements Closeable {
 
@@ -65,7 +67,7 @@ public class EventStore implements Closeable {
             while (iterator.hasNext()) {
                 EventRecord next = iterator.next();
                 long position = iterator.position();
-                if (next.isSystemEvent() && EventRecord.System.INDEX_FLUSHED_TYPE.equals(next.type)) {
+                if (next.isSystemEvent() && IndexFlushed.TYPE.equals(next.type)) {
                     break;
                 }
                 long streamHash = streams.hashOf(next.stream);
@@ -79,20 +81,24 @@ public class EventStore implements Closeable {
     }
 
     private void loadStreams() {
-        final Serializer<StreamMetadata> serializer = new StreamMetadataSerializer();
 
-        long streamHash = streams.hashOf(EventRecord.System.STREAMS_STREAM);
-        LogIterator<IndexEntry> addresses = index.iterator(Direction.FORWARD, Range.of(streamHash, Range.START_VERSION));
+        long streamHash = streams.hashOf(SystemStreams.STREAMS);
+        LogIterator<IndexEntry> addresses = index.iterator(Direction.FORWARD, Range.allOf(streamHash));
 
         while (addresses.hasNext()) {
             IndexEntry next = addresses.next();
             EventRecord event = eventLog.get(next.position);
 
-            StreamMetadata streamMetadata = serializer.fromBytes(ByteBuffer.wrap(event.data));
-            if (EventRecord.System.STREAM_DELETED_TYPE.equals(event.type)) {
-                streams.remove(streamMetadata.hash);
+            //pattern matching would be great here
+            if(StreamCreated.TYPE.equals(event.type)) {
+                StreamMetadata metadata = StreamCreated.from(event);
+                streams.create(metadata);
+            } else if(StreamDeleted.TYPE.equals(event.type)) {
+                StreamDeleted deleted = StreamDeleted.from(event);
+                long hash = streams.hashOf(deleted.stream);
+                streams.remove(hash);
             } else {
-                streams.create(streamMetadata);
+                //unrecognized event
             }
         }
 
@@ -114,8 +120,8 @@ public class EventStore implements Closeable {
         long hash = streams.hashOf(name);
         StreamMetadata streamMetadata = new StreamMetadata(name, hash, System.currentTimeMillis(), maxAge, maxCount, permissions, metadata);
 
-        EventRecord eventRecord = EventRecord.System.streamCreatedRecord(streamMetadata);
-        this.append(eventRecord);
+        EventRecord eventRecord = StreamCreated.create(streamMetadata);
+        this.appendSystemEvent(eventRecord);
         streams.create(streamMetadata);
 
         return streamMetadata;
@@ -146,9 +152,12 @@ public class EventStore implements Closeable {
 
     public LogIterator<EventRecord> fromStreamIter(String stream, int versionInclusive) {
         long streamHash = streams.hashOf(stream);
-        LogIterator<IndexEntry> addresses = index.iterator(Direction.FORWARD, Range.of(streamHash, versionInclusive));
-        addresses = withMaxCountFilter(streamHash, addresses);
-        return withMaxAgeFilter(Set.of(streamHash), new SingleStreamIterator(addresses, this));
+        LogIterator<IndexEntry> indexIterator = index.iterator(Direction.FORWARD, Range.of(streamHash, versionInclusive));
+        indexIterator = withMaxCountFilter(streamHash, indexIterator);
+        SingleStreamIterator singleStreamIterator = new SingleStreamIterator(indexIterator, eventLog);
+        LogIterator<EventRecord> ageFilterIterator = withMaxAgeFilter(Set.of(streamHash), singleStreamIterator);
+        return new LinkToResolveIterator(ageFilterIterator, this::resolve);
+
     }
 
     public Stream<EventRecord> fromStream(String stream, int versionInclusive) {
@@ -162,7 +171,11 @@ public class EventStore implements Closeable {
     }
 
     public LogIterator<EventRecord> zipStreamsIter(String streamPrefix) {
+        streamPrefix = streamPrefix.endsWith(STREAM_WILDCARD) ? streamPrefix : streamPrefix + STREAM_WILDCARD;
         Set<String> eventStreams = streams.streamMatching(streamPrefix);
+        if(eventStreams.isEmpty()) {
+            return Iterators.empty();
+        }
         return zipStreamsIter(eventStreams);
     }
 
@@ -171,24 +184,18 @@ public class EventStore implements Closeable {
     }
 
     public LogIterator<EventRecord> zipStreamsIter(Set<String> streamNames) {
-        Set<String> uniqueStreams = new LinkedHashSet<>(streamNames);
 
-        List<LogIterator<IndexEntry>> indexes = new ArrayList<>(streamNames.size());
-        Map<Long, String> mappings = new HashMap<>();
-        Set<Long> hashes = new HashSet<>();
-        for (String stream : uniqueStreams) {
-            if (stream == null || stream.isEmpty()) {
-                throw new IllegalArgumentException("Stream cannot empty");
-            }
-            long streamHash = streams.hashOf(stream);
-            hashes.add(streamHash);
-            LogIterator<IndexEntry> indexStream = index.iterator(Direction.FORWARD, Range.allOf(streamHash));
+        Set<Long> hashes = streamNames.stream()
+                .filter(StringUtils::nonBlank)
+                .map(streams::hashOf)
+                .collect(Collectors.toSet());
 
-            indexes.add(indexStream);
-            mappings.put(streamHash, stream);
-        }
+        List<LogIterator<IndexEntry>> indexes = hashes.stream()
+                .map(hash -> index.iterator(Direction.FORWARD, Range.allOf(hash)))
+                .collect(Collectors.toList());
 
-        return withMaxAgeFilter(hashes, new MultiStreamIterator(mappings, indexes, eventLog));
+        LogIterator<EventRecord> ageFilterIterator = withMaxAgeFilter(hashes, new MultiStreamIterator(indexes, eventLog));
+        return new LinkToResolveIterator(ageFilterIterator, this::resolve);
     }
 
     public Stream<Stream<EventRecord>> fromStreams(Set<String> streams) {
@@ -220,13 +227,13 @@ public class EventStore implements Closeable {
             //resolve event
             event = get(event.stream, event.version);
         }
-        EventRecord linkTo = EventRecord.System.createLinkTo(stream, event);
-        return append(linkTo);
+        EventRecord linkTo = LinkTo.create(stream, event);
+        return this.appendSystemEvent(linkTo);
     }
 
     public void emit(String stream, EventRecord event) {
         EventRecord withStream = EventRecord.create(stream, event.type, event.data, event.metadata);
-        append(withStream);
+        this.append(withStream);
     }
 
     public EventRecord get(String stream, int version) {
@@ -263,16 +270,29 @@ public class EventStore implements Closeable {
         return record;
     }
 
+    private void validateEvent(EventRecord event) {
+        Objects.requireNonNull(event, "Event must be provided");
+        StringUtils.requireNonBlank(event.stream, "stream must be provided");
+        StringUtils.requireNonBlank(event.type, "Type must be provided");
+        if (event.stream.startsWith(Constant.SYSTEM_PREFIX)) {
+            throw new IllegalArgumentException("Stream cannot start with " + Constant.SYSTEM_PREFIX);
+        }
+    }
+
     public EventRecord append(EventRecord event) {
         return append(event, IndexEntry.NO_VERSION);
     }
 
     public EventRecord append(EventRecord event, int expectedVersion) {
-        Objects.requireNonNull(event, "Event must be provided");
-        StringUtils.requireNonBlank(event.stream, "stream must be provided");
+        validateEvent(event);
 
         StreamMetadata metadata = getOrCreateStream(event.stream);
         return append(metadata, event, expectedVersion);
+    }
+
+    private EventRecord appendSystemEvent(EventRecord event) {
+        StreamMetadata metadata = getOrCreateStream(event.stream);
+        return append(metadata, event, IndexEntry.NO_VERSION);
     }
 
     private EventRecord append(StreamMetadata streamMetadata, EventRecord event, int expectedVersion) {
@@ -290,10 +310,10 @@ public class EventStore implements Closeable {
         var record = new EventRecord(event.stream, event.type, version, System.currentTimeMillis(), event.data, event.metadata);
 
         long position = eventLog.append(record);
-        boolean flushed = index.add(streamHash, version, position);
-        if (flushed) {
-            var indexFlushedEvent = EventRecord.System.indexFlushed();
-            eventLog.append(indexFlushedEvent);
+        var flushInfo = index.add(streamHash, version, position);
+        if (flushInfo != null) {
+            var indexFlushedEvent = IndexFlushed.create(position, flushInfo.timeTaken, flushInfo.entries);
+            this.appendSystemEvent(indexFlushedEvent);
         }
 
         return record;
@@ -304,8 +324,8 @@ public class EventStore implements Closeable {
         return streams.get(streamHash).orElseGet(() -> {
             StreamMetadata streamMetadata = new StreamMetadata(stream, streamHash, System.currentTimeMillis());
             if (streams.create(streamMetadata)) {
-                EventRecord eventRecord = EventRecord.System.streamCreatedRecord(streamMetadata);
-                this.append(eventRecord);
+                EventRecord eventRecord = StreamCreated.create(streamMetadata);
+                this.appendSystemEvent(eventRecord);
             }
             return streamMetadata;
         });
@@ -343,13 +363,17 @@ public class EventStore implements Closeable {
     }
 
     private LogIterator<EventRecord> withMaxAgeFilter(Set<Long> streamHashes, LogIterator<EventRecord> iterator) {
-        Map<String, StreamMetadata> metadataMap = streamHashes.stream()
+        Map<String, Long> metadataMap = streamHashes.stream()
                 .map(streams::get)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .collect(Collectors.toMap(StreamMetadata::name, meta -> meta));
+                .collect(Collectors.toMap(StreamMetadata::name, meta -> meta.maxAge));
 
         return new MaxAgeFilteringIterator(metadataMap, iterator);
+    }
+
+    public long logPosition() {
+        return eventLog.position();
     }
 
     @Override

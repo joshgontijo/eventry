@@ -1,7 +1,6 @@
 package io.joshworks.fstore.es;
 
 import io.joshworks.fstore.es.log.EventRecord;
-import io.joshworks.fstore.es.stream.StreamMetadata;
 import io.joshworks.fstore.log.LogIterator;
 
 import java.io.IOException;
@@ -13,10 +12,10 @@ public class MaxAgeFilteringIterator implements LogIterator<EventRecord> {
     private final LogIterator<EventRecord> delegate;
     private EventRecord next;
     private final long timestamp = System.currentTimeMillis();
-    private Map<String, StreamMetadata> metadataMap;
+    private Map<String, Long> maxAges;
 
-    public MaxAgeFilteringIterator(Map<String, StreamMetadata> metadataMap, LogIterator<EventRecord> delegate) {
-        this.metadataMap = metadataMap;
+    public MaxAgeFilteringIterator(Map<String, Long> metadataMap, LogIterator<EventRecord> delegate) {
+        this.maxAges = metadataMap;
         this.delegate = delegate;
         next = dropEvents();
     }
@@ -45,8 +44,8 @@ public class MaxAgeFilteringIterator implements LogIterator<EventRecord> {
     }
 
     private boolean withinMaxAge(EventRecord event) {
-        StreamMetadata metadata = metadataMap.get(event.stream);
-        return metadata.maxAge <= 0 || ((timestamp - event.timestamp) / 1000) <= metadata.maxAge;
+        Long maxAge = maxAges.get(event.stream);
+        return maxAge <= 0 || ((timestamp - event.timestamp) / 1000) <= maxAge;
     }
 
     private EventRecord nextEntry() {

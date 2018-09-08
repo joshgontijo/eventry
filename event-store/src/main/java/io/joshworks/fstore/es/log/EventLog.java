@@ -34,6 +34,10 @@ public class EventLog {
         return appender.entries();
     }
 
+    public long position() {
+        return appender.position();
+    }
+
     public void close() {
         appender.close();
     }

@@ -1,5 +1,6 @@
 package io.joshworks.fstore.log.appender;
 
+import io.joshworks.fstore.core.Codec;
 import io.joshworks.fstore.log.Utils;
 import io.joshworks.fstore.log.segment.block.BlockSerializer;
 import io.joshworks.fstore.serializer.Serializers;
@@ -18,7 +19,7 @@ public class BlockAppenderIT {
     @Before
     public void setUp() {
         testDirectory = Utils.testFolder();
-        appender = new BlockAppender<>(new Config<>(testDirectory, new BlockSerializer<>(Serializers.STRING)), Serializers.STRING, 4096);
+        appender = new BlockAppender<>(new Config<>(testDirectory, new BlockSerializer<>(Serializers.STRING, Codec.noCompression())), Serializers.STRING, 4096);
     }
 
     @After

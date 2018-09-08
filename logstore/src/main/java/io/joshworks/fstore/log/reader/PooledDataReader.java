@@ -13,16 +13,16 @@ public class PooledDataReader extends ChecksumDataReader {
     private final BlockingQueue<DataReader> readers;
     private static final int DEFAULT_READER_SIZE = 1000;
 
-    public PooledDataReader(Supplier<DataReader> readerSupplier) {
-        this(DEFAULT_READER_SIZE, DEFAULT_CHECKUM_PROB, readerSupplier);
+    public PooledDataReader(int maxRecordSize, Supplier<DataReader> readerSupplier) {
+        this(maxRecordSize, DEFAULT_READER_SIZE, DEFAULT_CHECKUM_PROB, readerSupplier);
     }
 
-    public PooledDataReader(int maxReaders, Supplier<DataReader> readerSupplier) {
-       this(maxReaders, DEFAULT_CHECKUM_PROB, readerSupplier);
+    public PooledDataReader(int maxRecordSize, int maxReaders, Supplier<DataReader> readerSupplier) {
+        this(maxRecordSize, maxReaders, DEFAULT_CHECKUM_PROB, readerSupplier);
     }
 
-    public PooledDataReader(int maxReaders, double checksumProb, Supplier<DataReader> readerSupplier) {
-        super(checksumProb);
+    public PooledDataReader(int maxRecordSize, int maxReaders, double checksumProb, Supplier<DataReader> readerSupplier) {
+        super(maxRecordSize, checksumProb);
         this.readers = new ArrayBlockingQueue<>(maxReaders);
         for (int i = 0; i < maxReaders; i++) {
             this.readers.offer(readerSupplier.get());

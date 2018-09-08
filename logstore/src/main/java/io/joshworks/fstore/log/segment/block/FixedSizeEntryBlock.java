@@ -29,4 +29,8 @@ public class FixedSizeEntryBlock<T> extends Block<T> {
         readOnlyBb.position(idx * entrySize);
         return readEntry(readOnlyBb, serializer, entrySize);
     }
+
+    public int entrySize() {
+        return entrySize;
+    }
 }

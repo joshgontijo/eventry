@@ -43,12 +43,12 @@ public abstract class SegmentTest {
 
     private Log<String> create(File theFile) {
         Storage storage = getStorage(theFile, FILE_SIZE);
-        return new Segment<>(storage, new StringSerializer(), new FixedBufferDataReader(), "magic", Type.LOG_HEAD);
+        return new Segment<>(storage, new StringSerializer(), new FixedBufferDataReader(4096), "magic", Type.LOG_HEAD);
     }
 
     private Log<String> open(File theFile) {
         Storage storage = getStorage(theFile, FILE_SIZE);
-        return new Segment<>(storage, new StringSerializer(), new FixedBufferDataReader(), "magic");
+        return new Segment<>(storage, new StringSerializer(), new FixedBufferDataReader(4096), "magic");
     }
 
     @Before

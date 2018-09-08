@@ -4,8 +4,13 @@ import java.nio.charset.StandardCharsets;
 
 public final class StringUtils {
 
+
+    public static boolean nonBlank(String val) {
+        return !isBlank(val);
+    }
+
     public static boolean isBlank(String val) {
-        return val != null && val.trim().isEmpty();
+        return val == null || val.trim().isEmpty();
     }
 
     public static void requireNonBlank(String val) {

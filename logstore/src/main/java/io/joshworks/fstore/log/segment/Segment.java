@@ -265,7 +265,7 @@ public class Segment<T> implements Log<T> {
         } catch (Exception e) {
             logger.warn("Found inconsistent entry on position {}, segment '{}': {}", position, name(), e.getMessage());
         }
-        logger.info("Log state restored in {}ms, current position: {}, entries: {}", start, position, foundEntries);
+        logger.info("Log state restored in {}ms, current position: {}, entries: {}", (System.currentTimeMillis() - start), position, foundEntries);
         if (position < Header.BYTES) {
             throw new IllegalStateException("Initial log state position must be at least " + Header.BYTES);
         }
@@ -345,7 +345,7 @@ public class Segment<T> implements Log<T> {
 
     //TODO properly implement reader pool
     //TODO implement race condition on acquiring readers and closing / deleting segment
-    protected LogReader newLogReader(long pos, Direction direction) {
+    protected SegmentReader newLogReader(long pos, Direction direction) {
 
         while (readers.size() >= 10) {
             try {
@@ -357,8 +357,8 @@ public class Segment<T> implements Log<T> {
             }
         }
 
-        LogReader logReader = new LogReader(storage, reader, serializer, pos, direction);
-        return addToReaders(logReader);
+        SegmentReader segmentReader = new SegmentReader(storage, reader, serializer, pos, direction);
+        return addToReaders(segmentReader);
     }
 
     @Override
@@ -433,7 +433,7 @@ public class Segment<T> implements Log<T> {
     }
 
     //NOT THREAD SAFE
-    private class LogReader extends TimeoutReader implements LogIterator<T> {
+    private class SegmentReader extends TimeoutReader implements LogIterator<T> {
 
         private final Storage storage;
         private final DataReader reader;
@@ -445,7 +445,7 @@ public class Segment<T> implements Log<T> {
         private int lastReadSize;
         private final Direction direction;
 
-        LogReader(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition, Direction direction) {
+        SegmentReader(Storage storage, DataReader reader, Serializer<T> serializer, long initialPosition, Direction direction) {
             this.direction = direction;
             checkBounds(initialPosition);
             this.storage = storage;
@@ -476,6 +476,7 @@ public class Segment<T> implements Log<T> {
             lastReadTs = System.currentTimeMillis();
 
             T current = data;
+            //tODO check if backwards requite any additional offset addition
             position = Direction.FORWARD.equals(direction) ? position + lastReadSize : position - lastReadSize;
             data = readAhead();
             return current;
@@ -499,8 +500,7 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public String toString() {
-            return "SegmentPoller{ uuid='" + uuid + '\'' +
-                    ", readPosition=" + position +
+            return "SegmentReader{ readPosition=" + position +
                     ", order=" + direction +
                     ", readAheadPosition=" + readAheadPosition +
                     ", lastReadTs=" + lastReadTs +
@@ -631,8 +631,7 @@ public class Segment<T> implements Log<T> {
 
         @Override
         public String toString() {
-            return "SegmentPoller{ uuid='" + uuid + '\'' +
-                    ", readPosition=" + readPosition +
+            return "SegmentPoller{readPosition=" + readPosition +
                     ", lastReadTs=" + lastReadTs +
                     '}';
         }

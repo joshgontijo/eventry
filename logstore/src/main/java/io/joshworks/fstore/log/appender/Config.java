@@ -1,26 +1,26 @@
 package io.joshworks.fstore.log.appender;
 
 import io.joshworks.fstore.core.Serializer;
-import io.joshworks.fstore.core.io.DataReader;
 import io.joshworks.fstore.core.util.Size;
 import io.joshworks.fstore.log.BitUtil;
 import io.joshworks.fstore.log.appender.merge.ConcatenateCombiner;
 import io.joshworks.fstore.log.appender.merge.SegmentCombiner;
 import io.joshworks.fstore.log.appender.naming.NamingStrategy;
 import io.joshworks.fstore.log.appender.naming.ShortUUIDNamingStrategy;
-import io.joshworks.fstore.log.reader.FixedBufferDataReader;
 
 import java.io.File;
 import java.util.Objects;
 
 public class Config<T> {
 
+    //reader / writer max message size
+    public static final int MAX_RECORD_SIZE = 16384;
+
     //How many bits a segment index can hold
     private static final int SEGMENT_BITS = 18;
 
     public final File directory;
     public final Serializer<T> serializer;
-    DataReader reader = new FixedBufferDataReader(false, 1);
     NamingStrategy namingStrategy = new ShortUUIDNamingStrategy();
     SegmentCombiner<T> combiner = new ConcatenateCombiner<>();
 
@@ -30,6 +30,7 @@ public class Config<T> {
     boolean asyncFlush;
     int maxSegmentsPerLevel = 3;
     int mmapBufferSize = segmentSize;
+    int maxRecordSize = MAX_RECORD_SIZE;
     boolean flushAfterWrite;
     boolean threadPerLevel;
     boolean compactionDisabled;
@@ -68,6 +69,11 @@ public class Config<T> {
         return this;
     }
 
+    public Config<T> maxRecordSize(int maxRecordSize) {
+        this.maxRecordSize = maxRecordSize;
+        return this;
+    }
+
     public Config<T> namingStrategy(NamingStrategy strategy) {
         Objects.requireNonNull(strategy, "NamingStrategy must be provided");
         this.namingStrategy = strategy;
@@ -77,12 +83,6 @@ public class Config<T> {
     public Config<T> compactionStrategy(SegmentCombiner<T> combiner) {
         Objects.requireNonNull(combiner, "SegmentCombiner must be provided");
         this.combiner = combiner;
-        return this;
-    }
-
-    public Config<T> reader(DataReader reader) {
-        Objects.requireNonNull(reader, "reader must no be null");
-        this.reader = reader;
         return this;
     }
 

@@ -11,7 +11,7 @@ public class VStringSerializer implements Serializer<String> {
     public ByteBuffer toBytes(String data) {
         byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
         ByteBuffer bb = ByteBuffer.allocate(Integer.BYTES + bytes.length);
-        return (ByteBuffer) bb.putInt(bytes.length).put(bytes).flip();
+        return bb.putInt(bytes.length).put(bytes).flip();
     }
 
     @Override

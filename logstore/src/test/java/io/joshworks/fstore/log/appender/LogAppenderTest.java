@@ -141,9 +141,12 @@ public class LogAppenderTest {
     }
 
     @Test
-    public void position() {
+    public void empty_appender_return_LOG_START_position() {
+        assertEquals(Log.START, appender.position());
+    }
 
-        assertEquals(0, appender.position());
+    @Test
+    public void appender_return_correct_position_after_insertion() {
 
         long pos1 = appender.append("1");
         long pos2 = appender.append("2");
@@ -370,7 +373,7 @@ public class LogAppenderTest {
     public void get_return_all_items() {
 
         File location = Utils.testFolder();
-        try(SimpleLogAppender<String> testAppender = new SimpleLogAppender<>(new Config<>(location, Serializers.STRING).segmentSize(209715200))) {
+        try (SimpleLogAppender<String> testAppender = new SimpleLogAppender<>(new Config<>(location, Serializers.STRING).segmentSize(209715200))) {
             List<Long> positions = new ArrayList<>();
             int size = 500000;
             for (int i = 0; i < size; i++) {
@@ -430,7 +433,7 @@ public class LogAppenderTest {
 
         for (int i = 0; i < size; i++) {
             appender.append(String.valueOf(i));
-            if(i > 0 && i % (size / numSegments) == 0) {
+            if (i > 0 && i % (size / numSegments) == 0) {
                 appender.roll();
             }
         }
@@ -441,7 +444,7 @@ public class LogAppenderTest {
         LogIterator<String> scanner = appender.iterator(Direction.FORWARD);
 
         int val = 0;
-        while(scanner.hasNext()) {
+        while (scanner.hasNext()) {
             String next = scanner.next();
             assertEquals(String.valueOf(val++), next);
         }
@@ -545,8 +548,8 @@ public class LogAppenderTest {
     }
 
     @Test
-    public void backwards_scanner() throws IOException {
-        int entries = 1000000;
+    public void backwards_scanner_returns_all_records() throws IOException {
+        int entries = 3000000;
         for (int i = 0; i < entries; i++) {
             appender.append(String.valueOf(i));
         }
@@ -559,6 +562,200 @@ public class LogAppenderTest {
             }
         }
         assertEquals(-1, current);
+    }
+
+    @Test
+    public void backwards_scanner_with_position_returns_all_records() throws IOException {
+        int entries = 3000000;
+        for (int i = 0; i < entries; i++) {
+            appender.append(String.valueOf(i));
+        }
+
+        long position = appender.position();
+        for (int i = entries - 1; i >= 0; i--) {
+            try (LogIterator<String> iterator = appender.iterator(position, Direction.BACKWARD)) {
+                assertTrue("Failed on position " + position, iterator.hasNext());
+
+                String next = iterator.next();
+                assertEquals("Failed on position " + position, String.valueOf(i), next);
+                position = iterator.position();
+
+            }
+        }
+    }
+
+    @Test
+    public void forward_scanner_with_position_returns_all_records() throws IOException {
+        int entries = 2000000;
+        long position = appender.position();
+        for (int i = 0; i < entries; i++) {
+            appender.append(String.valueOf(i));
+        }
+
+        for (int i = 0; i < entries; i++) {
+            if(1999999 == i) {
+                System.out.println("as");
+            }
+
+            try (LogIterator<String> iterator = appender.iterator(position, Direction.FORWARD)) {
+                assertTrue("Failed on position " + position, iterator.hasNext());
+
+                String next = iterator.next();
+                assertEquals("Failed on position " + position, String.valueOf(i), next);
+                position = iterator.position();
+
+            }
+        }
+    }
+
+    @Test
+    public void position_is_consistent_on_multiple_segments() {
+        int entries = 3000000; //do not change
+        for (int i = 0; i < entries; i++) {
+            long position = appender.position();
+            long entryPos = appender.append("value-" + i);
+            assertEquals("Failed on " + i, entryPos, position);
+        }
+    }
+
+    @Test
+    public void forward_iterator_position_returns_correct_values() throws IOException {
+        int entries = 3000000; //do not change
+        List<Long> positions = new ArrayList<>();
+        for (int i = 0; i < entries; i++) {
+            long pos = appender.append(String.valueOf(i));
+            positions.add(pos);
+        }
+
+        try (LogIterator<String> iterator = appender.iterator(Direction.FORWARD)) {
+            for (int i = 0; i < entries; i++) {
+                assertTrue(iterator.hasNext());
+                Long position = iterator.position();
+
+                assertEquals(positions.get(i), position);
+
+                iterator.next();
+            }
+        }
+    }
+
+    @Test
+    public void backward_iterator_position_returns_correct_values_with_single_segment() throws IOException {
+        int entries = 3000; //do not change
+        List<Long> positions = new ArrayList<>();
+        for (int i = 0; i < entries; i++) {
+            long pos = appender.append("value-" + i);
+            positions.add(pos);
+        }
+
+        try (LogIterator<String> iterator = appender.iterator(Direction.BACKWARD)) {
+            for (int i = entries; i > 0; i--) {
+                assertTrue(iterator.hasNext());
+                iterator.next();
+                Long position = iterator.position();
+                assertEquals("Failed on " + i, positions.get(i - 1), position);
+
+            }
+        }
+    }
+
+    @Test
+    public void backward_iterator_position_returns_correct_values_with_two_segments() throws IOException {
+        int entries = 900000; //do not change
+        List<Long> positions = new ArrayList<>();
+        for (int i = 0; i < entries; i++) {
+            long pos = appender.append("value-" + i);
+            positions.add(pos);
+        }
+
+        try (LogIterator<String> iterator = appender.iterator(Direction.BACKWARD)) {
+            for (int i = entries - 1; i > 0; i--) {
+                assertTrue(iterator.hasNext());
+                iterator.next();
+                Long position = iterator.position();
+                assertEquals("Failed on " + i, positions.get(i), position);
+            }
+        }
+    }
+
+    @Test
+    public void backward_iterator_position_returns_correct_values_with_multiple_segments() throws IOException {
+        int entries = 4000000; //do not change
+        List<Long> positions = new ArrayList<>();
+        for (int i = 0; i < entries; i++) {
+            long pos = appender.append("value-" + i);
+            positions.add(pos);
+        }
+
+        try (LogIterator<String> iterator = appender.iterator(Direction.BACKWARD)) {
+            for (int i = entries; i > 0; i--) {
+                assertTrue(iterator.hasNext());
+                iterator.next();
+                Long position = iterator.position();
+                assertEquals("Failed on " + i, positions.get(i - 1), position);
+
+            }
+        }
+    }
+
+    @Test
+    public void backward_iterator_returns_all_items_after_reopened_appender() throws IOException {
+        int entries = 2000000;
+        List<Long> positions = new ArrayList<>();
+        for (int i = 0; i < entries; i++) {
+            long pos = appender.append("value-" + i);
+            positions.add(pos);
+        }
+
+        appender.close();
+        appender = new SimpleLogAppender<>(config);
+
+        try (LogIterator<String> iterator = appender.iterator(Direction.BACKWARD)) {
+            for (int i = entries; i > 0; i--) {
+                assertTrue(iterator.hasNext());
+                iterator.next();
+                Long position = iterator.position();
+                assertEquals("Failed on " + i, positions.get(i - 1), position);
+
+            }
+        }
+    }
+
+    @Test
+    public void forward_iterator_returns_all_items_after_reopened_appender() throws IOException {
+        int entries = 2000000;
+        List<Long> positions = new ArrayList<>();
+        for (int i = 0; i < entries; i++) {
+            long pos = appender.append("value-" + i);
+            positions.add(pos);
+        }
+
+        appender.close();
+        appender = new SimpleLogAppender<>(config);
+
+        try (LogIterator<String> iterator = appender.iterator(Direction.FORWARD)) {
+            for (int i = 0; i < entries; i++) {
+                assertTrue(iterator.hasNext());
+                Long position = iterator.position();
+                iterator.next();
+                assertEquals("Failed on " + i, positions.get(i), position);
+
+            }
+        }
+    }
+
+    @Test
+    public void position_is_the_same_after_reopening() {
+        int entries = 1200000; //must be more than a single segment
+        for (int i = 0; i < entries; i++) {
+            appender.append("value-" + i);
+        }
+
+        long prev = appender.position();
+        appender.close();
+        appender = new SimpleLogAppender<>(config);
+
+        assertEquals(prev, appender.position());
     }
 
     private static void sleep(long time) {

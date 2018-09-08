@@ -27,8 +27,9 @@ public class LogDump {
         try (var fileWriter = new FileWriter(file)) {
             LogIterator<EventRecord> iterator = store.fromAllIter();
             while (iterator.hasNext()) {
+                long position = iterator.position();
                 EventRecord event = iterator.next();
-                fileWriter.write(event.toString() + System.lineSeparator());
+                fileWriter.write(position + " | " + event.toString() + System.lineSeparator());
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -39,8 +40,9 @@ public class LogDump {
         try (var fileWriter = new FileWriter(file)) {
             LogIterator<IndexEntry> iterator = store.keys();
             while (iterator.hasNext()) {
+                long position = iterator.position();
                 IndexEntry event = iterator.next();
-                fileWriter.write(event.toString() + System.lineSeparator());
+                fileWriter.write(position + " | " +event.toString() + System.lineSeparator());
             }
         } catch (IOException e) {
             throw new RuntimeException(e);

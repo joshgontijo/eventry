@@ -7,13 +7,17 @@ public class SingletonBufferDataReader extends FixedBufferDataReader {
 
     private ByteBuffer buffer;
 
+    public SingletonBufferDataReader(int maxRecordSize) {
+        super(maxRecordSize);
+    }
+
     @Override
     public ByteBuffer getBuffer() {
         if(buffer == null) {
             this.buffer = super.getBuffer();
         }
-        ByteBuffer buffer = super.getBuffer();
-        buffer.clear();
-        return buffer;
+        ByteBuffer bb = super.getBuffer();
+        bb.clear();
+        return bb;
     }
 }

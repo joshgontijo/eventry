@@ -22,13 +22,12 @@ import java.util.stream.Collectors;
 
 public class Streams implements Closeable {
 
+    public static final String STREAM_WILDCARD = "*";
     //TODO LRU cache ? there's no way of getting item by stream name, need to use an indexed lsm-tree
     //LRU map that reads the last version from the index
     private final LRUCache<Long, AtomicInteger> versions;
     private final Map<Long, StreamMetadata> streamsMap = new ConcurrentHashMap<>();
     private final StreamHasher hasher;
-
-    private static final String DIRECTORY = "streams";
 
     public Streams(int versionLruCacheSize, Function<Long, Integer> versionFetcher) {
         this.versions = new LRUCache<>(versionLruCacheSize, streamHash -> new AtomicInteger(versionFetcher.apply(streamHash)));
@@ -54,6 +53,7 @@ public class Streams implements Closeable {
     public boolean create(StreamMetadata stream) {
         Objects.requireNonNull(stream);
         StringUtils.requireNonBlank(stream.name);
+        versions.set(stream.hash, new AtomicInteger(IndexEntry.NO_VERSION));
         return streamsMap.putIfAbsent(stream.hash, stream) == null;
     }
 
@@ -68,7 +68,7 @@ public class Streams implements Closeable {
             return new HashSet<>();
         }
         //wildcard
-        if(value.endsWith("*")) {
+        if(value.endsWith(STREAM_WILDCARD)) {
             final String prefix = value.substring(0, value.length() - 1);
             return streamsMap.values().stream()
                     .filter(stream -> stream.name.startsWith(prefix))

@@ -34,7 +34,7 @@ public class BlockSegmentTest {
     @Before
     public void setUp() {
         testFile = Utils.testFile();
-        segment = new DefaultBlockSegment<>(new RafStorage(testFile, Size.MEGABYTE.toBytes(10), Mode.READ_WRITE), Serializers.INTEGER, new FixedBufferDataReader(false), "abc", Type.LOG_HEAD, blockSize);
+        segment = new DefaultBlockSegment<>(new RafStorage(testFile, Size.MEGABYTE.toBytes(10), Mode.READ_WRITE), Serializers.INTEGER, new FixedBufferDataReader(4096), "abc", Type.LOG_HEAD, blockSize);
     }
 
     @After

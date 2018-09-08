@@ -62,11 +62,11 @@ public class Block<T> implements Iterable<T> {
     ByteBuffer readOnlyBuffer() {
         ByteBuffer readOnlyBuffer = buffer.asReadOnlyBuffer();
         //if not readonly, this block is being written to, flip it
-        return readOnly ? readOnlyBuffer : (ByteBuffer) readOnlyBuffer.flip();
+        return readOnly ? readOnlyBuffer : readOnlyBuffer.flip();
     }
 
     ByteBuffer pack() {
-        return (ByteBuffer) buffer.asReadOnlyBuffer().flip();
+        return buffer.asReadOnlyBuffer().flip();
     }
 
     public ByteBuffer pack(Codec codec) {
@@ -125,7 +125,7 @@ public class Block<T> implements Iterable<T> {
     }
 
     public int size() {
-        return Integer.BYTES + (Integer.BYTES * lengths.size()) + buffer.limit();
+        return buffer.limit();
     }
 
     @Override
