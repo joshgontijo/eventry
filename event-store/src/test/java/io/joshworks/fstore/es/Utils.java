@@ -65,7 +65,7 @@ public class Utils {
 
     public static File tempFolder() {
         try {
-            return File.createTempFile("eventry", null);
+            return Files.createTempDirectory("eventry").toFile();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
