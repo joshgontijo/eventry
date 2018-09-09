@@ -1,5 +1,7 @@
 package io.joshworks.fstore.es;
 
+import io.joshworks.fstore.core.properties.AppProperties;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -57,7 +59,17 @@ public class Utils {
     }
 
 
-    public static File TEST_DIR = new File("J:\\event-store\\");
+    public static File TEST_DIR = AppProperties.create().get("test.dir")
+                                    .map(File::new)
+                                    .orElse(tempFolder());
+
+    public static File tempFolder() {
+        try {
+            return File.createTempFile("eventry", null);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     public static File testFile() {
         return testFile(UUID.randomUUID().toString().substring(0, 8));
