@@ -1,24 +1,24 @@
-package io.joshworks.fstore.index.filter;
+package io.joshworks.fstore.es.index.filter;
 
 import io.joshworks.fstore.core.Serializer;
+import io.joshworks.fstore.es.hash.Murmur3;
 
 import java.nio.ByteBuffer;
 
-public interface Hash<T> {
+public interface BloomFilterHasher<T> {
 
 
     int[] hash(int maximum, int k, T val);
 
-    static <T> Hash<T> Murmur64(Serializer<T> serializer) {
+    static <T> BloomFilterHasher<T> Murmur64(Serializer<T> serializer) {
         return new Murmur64<>(serializer);
     }
 
-    class Murmur64<T> implements Hash<T> {
+    class Murmur64<T> implements BloomFilterHasher<T> {
 
-        private static final long SEED = 0x4F7DFD47E49L;
         private final Serializer<T> serializer;
 
-        public Murmur64(Serializer<T> serializer) {
+        private Murmur64(Serializer<T> serializer) {
             this.serializer = serializer;
         }
 
@@ -31,7 +31,7 @@ public interface Hash<T> {
             }
             long bitSize = m;
 //            Hashing.murmur3_128().hashObject(object, funnel).asLong();
-            long hash64 = MurmurHash3.MurmurHash3_x64_64(bb.array(), SEED);
+            long hash64 = Murmur3.hash64(bb.array());
             int hash1 = (int) hash64;
             int hash2 = (int) (hash64 >>> 32);
 

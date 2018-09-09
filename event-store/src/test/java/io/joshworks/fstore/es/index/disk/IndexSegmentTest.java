@@ -52,7 +52,7 @@ public class IndexSegmentTest {
         return new IndexSegment(
                 new RafStorage(location, size, Mode.READ_WRITE),
                 new IndexBlockSerializer(Codec.noCompression()),
-                new FixedBufferDataReader(4096),
+                new FixedBufferDataReader(4096 * 4),
                 "magic",
                 Type.LOG_HEAD,
                 indexDir,

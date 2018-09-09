@@ -57,7 +57,6 @@ public class IndexAppenderTest {
         while(iterator.hasNext()) {
             IndexEntry next = iterator.next();
             found++;
-            System.out.println(next);
             if (last != null) {
                 assertEquals(last.stream + 1, next.stream);
             }
@@ -86,7 +85,6 @@ public class IndexAppenderTest {
         while (iterator.hasNext()) {
             IndexEntry next = iterator.next();
             last = next;
-//            System.out.println(next);
             count++;
         }
 

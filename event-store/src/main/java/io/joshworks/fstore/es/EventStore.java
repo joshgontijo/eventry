@@ -37,8 +37,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static io.joshworks.fstore.es.stream.Streams.STREAM_WILDCARD;
-
 public class EventStore implements Closeable {
 
     //TODO expose
@@ -170,9 +168,8 @@ public class EventStore implements Closeable {
         return Iterators.stream(iterator);
     }
 
-    public LogIterator<EventRecord> zipStreamsIter(String streamPrefix) {
-        streamPrefix = streamPrefix.endsWith(STREAM_WILDCARD) ? streamPrefix : streamPrefix + STREAM_WILDCARD;
-        Set<String> eventStreams = streams.streamMatching(streamPrefix);
+    public LogIterator<EventRecord> zipStreamsIter(String stream) {
+        Set<String> eventStreams = streams.streamMatching(stream);
         if(eventStreams.isEmpty()) {
             return Iterators.empty();
         }

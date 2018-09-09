@@ -1,7 +1,6 @@
 package io.joshworks.fstore.es.index.filter;
 
 import io.joshworks.fstore.es.Utils;
-import io.joshworks.fstore.index.filter.Hash;
 import io.joshworks.fstore.serializer.Serializers;
 import org.junit.After;
 import org.junit.Before;
@@ -33,7 +32,7 @@ public class BloomFilterTest {
     }
 
     private BloomFilter<Long> openFilter() {
-        return BloomFilter.openOrCreate(testFolder, "segmentA", 100, 0.01, new Hash.Murmur64<>(Serializers.LONG));
+        return BloomFilter.openOrCreate(testFolder, "segmentA", 100, 0.01, BloomFilterHasher.Murmur64(Serializers.LONG));
     }
 
     @Test

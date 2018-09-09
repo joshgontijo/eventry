@@ -4,7 +4,6 @@ import io.joshworks.fstore.core.RuntimeIOException;
 import io.joshworks.fstore.core.io.Mode;
 import io.joshworks.fstore.core.io.RafStorage;
 import io.joshworks.fstore.core.io.Storage;
-import io.joshworks.fstore.index.filter.Hash;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,7 +18,7 @@ public class BloomFilter<T> {
     private final File handler;
 
     BitSet hashes;
-    private Hash<T> hash;
+    private BloomFilterHasher<T> hash;
     private final int m; // The number of bits in the filter
     private int k; // Number of hash functions
 
@@ -33,7 +32,7 @@ public class BloomFilter<T> {
      * @param p       The acceptable false positive rate
      * @param hash    The hash implementation
      */
-    private BloomFilter(File handler, long n, double p, Hash<T> hash) {
+    private BloomFilter(File handler, long n, double p, BloomFilterHasher<T> hash) {
         Objects.requireNonNull(handler, "Handler");
         Objects.requireNonNull(hash, "Hash");
 
@@ -53,7 +52,7 @@ public class BloomFilter<T> {
      * @param m       The number of bits in the 'hashes'
      * @param k       The number of hash functions
      */
-    private BloomFilter(File handler, BitSet hashes, Hash<T> hash, int m, int k) {
+    private BloomFilter(File handler, BitSet hashes, BloomFilterHasher<T> hash, int m, int k) {
         this.handler = handler;
         this.hashes = hashes;
         this.hash = hash;
@@ -61,7 +60,7 @@ public class BloomFilter<T> {
         this.k = k;
     }
 
-    public static <T> BloomFilter<T> openOrCreate(File indexDir, String segmentFileName, long n, double p, Hash<T> hash) {
+    public static <T> BloomFilter<T> openOrCreate(File indexDir, String segmentFileName, long n, double p, BloomFilterHasher<T> hash) {
         File handler = getFile(indexDir, segmentFileName);
         if (handler.exists()) {
             return load(handler, hash);
@@ -187,7 +186,7 @@ public class BloomFilter<T> {
         }
     }
 
-    private static <T> BloomFilter<T> load(File handler, Hash<T> hash) {
+    private static <T> BloomFilter<T> load(File handler, BloomFilterHasher<T> hash) {
         try (Storage storage = new RafStorage(handler, handler.length(), Mode.READ_WRITE)) {
             ByteBuffer header = ByteBuffer.allocate(HEADER_SIZE);
             storage.read(0, header);

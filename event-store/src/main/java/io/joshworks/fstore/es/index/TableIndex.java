@@ -55,6 +55,7 @@ public class TableIndex implements Index {
                 .builder(new File(rootDirectory, INDEX_DIR), new IndexEntrySerializer())
                 .compactionStrategy(new IndexCompactor())
                 .maxSegmentsPerLevel(2)
+                .maxRecordSize(4096 * 4)
                 .segmentSize(flushThreshold * IndexEntry.BYTES)
                 .namingStrategy(new IndexAppender.IndexNaming()), flushThreshold, codec);
 

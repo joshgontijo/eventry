@@ -8,9 +8,9 @@ import io.joshworks.fstore.es.index.Index;
 import io.joshworks.fstore.es.index.IndexEntry;
 import io.joshworks.fstore.es.index.Range;
 import io.joshworks.fstore.es.index.filter.BloomFilter;
+import io.joshworks.fstore.es.index.filter.BloomFilterHasher;
 import io.joshworks.fstore.es.index.midpoint.Midpoint;
 import io.joshworks.fstore.es.index.midpoint.Midpoints;
-import io.joshworks.fstore.index.filter.Hash;
 import io.joshworks.fstore.log.Direction;
 import io.joshworks.fstore.log.Iterators;
 import io.joshworks.fstore.log.LogIterator;
@@ -45,7 +45,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, IndexBlock> implement
         super(storage, new IndexEntrySerializer(), serializer, MAX_BLOCK_SIZE, reader, magic, type);
         this.directory = directory;
         this.midpoints = new Midpoints(directory, name());
-        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, new Hash.Murmur64<>(Serializers.LONG));
+        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.Murmur64(Serializers.LONG));
     }
 
     @Override
@@ -84,7 +84,7 @@ public class IndexSegment extends BlockSegment<IndexEntry, IndexBlock> implement
     }
 
     void newBloomFilter(long numElements) {
-        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, new Hash.Murmur64<>(Serializers.LONG));
+        this.filter = BloomFilter.openOrCreate(directory, name(), numElements, FALSE_POSITIVE_PROB, BloomFilterHasher.Murmur64(Serializers.LONG));
     }
 
     private boolean mightHaveEntries(Range range) {

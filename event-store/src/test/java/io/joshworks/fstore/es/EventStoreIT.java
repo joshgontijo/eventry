@@ -337,7 +337,6 @@ public class EventStoreIT {
         int eventCounter = 0;
         while (eventStream.hasNext()) {
             EventRecord event = eventStream.next();
-            System.out.println(event.version);
             assertTrue(event.version >= numVersions - maxCount);
             eventCounter++;
         }
@@ -476,7 +475,7 @@ public class EventStoreIT {
             store.append(EventRecord.create("someOtherStream", String.valueOf("type"), "data-" + version));
         }
 
-        Iterator<EventRecord> eventStream = store.zipStreamsIter(streamPrefix);
+        Iterator<EventRecord> eventStream = store.zipStreamsIter(streamPrefix + "*");
 
         assertTrue(eventStream.hasNext());
 

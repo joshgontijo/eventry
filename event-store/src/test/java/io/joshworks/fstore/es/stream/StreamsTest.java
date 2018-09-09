@@ -33,15 +33,6 @@ public class StreamsTest {
     }
 
     @Test
-    public void get_returns_correct_stream_after_reopening() {
-        streams.create(new StreamMetadata("a", 1, 0));
-        streams.close();
-
-        streams = new Streams(10, streamHash -> -1);
-        assertTrue(streams.get(1).isPresent());
-    }
-
-    @Test
     public void streamsStartingWith() {
 
         streams.create(new StreamMetadata("abc-123", 1, 0));
@@ -49,7 +40,7 @@ public class StreamsTest {
         streams.create(new StreamMetadata("another1", 3, 0));
         streams.create(new StreamMetadata("another2", 4, 0));
 
-        Set<String> names = streams.streamMatching("abc-");
+        Set<String> names = streams.streamMatching("abc-*");
 
         assertEquals(2, names.size());
         assertTrue(names.contains("abc-123"));
