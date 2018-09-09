@@ -34,19 +34,19 @@ import static org.junit.Assert.fail;
 
 public abstract class SegmentTest {
 
-    private Log<String> segment;
+    private Segment<String> segment;
     private File testFile;
 
     private long FILE_SIZE = 10485760; //10mb
 
     abstract Storage getStorage(File file, long size);
 
-    private Log<String> create(File theFile) {
+    private Segment<String> create(File theFile) {
         Storage storage = getStorage(theFile, FILE_SIZE);
         return new Segment<>(storage, new StringSerializer(), new FixedBufferDataReader(4096), "magic", Type.LOG_HEAD);
     }
 
-    private Log<String> open(File theFile) {
+    private Segment<String> open(File theFile) {
         Storage storage = getStorage(theFile, FILE_SIZE);
         return new Segment<>(storage, new StringSerializer(), new FixedBufferDataReader(4096), "magic");
     }
@@ -83,7 +83,7 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void writePosition_reopen() throws IOException {
+    public void writePosition_reopen() {
         String data = "hello";
         segment.append(data);
 
@@ -107,7 +107,7 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void reader_reopen() throws IOException {
+    public void reader_reopen() {
         String data = "hello";
         segment.append(data);
 
@@ -160,7 +160,7 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void get() throws IOException {
+    public void get() {
         List<Long> positions = new ArrayList<>();
 
         int items = 10;
@@ -323,7 +323,7 @@ public abstract class SegmentTest {
         }
     }
 
-    private void testScanner(int items) throws IOException {
+    private void testScanner(int items) {
         List<String> values = new ArrayList<>();
         for (int i = 0; i < items; i++) {
             String value = UUID.randomUUID().toString();
@@ -343,7 +343,7 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void size() throws IOException {
+    public void size() {
         segment.append("a");
         segment.append("b");
 
@@ -444,7 +444,7 @@ public abstract class SegmentTest {
     }
 
     @Test
-    public void poll_returns_null_when_segment_is_closed() throws InterruptedException, IOException {
+    public void poll_returns_null_when_segment_is_closed() throws InterruptedException {
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<String> captured = new AtomicReference<>("NON-NULL");
