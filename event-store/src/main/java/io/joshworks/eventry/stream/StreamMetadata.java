@@ -11,6 +11,9 @@ public class StreamMetadata {
 
     public final long maxAge;
     public final int maxCount;
+
+    public final int state;
+
     final Map<String, Integer> permissions;
     final Map<String, String> metadata;
 
@@ -42,6 +45,8 @@ public class StreamMetadata {
         return permissions.getOrDefault(id, PERMISSION_NONE).equals(PERMISSION_WRITE);
     }
 
+    public boolean
+
     public String metadata(String key) {
         return metadata.get(key);
     }
@@ -55,6 +60,10 @@ public class StreamMetadata {
     public static final int PERMISSION_NONE = 0;
     public static final int PERMISSION_READ = 1;
     public static final int PERMISSION_WRITE = 2;
+
+    public static final int STATUS_ACTIVE = 0;
+    public static final int STATUS_LOCKED = 1;
+    public static final int STATUS_DELETED = 2;
 
 }
 
