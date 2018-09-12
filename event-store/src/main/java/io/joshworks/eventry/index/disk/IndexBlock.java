@@ -30,7 +30,7 @@ public class IndexBlock extends Block<IndexEntry> {
             throw new IllegalStateException("Block is read only");
         }
         cached.add(data);
-        return size() >= maxSize;
+        return cached.size() * IndexEntry.BYTES >= maxSize;
     }
 
     @Override
@@ -39,7 +39,7 @@ public class IndexBlock extends Block<IndexEntry> {
             return ByteBuffer.allocate(0);
         }
         int maxVersionSizeOverhead = entryCount() * Integer.BYTES;
-        var buffer = ByteBuffer.allocate(size() + maxVersionSizeOverhead);
+        var packed = ByteBuffer.allocate(buffer.position() + maxVersionSizeOverhead);
 
         IndexEntry last = null;
         List<Integer> versions = new ArrayList<>();
@@ -49,7 +49,7 @@ public class IndexBlock extends Block<IndexEntry> {
                 last = indexEntry;
             }
             if (last.stream != indexEntry.stream) {
-                writeToBuffer(buffer, last.stream, versions, positions);
+                writeToBuffer(packed, last.stream, versions, positions);
                 versions = new ArrayList<>();
                 positions = new ArrayList<>();
             }
@@ -59,11 +59,11 @@ public class IndexBlock extends Block<IndexEntry> {
             last = indexEntry;
         }
         if(last != null && !versions.isEmpty()) {
-            writeToBuffer(buffer, last.stream, versions, positions);
+            writeToBuffer(packed, last.stream, versions, positions);
         }
 
-        buffer.flip();
-        return codec.compress(buffer);
+        packed.flip();
+        return codec.compress(packed);
     }
 
     private void writeToBuffer(ByteBuffer buffer, long stream, List<Integer> versions, List<Long> positions) {
@@ -118,11 +118,6 @@ public class IndexBlock extends Block<IndexEntry> {
     @Override
     public IndexEntry get(int pos) {
         return cached.get(pos);
-    }
-
-    @Override
-    public int size() {
-        return IndexEntry.BYTES * entryCount();
     }
 
     @Override
